@@ -21,6 +21,7 @@ const model = {
   onOpen() {
     console.log("[Superordinates] onOpen");
     this.fetchMap();
+    this.fetchAllChatsAndMerge();
     this._refreshInterval = setInterval(() => this.fetchMap(), 5000);
     this._tryPatch();
     this._startObserver();
@@ -43,7 +44,6 @@ const model = {
     this._patched = false;
   },
 
-  // Try to monkey-patch applyContexts, with retry
   _tryPatch() {
     if (this._patched) return;
     if (chatsStore && typeof chatsStore.applyContexts === "function") {
@@ -175,6 +175,11 @@ const model = {
       if (!ball) return;
 
       if (isParent) {
+        // Rotate 90 degrees counter-clockwise when collapsed (pointing right)
+        // No rotation when expanded (pointing down)
+        ball.style.transform = isExpanded ? "rotate(0deg)" : "rotate(-90deg)";
+        ball.style.transition = "transform 0.15s ease";
+
         if (!ball.classList.contains("sup-tree-toggle")) {
           ball.classList.add("sup-tree-toggle");
         }
@@ -199,7 +204,8 @@ const model = {
           ball.style.color = "var(--color-border)";
         }
 
-        ball.textContent = isExpanded ? "\u25BC" : "\u25B6";
+        // Always use down-pointing triangle ▼
+        ball.textContent = "\u25BC";
 
         if (!ball._supToggleBound) {
           ball._supToggleBound = true;
@@ -223,6 +229,8 @@ const model = {
           ball.style.color = "";
           ball.style.width = "";
           ball.style.height = "";
+          ball.style.transform = "";
+          ball.style.transition = "";
           ball._supToggleBound = false;
 
           if (ctx.project?.color) {
@@ -243,6 +251,35 @@ const model = {
 
     if (decorated > 0) {
       console.log(`[Superordinates] Decorated ${decorated} parent nodes`);
+    }
+  },
+
+  // --- Fetch and merge all chats from disk ---
+
+  async fetchAllChatsAndMerge() {
+    try {
+      const response = await callJsonApi(
+        "plugins/a0_superordinates/all_chats",
+        {}
+      );
+      if (response && response.chats) {
+        console.log("[Superordinates] All chats from disk:", response.chats.length);
+        
+        // Merge into chatsStore.contexts (avoid duplicates)
+        if (chatsStore.contexts && chatsStore.contexts.length) {
+          const existingIds = new Set(chatsStore.contexts.map(c => c.id));
+          const newChats = response.chats.filter(c => !existingIds.has(c.id));
+          
+          if (newChats.length > 0) {
+            console.log("[Superordinates] Merging", newChats.length, "new chats from disk");
+            chatsStore.contexts = [...chatsStore.contexts, ...newChats];
+            // Reorder to show tree structure immediately
+            this._reorderContexts();
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[Superordinates] Error fetching all chats:", e);
     }
   },
 
