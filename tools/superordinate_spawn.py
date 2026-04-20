@@ -80,6 +80,8 @@ class SuperordinateSpawn(Tool):
         new_context.data["sup_parent"] = self.agent.context.id
         new_context.data["sup_profile"] = profile
 
+        # Lock the chat name to prevent chat_rename plugin from overriding it
+        new_context.data["chat_rename_manual_lock"] = True
         # Store hierarchy metadata on parent
         from usr.plugins.a0_superordinates.helpers.hierarchy import add_child
         add_child(self.agent.context.id, new_ctxid, profile, name)
