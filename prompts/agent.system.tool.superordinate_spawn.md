@@ -1,7 +1,7 @@
 ### superordinate_spawn
 create a new persistent superordinate agent with its own visible chat context.
 args: `name`, `profile`, `message`
-- `name`: display name for the superordinate chat
+- `name`: unique display name for the superordinate chat (required - must be unique, spawning fails if name already exists)
 - `profile`: agent profile name (developer, researcher, hacker, or custom)
 - `message`: initial task message to send to the superordinate
 the superordinate runs independently in its own chat context.

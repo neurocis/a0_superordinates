@@ -33,13 +33,14 @@ class SuperordinateAwareness(Extension):
         children = context.data.get("sup_children", [])
         if children:
             sub_list = "\n".join(
-                "- {} (profile: {}, id: {})".format(c["name"], c["profile"], c["ctxid"])
+                "- '{}' (profile: {})".format(c["name"], c["profile"])
                 for c in children
             )
             parts.append(
                 "## Persistent Superordinates\n"
                 "You have {} persistent superordinate(s):\n{}\n"
-                "Use `superordinate_message` to communicate with them and `superordinate_list` to check their status.".format(
+                "Use `superordinate_message` with the `name` arg to communicate with them by name. "
+                "Use `superordinate_list` to check their status.".format(
                     len(children), sub_list
                 )
             )

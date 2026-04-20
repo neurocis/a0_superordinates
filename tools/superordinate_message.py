@@ -8,7 +8,25 @@ class SuperordinateMessage(Tool):
 
     async def execute(self, **kwargs):
         superordinate_id = kwargs.get("superordinate_id", "")
+        name = kwargs.get("name", "")
         message = kwargs.get("message", "")
+
+        # Resolve name to ctxid if name provided
+        if name and not superordinate_id:
+            from usr.plugins.a0_superordinates.helpers.name_registry import lookup_by_name
+            resolved = lookup_by_name(name)
+            if not resolved:
+                return Response(
+                    message="No SuperOrdinate found with name '{}'. Use superordinate_list to see available names.".format(name),
+                    break_loop=False,
+                )
+            superordinate_id = resolved
+
+        if not superordinate_id:
+            return Response(
+                message="Provide either 'superordinate_id' or 'name' to identify the superordinate.",
+                break_loop=False,
+            )
 
         # Get superordinate context
         sub_context = AgentContext.get(superordinate_id)

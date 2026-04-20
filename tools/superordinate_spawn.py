@@ -14,8 +14,23 @@ class SuperordinateSpawn(Tool):
         profile = kwargs.get("profile", "")
         message = kwargs.get("message", "")
 
+        # Check for duplicate name
+        from usr.plugins.a0_superordinates.helpers.name_registry import name_exists, register_name
+        if name_exists(name):
+            return Response(
+                message="A SuperOrdinate named '{}' already exists. Please choose a different name.".format(name),
+                break_loop=False,
+            )
+
         # Generate new context ID
         new_ctxid = guids.generate_id()
+
+        # Register name BEFORE creating context (so we don't leak if something fails)
+        if not register_name(name, new_ctxid):
+            return Response(
+                message="Failed to register name '{}'. It may have just been taken.".format(name),
+                break_loop=False,
+            )
 
         # Create config and set profile BEFORE creating context
         config = initialize_agent()
@@ -48,8 +63,8 @@ class SuperordinateSpawn(Tool):
         mark_dirty_all(reason="superordinate_spawn")
 
         return Response(
-            message="Persistent superordinate '{}' created with context ID {}. Profile: {}. The superordinate is running independently in its own chat context.".format(
-                name, new_ctxid, profile or "default"
+            message="Persistent superordinate '{}' created with context ID {}. Profile: {}. The superordinate is running independently in its own chat context. You can reference it by name: '{}'".format(
+                name, new_ctxid, profile or "default", name
             ),
             break_loop=False,
             additional={"superordinate_id": new_ctxid, "profile": profile or "default", "name": name},
