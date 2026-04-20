@@ -1,0 +1,130 @@
+<html>
+<head>
+  <script type="module" src="/plugins/a0_superordinates/webui/superordinate-store.js"></script>
+</head>
+<body>
+  <div x-data>
+    <template x-if="$store.superordinates">
+      <div x-init="$store.superordinates.onOpen()" x-destroy="$store.superordinates.cleanup()">
+        <template x-if="$store.superordinates.hierarchy && $store.superordinates.hasChildren($store.superordinates.hierarchy)">
+          <div class="superordinate-hierarchy-section">
+            <div class="section-header-row">
+              <h3 class="section-header">Superordinates</h3>
+              <button class="btn-icon-action chat-list-action-btn"
+                @click="$store.superordinates.refresh()"
+                title="Refresh hierarchy"
+                aria-label="Refresh hierarchy">
+                <span class="material-symbols-outlined">refresh</span>
+              </button>
+            </div>
+            <ul class="config-list superordinate-tree no-scrollbar">
+              <template x-for="child in $store.superordinates.hierarchy.children" :key="child.ctxid">
+                <li>
+                  <div class="chat-container superordinate-chat" @click="$store.chats.selectChat(child.ctxid)">
+                    <div class="chat-list-button">
+                      <span class="material-symbols-outlined superordinate-icon" style="font-size:14px">smart_toy</span>
+                      <span class="chat-name" x-text="child.name"></span>
+                      <span class="superordinate-profile-badge" x-text="child.profile"></span>
+                    </div>
+                    <template x-if="child.children && child.children.length > 0">
+                      <span class="material-symbols-outlined superordinate-expand"
+                        @click.stop="$store.superordinates.toggleNode(child.ctxid)"
+                        x-text="$store.superordinates.isExpanded(child.ctxid) ? 'expand_less' : 'expand_more'"
+                        style="font-size:16px; opacity:0.6">
+                      </span>
+                    </template>
+                  </div>
+                  <template x-if="child.children && child.children.length > 0 && $store.superordinates.isExpanded(child.ctxid)">
+                    <ul class="superordinate-children">
+                      <template x-for="grandchild in child.children" :key="grandchild.ctxid">
+                        <li>
+                          <div class="chat-container superordinate-chat superordinate-child" @click="$store.chats.selectChat(grandchild.ctxid)">
+                            <div class="chat-list-button">
+                              <span class="material-symbols-outlined superordinate-icon" style="font-size:12px">smart_toy</span>
+                              <span class="chat-name" x-text="grandchild.name"></span>
+                              <span class="superordinate-profile-badge" x-text="grandchild.profile"></span>
+                            </div>
+                          </div>
+                        </li>
+                      </template>
+                    </ul>
+                  </template>
+                </li>
+              </template>
+            </ul>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+</body>
+</html>
+
+<style>
+  .superordinate-hierarchy-section {
+    margin-top: var(--spacing-md);
+  }
+
+  .superordinate-hierarchy-section .section-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    flex-shrink: 0;
+    margin-bottom: var(--spacing-xs);
+    z-index: 10;
+  }
+
+  .superordinate-hierarchy-section .section-header {
+    margin: 0;
+    font-size: var(--font-size-small);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-secondary);
+  }
+
+  .superordinate-chat {
+    padding-left: 4px;
+  }
+
+  .superordinate-child {
+    padding-left: 20px;
+  }
+
+  .superordinate-icon {
+    color: var(--color-secondary);
+  }
+
+  .superordinate-profile-badge {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background-color: var(--color-border);
+    color: var(--color-secondary);
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .superordinate-tree {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .superordinate-children {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .superordinate-expand {
+    cursor: pointer;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+
+  .superordinate-expand:hover {
+    opacity: 1 !important;
+  }
+</style>
