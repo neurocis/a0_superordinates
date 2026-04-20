@@ -1,3 +1,18 @@
 <html>
 <head>
-  <script type=
+  <script type="module" src="/plugins/a0_superordinates/webui/superordinate-store.js"></script>
+</head>
+<body>
+  <div x-data>
+    <template x-if="$store.superordinates">
+      <div class="superordinate-sidebar-anchor"></div>
+    </template>
+  </div>
+</body>
+</html>
+
+<style>
+  .superordinate-sidebar-anchor {
+    display: none;
+  }
+</style>

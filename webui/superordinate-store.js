@@ -3,34 +3,31 @@ import { callJsonApi } from "/js/api.js";
 import { store as chatsStore } from "/components/sidebar/chats/chats-store.js";
 
 const model = {
-  hierarchyMap: {},       // {ctxid: {parent: str|null, children: [ctxid]}}
-  expandedNodes: {},     // {ctxid: bool}
+  hierarchyMap: {},
+  expandedNodes: {},
   _refreshInterval: null,
   _observer: null,
   _patched: false,
   _origApplyContexts: null,
   _syncScheduled: false,
-  _mounted: false,
-  _depthMap: {},         // {ctxid: depth} computed during tree flattening
-  _parentSet: new Set(), // set of ctxids that have children
-  _lastContextsRef: null, // track last contexts array reference
+  _depthMap: {},
+  _parentSet: new Set(),
 
   init() {
+    console.log("[Superordinates] Store init");
     this.fetchMap();
   },
 
   onOpen() {
+    console.log("[Superordinates] onOpen");
     this.fetchMap();
     this._refreshInterval = setInterval(() => this.fetchMap(), 5000);
-
-    if (!this._patched) {
-      this._patchApplyContexts();
-    }
-
+    this._tryPatch();
     this._startObserver();
   },
 
   cleanup() {
+    console.log("[Superordinates] cleanup");
     if (this._refreshInterval) {
       clearInterval(this._refreshInterval);
       this._refreshInterval = null;
@@ -39,44 +36,46 @@ const model = {
       this._observer.disconnect();
       this._observer = null;
     }
-    // Restore original applyContexts
     if (this._origApplyContexts && chatsStore) {
       chatsStore.applyContexts = this._origApplyContexts;
       this._origApplyContexts = null;
     }
     this._patched = false;
-    this._mounted = false;
   },
 
-  // --- Monkey-patch applyContexts to build tree-ordered list ---
-
-  _patchApplyContexts() {
-    if (this._patched || !chatsStore || !chatsStore.applyContexts) return;
-    this._origApplyContexts = chatsStore.applyContexts.bind(chatsStore);
-    const self = this;
-
-    chatsStore.applyContexts = function (contextsList) {
-      // Call original to get sorted contexts
-      self._origApplyContexts(contextsList);
-
-      // Reorder into tree order
-      self._reorderContexts();
-    };
-
-    this._patched = true;
+  // Try to monkey-patch applyContexts, with retry
+  _tryPatch() {
+    if (this._patched) return;
+    if (chatsStore && typeof chatsStore.applyContexts === "function") {
+      this._origApplyContexts = chatsStore.applyContexts.bind(chatsStore);
+      const self = this;
+      chatsStore.applyContexts = function (contextsList) {
+        self._origApplyContexts(contextsList);
+        self._reorderContexts();
+      };
+      this._patched = true;
+      console.log("[Superordinates] Patched applyContexts");
+      // Reorder immediately if contexts already exist
+      if (chatsStore.contexts && chatsStore.contexts.length) {
+        this._reorderContexts();
+      }
+    } else {
+      console.warn("[Superordinates] chatsStore.applyContexts not ready, retrying in 500ms");
+      setTimeout(() => this._tryPatch(), 500);
+    }
   },
 
   _reorderContexts() {
     const contexts = chatsStore.contexts;
     if (!contexts || !contexts.length) return;
+    if (!Object.keys(this.hierarchyMap).length) return; // No hierarchy data yet
 
-    // Build lookup
     const byId = {};
     for (const ctx of contexts) {
       byId[ctx.id] = ctx;
     }
 
-    // Find root nodes (no parent, or parent not in contexts)
+    // Find root nodes
     const roots = [];
     for (const ctx of contexts) {
       const parent = this.getParent(ctx.id);
@@ -101,12 +100,9 @@ const model = {
         depthMap[node.id] = depth;
         result.push(node);
 
-        // Only include children if parent is expanded
         if (hasKids && this.isExpanded(node.id)) {
           const childIds = this.getChildren(node.id);
-          const childNodes = childIds
-            .map(cid => byId[cid])
-            .filter(Boolean);
+          const childNodes = childIds.map(cid => byId[cid]).filter(Boolean);
           childNodes.sort((a, b) => {
             const aIdx = childIds.indexOf(a.id);
             const bIdx = childIds.indexOf(b.id);
@@ -122,33 +118,25 @@ const model = {
 
     flatten(roots, 0);
 
-    // Store depth/parent info for DOM enhancer
     this._depthMap = depthMap;
     this._parentSet = parentSet;
 
-    // Only update if the order actually changed
+    // Update contexts if order changed
     const newIds = result.map(c => c.id);
     const oldIds = contexts.map(c => c.id);
     const changed = newIds.length !== oldIds.length || newIds.some((id, i) => id !== oldIds[i]);
 
     if (changed) {
       chatsStore.contexts = result;
-
-      // Keep selectedContext in sync
       if (chatsStore.selected) {
         const updated = result.find(ctx => ctx.id === chatsStore.selected);
         if (updated) chatsStore.selectedContext = updated;
       }
-
-      // Schedule DOM sync after Alpine renders
-      this._scheduleSync();
-    } else {
-      // Even if order didn't change, sync DOM for indicators
-      this._scheduleSync();
     }
-  },
 
-  // --- DOM enhancer: add triangle/dot indicators and indentation ---
+    // Always sync DOM after reorder
+    this._scheduleSync();
+  },
 
   _startObserver() {
     if (this._observer) return;
@@ -157,6 +145,7 @@ const model = {
       childList: true,
       subtree: true,
     });
+    console.log("[Superordinates] Observer started");
   },
 
   _scheduleSync() {
@@ -175,6 +164,9 @@ const model = {
     const rows = Array.from(list.querySelectorAll(".chat-container"));
     const contexts = Array.isArray(chatsStore.contexts) ? chatsStore.contexts : [];
 
+    if (!rows.length || !contexts.length) return;
+
+    let decorated = 0;
     rows.forEach((row, index) => {
       const ctx = contexts[index];
       if (!ctx) return;
@@ -186,7 +178,6 @@ const model = {
       const isParent = this._parentSet.has(ctx.id);
       const isExpanded = this.isExpanded(ctx.id);
 
-      // Find the dot/ball element
       const ball = row.querySelector(".project-color-ball");
       if (!ball) return;
 
@@ -194,7 +185,6 @@ const model = {
         // Replace ball with triangle
         if (!ball.classList.contains("sup-tree-toggle")) {
           ball.classList.add("sup-tree-toggle");
-          ball.textContent = "";
         }
         ball.setAttribute("data-expanded", isExpanded ? "true" : "false");
         ball.style.cursor = "pointer";
@@ -207,7 +197,6 @@ const model = {
         ball.style.width = "0.6em";
         ball.style.height = "0.6em";
 
-        // Set color from project or use border fallback
         if (ctx.project?.color) {
           ball.style.backgroundColor = "";
           ball.style.border = "";
@@ -218,14 +207,8 @@ const model = {
           ball.style.color = "var(--color-border)";
         }
 
-        // Update text content for triangle direction
-        if (isExpanded) {
-          ball.textContent = "▼";
-        } else {
-          ball.textContent = "▶";
-        }
+        ball.textContent = isExpanded ? "\u25BC" : "\u25B6";
 
-        // Add click handler (only once)
         if (!ball._supToggleBound) {
           ball._supToggleBound = true;
           ball.addEventListener("click", (e) => {
@@ -233,8 +216,9 @@ const model = {
             this.toggleExpand(ctx.id);
           });
         }
+        decorated++;
       } else {
-        // Ensure it's a regular dot (restore if was a toggle)
+        // Restore dot
         if (ball.classList.contains("sup-tree-toggle")) {
           ball.classList.remove("sup-tree-toggle");
           ball.textContent = "";
@@ -250,7 +234,6 @@ const model = {
           ball.style.height = "";
           ball._supToggleBound = false;
 
-          // Restore project color styling
           if (ctx.project?.color) {
             ball.style.backgroundColor = ctx.project.color;
             ball.style.border = "";
@@ -267,6 +250,10 @@ const model = {
         li.style.paddingLeft = (depth * 16) + "px";
       }
     });
+
+    if (decorated > 0) {
+      console.log(`[Superordinates] Decorated ${decorated} parent nodes`);
+    }
   },
 
   // --- Hierarchy API ---
@@ -281,8 +268,8 @@ const model = {
         const oldMap = this.hierarchyMap;
         this.hierarchyMap = response.map;
 
-        // If map changed, reorder contexts
         if (JSON.stringify(oldMap) !== JSON.stringify(this.hierarchyMap)) {
+          console.log("[Superordinates] Map updated:", this.hierarchyMap);
           if (chatsStore.contexts && chatsStore.contexts.length) {
             this._reorderContexts();
           }
@@ -311,7 +298,6 @@ const model = {
 
   toggleExpand(ctxid) {
     this.expandedNodes = { ...this.expandedNodes, [ctxid]: !this.isExpanded(ctxid) };
-    // Reorder contexts to show/hide children
     this._reorderContexts();
   },
 

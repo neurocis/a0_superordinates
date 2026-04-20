@@ -1,3 +1,30 @@
 <html>
 <head>
-  <script type=
+  <script type="module" src="/plugins/a0_superordinates/webui/superordinate-store.js"></script>
+</head>
+<body>
+  <div x-data>
+    <template x-if="$store.superordinates">
+      <div x-init="$store.superordinates.onOpen()" x-destroy="$store.superordinates.cleanup()"></div>
+    </template>
+  </div>
+</body>
+</html>
+
+<style>
+  /* Triangle toggle indicator for parent nodes */
+  .project-color-ball.sup-tree-toggle {
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .project-color-ball.sup-tree-toggle:hover {
+    opacity: 0.7;
+    transform: scale(1.3);
+  }
+
+  /* Indentation for child nodes */
+  .chats-config-list li {
+    transition: padding-left 0.15s ease;
+  }
+</style>
