@@ -55,7 +55,6 @@ const model = {
       };
       this._patched = true;
       console.log("[Superordinates] Patched applyContexts");
-      // Reorder immediately if contexts already exist
       if (chatsStore.contexts && chatsStore.contexts.length) {
         this._reorderContexts();
       }
@@ -68,14 +67,13 @@ const model = {
   _reorderContexts() {
     const contexts = chatsStore.contexts;
     if (!contexts || !contexts.length) return;
-    if (!Object.keys(this.hierarchyMap).length) return; // No hierarchy data yet
+    if (!Object.keys(this.hierarchyMap).length) return;
 
     const byId = {};
     for (const ctx of contexts) {
       byId[ctx.id] = ctx;
     }
 
-    // Find root nodes
     const roots = [];
     for (const ctx of contexts) {
       const parent = this.getParent(ctx.id);
@@ -84,11 +82,9 @@ const model = {
       }
     }
 
-    // Sort roots by original order
     const rootOrder = contexts.map(c => c.id);
     roots.sort((a, b) => rootOrder.indexOf(a.id) - rootOrder.indexOf(b.id));
 
-    // Flatten tree - only show children of expanded nodes
     const result = [];
     const depthMap = {};
     const parentSet = new Set();
@@ -121,7 +117,6 @@ const model = {
     this._depthMap = depthMap;
     this._parentSet = parentSet;
 
-    // Update contexts if order changed
     const newIds = result.map(c => c.id);
     const oldIds = contexts.map(c => c.id);
     const changed = newIds.length !== oldIds.length || newIds.some((id, i) => id !== oldIds[i]);
@@ -134,7 +129,6 @@ const model = {
       }
     }
 
-    // Always sync DOM after reorder
     this._scheduleSync();
   },
 
@@ -171,7 +165,6 @@ const model = {
       const ctx = contexts[index];
       if (!ctx) return;
 
-      // Set data-chat-id for marklet compatibility
       row.setAttribute("data-chat-id", ctx.id);
 
       const depth = this._depthMap[ctx.id] || 0;
@@ -182,7 +175,6 @@ const model = {
       if (!ball) return;
 
       if (isParent) {
-        // Replace ball with triangle
         if (!ball.classList.contains("sup-tree-toggle")) {
           ball.classList.add("sup-tree-toggle");
         }
@@ -218,7 +210,6 @@ const model = {
         }
         decorated++;
       } else {
-        // Restore dot
         if (ball.classList.contains("sup-tree-toggle")) {
           ball.classList.remove("sup-tree-toggle");
           ball.textContent = "";
@@ -244,7 +235,6 @@ const model = {
         }
       }
 
-      // Apply indentation
       const li = row.closest("li");
       if (li) {
         li.style.paddingLeft = (depth * 16) + "px";
@@ -270,6 +260,13 @@ const model = {
 
         if (JSON.stringify(oldMap) !== JSON.stringify(this.hierarchyMap)) {
           console.log("[Superordinates] Map updated:", this.hierarchyMap);
+          
+          // New hierarchy detected — trigger state poll to show new chats in sidebar
+          if (typeof globalThis.poll === "function") {
+            console.log("[Superordinates] Triggering state poll for new subordinates...");
+            globalThis.poll();
+          }
+          
           if (chatsStore.contexts && chatsStore.contexts.length) {
             this._reorderContexts();
           }
