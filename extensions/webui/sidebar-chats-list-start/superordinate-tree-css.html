@@ -1,20 +1,3 @@
 <html>
 <head>
-  <script type="module" src="/plugins/a0_superordinates/webui/superordinate-store.js"></script>
-</head>
-<body>
-  <div x-data>
-    <template x-if="$store.superordinates">
-      <div x-init="$store.superordinates.onOpen()" x-destroy="$store.superordinates.cleanup()"></div>
-    </template>
-  </div>
-</body>
-</html>
-
-<style>
-  /* Hide the original flat chats list - our tree rendering replaces it */
-  /* Use :not(.superordinate-tree) to avoid hiding our replacement tree */
-  .chats-list-container > ul.chats-config-list:not(.superordinate-tree) {
-    display: none !important;
-  }
-</style>
+  <script type=
