@@ -6,6 +6,9 @@
   <div x-data>
     <template x-if="$store.superordinates && $store.chats">
       <div>
+        <div class="config-list-header">
+          <h3>Superordinates</h3>
+        </div>
         <ul class="config-list chats-config-list superordinate-tree no-scrollbar" x-show="$store.chats.contexts.length > 0">
           <template x-for="node in $store.superordinates.getFlatTree($store.chats.contexts)" :key="node.id">
             <li :style="{ paddingLeft: (node._depth * 16) + 'px' }" class="tree-item">
