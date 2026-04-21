@@ -1,44 +1,39 @@
 <html>
 <head>
-  <script type="module">
-    import { store } from "/plugins/a0_superordinates/webui/superordinate-store.js";
-  </script>
+  <script type="module" src="/plugins/a0_superordinates/webui/superordinate-store.js"></script>
 </head>
 <body>
   <div x-data>
-    <template x-if="$store.superordinateStore">
-      <div x-init="$store.superordinateStore.onOpen()" x-destroy="$store.superordinateStore.cleanup()">
-        <div x-show="$store.superordinateStore.isOpen" x-cloak>
-          <div class="sidebar-header">
-            <h3>SuperOrdinate Hierarchy</h3>
-          </div>
-          <div class="sidebar-content" x-ref="content">
-            <template x-for="(node, index) in $store.superordinateStore.flatTree" :key="index">
-              <div 
-                :class="{
-                  'superordinate-node': true,
-                  'is-expanded': node.expanded,
-                  'has-children': node.children.length > 0
-                }"
-                @click.stop="$store.superordinateStore.toggleExpand(node.ctxid)"
-                :style="{ paddingLeft: (node.depth * 16) + 'px' }"
-              >
-                <span 
-                  class="tree-toggle-indicator"
-                  :class="{ rotated: node.expanded && node.children.length > 0 }"
-                ></span>
-                <span class="node-label">
-                  <template x-if="node.name">
-                    {{ node.name }} (<span class="node-profile">{{ node.profile }}</span>)
+    <template x-if="$store.superordinates && $store.chats">
+      <div>
+        <ul class="config-list chats-config-list superordinate-tree no-scrollbar" x-show="$store.chats.contexts.length > 0">
+          <template x-for="node in $store.superordinates.getFlatTree($store.chats.contexts)" :key="node.id">
+            <li :style="{ paddingLeft: (node._depth * 16) + 'px' }" class="tree-item">
+              <div :class="{'chat-container': true, 'chat-selected': node.id === $store.chats.selected}"
+                @click="$store.chats.selectChat(node.id)">
+                <div class="chat-list-button">
+                  <!-- Triangle indicator for nodes with children -->
+                  <template x-if="node._hasChildren">
+                    <span class="tree-toggle-indicator"
+                      :style="node.project?.color ? { color: node.project.color } : { color: 'var(--color-border)' }"
+                      @click.stop="$store.superordinates.toggleExpand(node.id, $event)"
+                      x-text="node._isExpanded ? '▼' : '▶'"></span>
                   </template>
-                  <template x-else>
-                    Unknown
+                  <!-- Dot indicator for leaf nodes (same as original) -->
+                  <template x-if="!node._hasChildren">
+                    <span :class="{'project-color-ball': true, 'heartbeat': node.running}"
+                      :style="node.project?.color ? { backgroundColor: node.project.color } : { border: '1px solid var(--color-border)' }"></span>
                   </template>
-                </span>
+                  <span class="chat-name"
+                    x-text="node.name ? node.name : 'Chat #' + node.no"></span>
+                </div>
+                <button class="btn-icon-action chat-list-action-btn" title="Close chat" @click.stop="$confirmClick($event, () => $store.chats.killChat(node.id))">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
               </div>
-            </template>
-          </div>
-        </div>
+            </li>
+          </template>
+        </ul>
       </div>
     </template>
   </div>
@@ -46,52 +41,40 @@
 </html>
 
 <style>
-  .superordinate-node {
-    display: flex;
-    align-items: center;
-    padding: 4px 0;
-    cursor: pointer;
-    user-select: none;
-  }
-  .superordinate-node:hover {
-    background-color: rgba(0,0,0,0.05);
-  }
-  .tree-toggle-indicator {
-    width: 12px;
-    height: 12px;
-    border-left: 2px solid #666;
-    border-bottom: 2px solid #666;
-    margin-right: 8px;
-    transition: transform 0.15s ease;
-  }
-  .tree-toggle-indicator.rotated {
-    transform: rotate(45deg);
-  }
-  .node-label {
+  /* Tree-specific styles */
+  .superordinate-tree {
     flex: 1;
-    font-size: 14px;
+    min-height: 0;
+    overflow: scroll;
+    scroll-behavior: smooth;
+    max-height: 100%;
   }
-  .node-profile {
-    font-size: 12px;
+
+  /* Indentation is applied via inline paddingLeft on <li> */
+  .tree-item {
+    /* Remove default list padding so indentation is precise */
+  }
+
+  .tree-toggle-indicator {
+    cursor: pointer;
+    flex-shrink: 0;
+    width: 0.6em;
+    height: 0.6em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    font-size: 0.85em;
+    line-height: 1;
+  }
+
+  .tree-toggle-indicator:hover {
     opacity: 0.7;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    transform: scale(1.3);
   }
-  .has-children {
-    font-weight: 500;
-  }
-  .sidebar-header {
-    padding: 8px 12px;
-    border-bottom: 1px solid #eee;
-  }
-  .sidebar-header h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-  }
-  .sidebar-content {
-    max-height: calc(100vh - 200px);
-    overflow-y: auto;
-    padding: 4px 0;
+
+  /* Ensure chat-list-button gap accounts for indicator */
+  .superordinate-tree .chat-list-button {
+    gap: 0.5em;
   }
 </style>
