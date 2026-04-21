@@ -151,6 +151,15 @@ const model = {
     });
   },
 
+  /**
+   * _syncDom: Decorates DOM rows with hierarchy indicators (expand/collapse,
+   * indentation). Uses data-chat-id attribute matching instead of array index
+   * to prevent mismatches when the DOM order doesn't match contexts order.
+   *
+   * Fix B: Matches rows by data-chat-id attribute set during previous syncs.
+   * Falls back to index-based matching only on first render when no
+   * data-chat-id attributes exist yet.
+   */
   _syncDom() {
     const list = document.querySelector(".chats-config-list:not(.project-sidebar-list)");
     if (!list) return;
@@ -160,11 +169,29 @@ const model = {
 
     if (!rows.length || !contexts.length) return;
 
+    // Build lookup map: context id -> context object
+    const ctxById = {};
+    for (const ctx of contexts) {
+      ctxById[ctx.id] = ctx;
+    }
+
     let decorated = 0;
     rows.forEach((row, index) => {
-      const ctx = contexts[index];
+      // Fix B: Match row to context by data-chat-id attribute first,
+      // falling back to index only when attribute is not yet set.
+      let ctx = null;
+      const existingChatId = row.getAttribute("data-chat-id");
+      if (existingChatId && ctxById[existingChatId]) {
+        // Attribute exists from a previous sync — use it for stable matching
+        ctx = ctxById[existingChatId];
+      } else {
+        // First render or attribute not set yet — fall back to index
+        ctx = contexts[index] || null;
+      }
+
       if (!ctx) return;
 
+      // Always set/update data-chat-id to keep it current
       row.setAttribute("data-chat-id", ctx.id);
 
       const depth = this._depthMap[ctx.id] || 0;
@@ -298,7 +325,12 @@ const model = {
         if (JSON.stringify(oldMap) !== JSON.stringify(this.hierarchyMap)) {
           console.log("[Superordinates] Map updated:", this.hierarchyMap);
           
-          // New hierarchy detected — trigger state poll to show new chats in sidebar
+          // Fix C: When hierarchy changes, fetch all chats from disk so
+          // newly spawned subordinates appear in the sidebar immediately
+          // without waiting for the next full state poll.
+          this.fetchAllChatsAndMerge();
+
+          // Also trigger state poll for any other listeners
           if (typeof globalThis.poll === "function") {
             console.log("[Superordinates] Triggering state poll for new subordinates...");
             globalThis.poll();
