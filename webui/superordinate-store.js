@@ -1,3 +1,20 @@
+/**
+ * Superordinate hierarchy store for Agent Zero sidebar.
+ *
+ * Manages the visual tree hierarchy of parent/child agent contexts
+ * in the sidebar chat list.
+ *
+ * Architecture:
+ * - Fetches hierarchy map from backend API (superordinate_map)
+ * - Reorders chatsStore.contexts to flatten the tree
+ * - Decorates DOM rows with indentation and expand/collapse toggles
+ *
+ * IMPORTANT: DOM decoration (_syncDom) must run AFTER Alpine.js has
+ * finished re-rendering the x-for list. We use double-requestAnimationFrame
+ * to ensure this. The MutationObserver was removed because it fired
+ * _syncDom during Alpine's mid-render, causing decorations to be applied
+ * to wrong rows.
+ */
 import { createStore } from "/js/AlpineStore.js";
 import { callJsonApi } from "/js/api.js";
 import { store as chatsStore } from "/components/sidebar/chats/chats-store.js";
@@ -6,12 +23,12 @@ const model = {
   hierarchyMap: {},
   expandedNodes: {},
   _refreshInterval: null,
-  _observer: null,
   _patched: false,
   _origApplyContexts: null,
   _syncScheduled: false,
   _depthMap: {},
   _parentSet: new Set(),
+  _reorderInProgress: false,
 
   init() {
     console.log("[Superordinates] Store init");
@@ -22,9 +39,9 @@ const model = {
     console.log("[Superordinates] onOpen");
     this.fetchMap();
     this.fetchAllChatsAndMerge();
-    this._refreshInterval = setInterval(() => this.fetchMap(), 5000);
+    // Poll every 3 seconds for hierarchy changes
+    this._refreshInterval = setInterval(() => this.fetchMap(), 3000);
     this._tryPatch();
-    this._startObserver();
   },
 
   cleanup() {
@@ -33,10 +50,6 @@ const model = {
       clearInterval(this._refreshInterval);
       this._refreshInterval = null;
     }
-    if (this._observer) {
-      this._observer.disconnect();
-      this._observer = null;
-    }
     if (this._origApplyContexts && chatsStore) {
       chatsStore.applyContexts = this._origApplyContexts;
       this._origApplyContexts = null;
@@ -44,6 +57,10 @@ const model = {
     this._patched = false;
   },
 
+  /**
+   * Patch chatsStore.applyContexts to trigger tree reorder
+   * after the framework updates the contexts list.
+   */
   _tryPatch() {
     if (this._patched) return;
     if (chatsStore && typeof chatsStore.applyContexts === "function") {
@@ -64,101 +81,142 @@ const model = {
     }
   },
 
-  _reorderContexts() {
-    const contexts = chatsStore.contexts;
-    if (!contexts || !contexts.length) return;
-    if (!Object.keys(this.hierarchyMap).length) return;
-
-    const byId = {};
-    for (const ctx of contexts) {
-      byId[ctx.id] = ctx;
-    }
-
-    const roots = [];
-    for (const ctx of contexts) {
-      const parent = this.getParent(ctx.id);
-      if (!parent || !byId[parent]) {
-        roots.push(ctx);
+  /**
+   * Auto-expand any parent nodes that haven't been explicitly toggled.
+   * New parents default to expanded so children are visible.
+   */
+  _autoExpandNewParents() {
+    let changed = false;
+    for (const ctxid of Object.keys(this.hierarchyMap)) {
+      if (this.hasChildren(ctxid) && !(ctxid in this.expandedNodes)) {
+        this.expandedNodes[ctxid] = true;
+        changed = true;
       }
     }
+    if (changed) {
+      // Trigger Alpine reactivity
+      this.expandedNodes = { ...this.expandedNodes };
+    }
+  },
 
-    const rootOrder = contexts.map(c => c.id);
-    roots.sort((a, b) => rootOrder.indexOf(a.id) - rootOrder.indexOf(b.id));
+  /**
+   * Reorder chatsStore.contexts to reflect the hierarchy tree.
+   *
+   * Roots (contexts with no parent) appear in their original order.
+   * Children of expanded parents appear immediately after their parent,
+   * indented by depth level. Children of collapsed parents are excluded
+   * from the visible list (tree collapse behavior).
+   */
+  _reorderContexts() {
+    if (this._reorderInProgress) return;
+    this._reorderInProgress = true;
 
-    const result = [];
-    const depthMap = {};
-    const parentSet = new Set();
+    try {
+      const contexts = chatsStore.contexts;
+      if (!contexts || !contexts.length) return;
+      if (!Object.keys(this.hierarchyMap).length) return;
 
-    const flatten = (nodes, depth) => {
-      for (const node of nodes) {
-        const hasKids = this.hasChildren(node.id);
-        if (hasKids) parentSet.add(node.id);
-        depthMap[node.id] = depth;
-        result.push(node);
+      // Auto-expand new parents before reordering
+      this._autoExpandNewParents();
 
-        if (hasKids && this.isExpanded(node.id)) {
-          const childIds = this.getChildren(node.id);
-          const childNodes = childIds.map(cid => byId[cid]).filter(Boolean);
-          childNodes.sort((a, b) => {
-            const aIdx = childIds.indexOf(a.id);
-            const bIdx = childIds.indexOf(b.id);
-            if (aIdx === -1 && bIdx === -1) return 0;
-            if (aIdx === -1) return 1;
-            if (bIdx === -1) return -1;
-            return aIdx - bIdx;
-          });
-          flatten(childNodes, depth + 1);
+      const byId = {};
+      for (const ctx of contexts) {
+        byId[ctx.id] = ctx;
+      }
+
+      // Roots: contexts with no parent, or whose parent isn't in current list
+      const roots = [];
+      for (const ctx of contexts) {
+        const parent = this.getParent(ctx.id);
+        if (!parent || !byId[parent]) {
+          roots.push(ctx);
         }
       }
-    };
 
-    flatten(roots, 0);
+      // Preserve original order for root nodes
+      const rootOrder = contexts.map(c => c.id);
+      roots.sort((a, b) => rootOrder.indexOf(a.id) - rootOrder.indexOf(b.id));
 
-    this._depthMap = depthMap;
-    this._parentSet = parentSet;
+      const result = [];
+      const depthMap = {};
+      const parentSet = new Set();
 
-    const newIds = result.map(c => c.id);
-    const oldIds = contexts.map(c => c.id);
-    const changed = newIds.length !== oldIds.length || newIds.some((id, i) => id !== oldIds[i]);
+      const flatten = (nodes, depth) => {
+        for (const node of nodes) {
+          const hasKids = this.hasChildren(node.id);
+          if (hasKids) parentSet.add(node.id);
+          depthMap[node.id] = depth;
+          result.push(node);
 
-    if (changed) {
-      chatsStore.contexts = result;
-      if (chatsStore.selected) {
-        const updated = result.find(ctx => ctx.id === chatsStore.selected);
-        if (updated) chatsStore.selectedContext = updated;
+          if (hasKids && this.isExpanded(node.id)) {
+            const childIds = this.getChildren(node.id);
+            const childNodes = childIds.map(cid => byId[cid]).filter(Boolean);
+            childNodes.sort((a, b) => {
+              const aIdx = childIds.indexOf(a.id);
+              const bIdx = childIds.indexOf(b.id);
+              if (aIdx === -1 && bIdx === -1) return 0;
+              if (aIdx === -1) return 1;
+              if (bIdx === -1) return -1;
+              return aIdx - bIdx;
+            });
+            flatten(childNodes, depth + 1);
+          }
+        }
+      };
+
+      flatten(roots, 0);
+
+      this._depthMap = depthMap;
+      this._parentSet = parentSet;
+
+      // Only update if order actually changed
+      const newIds = result.map(c => c.id);
+      const oldIds = contexts.map(c => c.id);
+      const changed = newIds.length !== oldIds.length || newIds.some((id, i) => id !== oldIds[i]);
+
+      if (changed) {
+        chatsStore.contexts = result;
+        if (chatsStore.selected) {
+          const updated = result.find(ctx => ctx.id === chatsStore.selected);
+          if (updated) chatsStore.selectedContext = updated;
+        }
       }
+
+      // Schedule DOM decoration AFTER Alpine re-renders
+      this._scheduleSync();
+    } finally {
+      this._reorderInProgress = false;
     }
-
-    this._scheduleSync();
   },
 
-  _startObserver() {
-    if (this._observer) return;
-    this._observer = new MutationObserver(() => this._scheduleSync());
-    this._observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
-    console.log("[Superordinates] Observer started");
-  },
-
+  /**
+   * Schedule _syncDom using double-requestAnimationFrame.
+   *
+   * When chatsStore.contexts changes, Alpine's x-for re-renders the DOM.
+   * A single RAF might fire before Alpine finishes. Double-RAF ensures
+   * Alpine has completed its DOM reconciliation before we decorate.
+   */
   _scheduleSync() {
     if (this._syncScheduled) return;
     this._syncScheduled = true;
-    globalThis.requestAnimationFrame(() => {
-      this._syncScheduled = false;
-      this._syncDom();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this._syncScheduled = false;
+        this._syncDom();
+      });
     });
   },
 
   /**
-   * _syncDom: Decorates DOM rows with hierarchy indicators (expand/collapse,
-   * indentation). Uses data-chat-id attribute matching instead of array index
-   * to prevent mismatches when the DOM order doesn't match contexts order.
+   * Decorate DOM rows with hierarchy visual indicators.
    *
-   * Fix B: Matches rows by data-chat-id attribute set during previous syncs.
-   * Falls back to index-based matching only on first render when no
-   * data-chat-id attributes exist yet.
+   * Uses strict index-based matching: after Alpine re-renders the x-for
+   * list with :key="context.id", DOM row at index N corresponds exactly
+   * to chatsStore.contexts[N]. This is reliable because _scheduleSync
+   * waits for Alpine to finish rendering.
+   *
+   * DO NOT use cached data-chat-id attributes for matching — they can
+   * become stale when Alpine moves elements during re-render.
    */
   _syncDom() {
     const list = document.querySelector(".chats-config-list:not(.project-sidebar-list)");
@@ -169,29 +227,13 @@ const model = {
 
     if (!rows.length || !contexts.length) return;
 
-    // Build lookup map: context id -> context object
-    const ctxById = {};
-    for (const ctx of contexts) {
-      ctxById[ctx.id] = ctx;
-    }
-
     let decorated = 0;
     rows.forEach((row, index) => {
-      // Fix B: Match row to context by data-chat-id attribute first,
-      // falling back to index only when attribute is not yet set.
-      let ctx = null;
-      const existingChatId = row.getAttribute("data-chat-id");
-      if (existingChatId && ctxById[existingChatId]) {
-        // Attribute exists from a previous sync — use it for stable matching
-        ctx = ctxById[existingChatId];
-      } else {
-        // First render or attribute not set yet — fall back to index
-        ctx = contexts[index] || null;
-      }
-
+      // Strict index-based matching — reliable after Alpine render
+      const ctx = contexts[index];
       if (!ctx) return;
 
-      // Always set/update data-chat-id to keep it current
+      // Set data-chat-id for debugging/inspection only (NOT used for matching)
       row.setAttribute("data-chat-id", ctx.id);
 
       const depth = this._depthMap[ctx.id] || 0;
@@ -202,8 +244,7 @@ const model = {
       if (!ball) return;
 
       if (isParent) {
-        // Rotate 90 degrees counter-clockwise when collapsed (pointing right)
-        // No rotation when expanded (pointing down)
+        // Triangle indicator: rotated when collapsed, normal when expanded
         ball.style.transform = isExpanded ? "rotate(0deg)" : "rotate(-90deg)";
         ball.style.transition = "transform 0.15s ease";
 
@@ -231,9 +272,12 @@ const model = {
           ball.style.color = "var(--color-border)";
         }
 
-        // Always use down-pointing triangle ▼
+        // Down-pointing triangle (▼)
         ball.textContent = "\u25BC";
 
+        // Bind toggle click — use ctx.id captured in closure.
+        // Since Alpine moves elements with :key, the ball element
+        // stays associated with its original context.
         if (!ball._supToggleBound) {
           ball._supToggleBound = true;
           ball.addEventListener("click", (e) => {
@@ -243,6 +287,7 @@ const model = {
         }
         decorated++;
       } else {
+        // Reset non-parent balls to default appearance
         if (ball.classList.contains("sup-tree-toggle")) {
           ball.classList.remove("sup-tree-toggle");
           ball.textContent = "";
@@ -270,6 +315,7 @@ const model = {
         }
       }
 
+      // Apply indentation based on tree depth
       const li = row.closest("li");
       if (li) {
         li.style.paddingLeft = (depth * 16) + "px";
@@ -291,16 +337,16 @@ const model = {
       );
       if (response && response.chats) {
         console.log("[Superordinates] All chats from disk:", response.chats.length);
-        
+
         // Merge into chatsStore.contexts (avoid duplicates)
         if (chatsStore.contexts && chatsStore.contexts.length) {
           const existingIds = new Set(chatsStore.contexts.map(c => c.id));
           const newChats = response.chats.filter(c => !existingIds.has(c.id));
-          
+
           if (newChats.length > 0) {
             console.log("[Superordinates] Merging", newChats.length, "new chats from disk");
             chatsStore.contexts = [...chatsStore.contexts, ...newChats];
-            // Reorder to show tree structure immediately
+            // Reorder immediately to place new chats in correct tree positions
             this._reorderContexts();
           }
         }
@@ -324,18 +370,17 @@ const model = {
 
         if (JSON.stringify(oldMap) !== JSON.stringify(this.hierarchyMap)) {
           console.log("[Superordinates] Map updated:", this.hierarchyMap);
-          
-          // Fix C: When hierarchy changes, fetch all chats from disk so
-          // newly spawned subordinates appear in the sidebar immediately
-          // without waiting for the next full state poll.
-          this.fetchAllChatsAndMerge();
 
-          // Also trigger state poll for any other listeners
+          // Fetch all chats from disk and merge BEFORE reordering,
+          // so newly spawned subordinates are in the contexts list
+          await this.fetchAllChatsAndMerge();
+
+          // Also trigger state poll for other listeners
           if (typeof globalThis.poll === "function") {
             console.log("[Superordinates] Triggering state poll for new subordinates...");
             globalThis.poll();
           }
-          
+
           if (chatsStore.contexts && chatsStore.contexts.length) {
             this._reorderContexts();
           }
