@@ -3,7 +3,7 @@
   <script type="module" src="/plugins/a0_superordinates/webui/superordinate-store.js"></script>
 </head>
 <body>
-  <div x-data>
+  <div x-data x-move-after="#chats-section">
     <template x-if="$store.superordinates && $store.chats">
       <div>
         <div class="config-list-header">
