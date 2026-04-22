@@ -1,0 +1,91 @@
+<html>
+<head>
+  <script type="module" src="/plugins/a0_superordinates/webui/chats-toggle-store.js"></script>
+  <style>
+    /* Hide chats section when toggle is active */
+    body.chats-hidden #chats-section {
+      display: none !important;
+    }
+    
+    /* Layout: Superordinates top, Tasks pushed to bottom */
+    body.chats-hidden .left-panel-top {
+      display: flex !important;
+      flex-direction: column !important;
+      flex-grow: 1 !important;
+      justify-content: flex-start !important;
+    }
+    
+    /* Push Tasks section to bottom when Chats hidden */
+    body.chats-hidden #tasks-section {
+      margin-top: auto !important;
+    }
+    
+    /* Toggle button styling */
+    .chats-toggle-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: var(--color-bg-3);
+      border: 1px solid var(--color-border-1);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: var(--color-text-2);
+    }
+    
+    .chats-toggle-btn:hover {
+      background: var(--color-bg-4);
+      border-color: var(--color-border-2);
+      color: var(--color-text-1);
+    }
+    
+    .chats-toggle-btn.active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: white;
+    }
+    
+    .chats-toggle-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div x-data x-init="
+    $nextTick(() => {
+      const btn = $el.querySelector('.chats-toggle-btn');
+      if (btn) {
+        btn.style.gridColumn = '5';
+        btn.style.gridRow = '1';
+        btn.style.justifySelf = 'end';
+      }
+    });
+  ">
+    <template x-if="$store.chatsToggle">
+      <button
+        class="chats-toggle-btn"
+        :class="{ 'active': $store.chatsToggle.hidden }"
+        @click="$store.chatsToggle.toggle()"
+        :title="$store.chatsToggle.hidden ? 'Show Chats' : 'Hide Chats'"
+      >
+        <!-- Eye icon (show) when chats are hidden -->
+        <template x-if="$store.chatsToggle.hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        </template>
+        <!-- Eye-slash icon (hide) when chats are visible -->
+        <template x-if="!$store.chatsToggle.hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+          </svg>
+        </template>
+      </button>
+    </template>
+  </div>
+</body>
+</html>
