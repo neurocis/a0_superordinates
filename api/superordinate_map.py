@@ -60,23 +60,48 @@ class SuperordinateMap(ApiHandler):
                 except (json.JSONDecodeError, OSError, KeyError):
                     continue
 
-        # Phase 2: Build hierarchy map using sup_parent as sole authority.
-        # Instead of trusting sup_children arrays (which can be stale),
-        # we derive children by scanning ALL contexts' sup_parent values.
+        # Phase 2: Build hierarchy map using sup_parent as sole authority
+        # for WHICH items are children, but sup_children from the parent
+        # to determine the ORDER of those children.
         parent_of: dict[str, str | None] = {}  # ctxid -> parent ctxid
-        children_of: dict[str, list[str]] = {}  # ctxid -> [child ctxids]
+        children_set: dict[str, set[str]] = {}  # ctxid -> set of child ctxids (from sup_parent)
 
         # First pass: extract every context's declared parent
         for ctxid, ctx_data in all_ctx_data.items():
             parent = ctx_data.get("sup_parent") or None
             if parent is not None:
                 parent_of[ctxid] = parent
+                if parent not in children_set:
+                    children_set[parent] = set()
+                children_set[parent].add(ctxid)
 
-        # Second pass: build children lists from parent declarations
-        for child_id, par_id in parent_of.items():
-            if par_id not in children_of:
-                children_of[par_id] = []
-            children_of[par_id].append(child_id)
+        # Second pass: build ORDERED children lists using sup_children from parent
+        children_of: dict[str, list[str]] = {}  # ctxid -> ordered [child ctxids]
+        for par_id, child_ids in children_set.items():
+            # Get the parent's sup_children array for ordering
+            par_data = all_ctx_data.get(par_id, {})
+            sup_children = par_data.get("sup_children", [])
+            # Extract ordered ctxids from sup_children entries
+            ordered = []
+            for entry in sup_children:
+                cid = entry.get("ctxid") if isinstance(entry, dict) else None
+                if cid and cid in child_ids:
+                    ordered.append(cid)
+            # Append any children found via sup_parent but not in sup_children
+            for cid in child_ids:
+                if cid not in ordered:
+                    ordered.append(cid)
+            children_of[par_id] = ordered
+
+        # Phase 2b: Root-level ordering from _sup_root_order.json
+        root_order_file = os.path.join(chats_dir, "_sup_root_order.json")
+        root_order: list[str] = []
+        if os.path.isfile(root_order_file):
+            try:
+                with open(root_order_file, "r") as f:
+                    root_order = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                root_order = []
 
         # Phase 3: Assemble the final hierarchy map.
         # Include any context that is either a parent or a child.
@@ -105,4 +130,4 @@ class SuperordinateMap(ApiHandler):
         from usr.plugins.a0_superordinates.helpers.name_registry import get_all_names
         names = get_all_names()
 
-        return {"map": hierarchy_map, "names": names}
+        return {"map": hierarchy_map, "names": names, "root_order": root_order}

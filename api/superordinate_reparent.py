@@ -4,16 +4,38 @@ Accepts:
     child_id:      context ID being moved
     new_parent_id: target parent context ID (null/empty = make root)
     position:      integer index within new parent's children list
+                   (also used for root-level ordering via _sup_root_order.json)
 
 Performs cycle detection, updates sup_parent/sup_children on all
-affected contexts, and persists to disk.
+affected contexts, persists to disk, and maintains root-level ordering.
 """
 
-
+import json
+import os
 
 from agent import AgentContext
 from helpers.api import ApiHandler, Request, Response
 from helpers.persist_chat import save_tmp_chat
+
+ROOT_ORDER_FILE = "/a0/usr/chats/_sup_root_order.json"
+
+
+def _load_root_order() -> list[str]:
+    """Load root-level ordering from disk."""
+    if os.path.isfile(ROOT_ORDER_FILE):
+        try:
+            with open(ROOT_ORDER_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return []
+
+
+def _save_root_order(order: list[str]) -> None:
+    """Persist root-level ordering to disk."""
+    os.makedirs(os.path.dirname(ROOT_ORDER_FILE), exist_ok=True)
+    with open(ROOT_ORDER_FILE, "w") as f:
+        json.dump(order, f)
 
 
 class SuperordinateReparent(ApiHandler):
@@ -59,6 +81,8 @@ class SuperordinateReparent(ApiHandler):
 
         # --- Detach from old parent ---
         old_parent_id = child_ctx.data.get("sup_parent") or None
+        was_root = not old_parent_id
+
         if old_parent_id:
             old_parent_ctx = AgentContext.get(old_parent_id)
             if not old_parent_ctx:
@@ -69,6 +93,12 @@ class SuperordinateReparent(ApiHandler):
                     c for c in old_children if c.get("ctxid") != child_id
                 ]
                 save_tmp_chat(old_parent_ctx)
+
+        # --- Remove from root order if it was a root item ---
+        if was_root:
+            root_order = _load_root_order()
+            root_order = [r for r in root_order if r != child_id]
+            _save_root_order(root_order)
 
         # --- Attach to new parent ---
         if new_parent_id and new_parent_ctx:
@@ -90,8 +120,17 @@ class SuperordinateReparent(ApiHandler):
             new_parent_ctx.data["sup_children"] = new_children
             save_tmp_chat(new_parent_ctx)
         else:
-            # Moving to root - clear parent
+            # Moving to root - clear parent and update root order
             child_ctx.data.pop("sup_parent", None)
+            root_order = _load_root_order()
+            # Remove if already present (defensive)
+            root_order = [r for r in root_order if r != child_id]
+            # Insert at position
+            if position < 0 or position >= len(root_order):
+                root_order.append(child_id)
+            else:
+                root_order.insert(position, child_id)
+            _save_root_order(root_order)
 
         save_tmp_chat(child_ctx)
 

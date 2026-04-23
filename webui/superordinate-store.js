@@ -3,6 +3,7 @@ import { callJsonApi } from "/js/api.js";
 
 const model = {
   hierarchyMap: {},       // {ctxid: {parent: str|null, children: [ctxid]}}
+  rootOrder: [],          // [ctxid] - ordered list of root-level context IDs
   expandedNodes: {},     // {ctxid: bool}
   _refreshInterval: null,
 
@@ -74,6 +75,9 @@ const model = {
       if (response && response.map) {
         this.hierarchyMap = response.map;
       }
+      if (response && response.root_order) {
+        this.rootOrder = response.root_order;
+      }
     } catch (e) {
       console.error("[Superordinates] Error fetching map:", e);
     }
@@ -137,10 +141,19 @@ const model = {
       }
     }
     
-    // Sort roots same order as original contexts (already sorted by created_at)
-    const rootOrder = contexts.map(c => c.id);
-    roots.sort((a, b) => rootOrder.indexOf(a.id) - rootOrder.indexOf(b.id));
-    
+    // Sort roots using rootOrder from backend, falling back to original order
+    const savedRootOrder = this.rootOrder || [];
+    roots.sort((a, b) => {
+      const aIdx = savedRootOrder.indexOf(a.id);
+      const bIdx = savedRootOrder.indexOf(b.id);
+      // Items in rootOrder come first, in their saved order
+      if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx;
+      if (aIdx >= 0) return -1;  // a is in order, b is not
+      if (bIdx >= 0) return 1;   // b is in order, a is not
+      // Neither in rootOrder - use original contexts order
+      const origOrder = contexts.map(c => c.id);
+      return origOrder.indexOf(a.id) - origOrder.indexOf(b.id);
+    });
     // Flatten tree recursively
     const result = [];
     const flatten = (nodes, depth) => {
@@ -331,10 +344,24 @@ const model = {
     this._clearDragVisuals();
   },
 
-  /** Get root-level context IDs from flat tree */
+  /** Get root-level context IDs in their saved order */
   _getRootIds(flatTree) {
     if (!flatTree) return [];
-    return flatTree.filter(n => n._depth === 0).map(n => n.id);
+    // Use saved rootOrder for position calculations; fall back to flatTree order
+    const savedOrder = this.rootOrder || [];
+    const rootIds = flatTree.filter(n => n._depth === 0).map(n => n.id);
+    if (savedOrder.length > 0) {
+      // Return rootIds sorted by savedOrder, with unsaved items appended
+      const ordered = [];
+      for (const id of savedOrder) {
+        if (rootIds.includes(id)) ordered.push(id);
+      }
+      for (const id of rootIds) {
+        if (!ordered.includes(id)) ordered.push(id);
+      }
+      return ordered;
+    }
+    return rootIds;
   },
 
   /** Clear all drag visual state */
