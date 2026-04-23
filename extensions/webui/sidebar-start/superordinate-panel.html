@@ -61,7 +61,7 @@
                 <!-- Status indicators (independent of Chat Status Marklet) -->
                 <span class="sup-running-dot" x-show="node.running" title="Process running"></span>
                 <span class="sup-unseen-dot" x-show="!node.running && node._isUnseen" title="Process finished (unseen)"></span>
-                <button class="btn-icon-action chat-list-action-btn" title="Close chat" @click.stop="$confirmClick($event, () => $store.chats.killChat(node.id))">
+                <button class="btn-icon-action chat-list-action-btn" title="Close chat" @click.stop="$confirmClick($event, () => $store.superordinates.closeChat(node.id))">
                   <span class="material-symbols-outlined">close</span>
                 </button>
               </div>

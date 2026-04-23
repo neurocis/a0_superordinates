@@ -512,6 +512,133 @@ const model = {
   },
 
 
+  // ── Close Chat (soft-close → 'Closed Chats' folder) ────────────
+
+  /**
+   * Find a context by name from the chats store.
+   * Returns the context object or null.
+   */
+  _findContextByName(name) {
+    const chatsStore = Alpine.store('chats');
+    if (!chatsStore?.contexts) return null;
+    const lower = name.toLowerCase();
+    return chatsStore.contexts.find(c => (c.name || '').toLowerCase() === lower) || null;
+  },
+
+  /**
+   * Check if a context is anywhere under a 'Closed Chats' ancestor.
+   * Walks up the parent chain using hierarchyMap.
+   */
+  _isUnderClosedChats(ctxid) {
+    let current = ctxid;
+    const visited = new Set();
+    while (current) {
+      const parentId = this.getParent(current);
+      if (!parentId || visited.has(parentId)) break;
+      visited.add(parentId);
+      // Look up the parent's name
+      const parentCtx = this._findContextByName_byId(parentId);
+      if (parentCtx && (parentCtx.name || '').toLowerCase() === 'closed chats') {
+        return true;
+      }
+      current = parentId;
+    }
+    return false;
+  },
+
+  /**
+   * Find a context by ID from the chats store.
+   */
+  _findContextByName_byId(id) {
+    const chatsStore = Alpine.store('chats');
+    if (!chatsStore?.contexts) return null;
+    return chatsStore.contexts.find(c => c.id === id) || null;
+  },
+
+  /**
+   * Get or create the 'Closed Chats' root node.
+   * Returns the context ID of the 'Closed Chats' node.
+   */
+  async _getOrCreateClosedChats() {
+    // Check if 'Closed Chats' already exists
+    const existing = this._findContextByName('Closed Chats');
+    if (existing) return existing.id;
+
+    // Create a new chat for 'Closed Chats'
+    const chatsStore = Alpine.store('chats');
+    if (!chatsStore) return null;
+
+    const beforeId = chatsStore.selected;
+    await chatsStore.newChat();
+    const newId = chatsStore.selected;
+
+    if (!newId || newId === beforeId) return null;
+
+    // Rename it to 'Closed Chats'
+    try {
+      await callJsonApi('plugins/a0_superordinates/superordinate_rename', {
+        ctxid: newId,
+        new_name: 'Closed Chats',
+      });
+    } catch (e) {
+      console.error('[Superordinates] Failed to rename Closed Chats node:', e);
+    }
+
+    // Reparent to the bottom of root
+    await this.reparent(newId, null, -1);
+
+    // Re-select the previous chat if we had one
+    if (beforeId) {
+      await chatsStore.selectChat(beforeId);
+    }
+
+    return newId;
+  },
+
+  /**
+   * Close chat handler for Superordinates.
+   * If the chat is under 'Closed Chats', actually kill it.
+   * Otherwise, move it under 'Closed Chats'.
+   */
+  async closeChat(ctxid) {
+    if (this._isUnderClosedChats(ctxid)) {
+      // Already under 'Closed Chats' → actually kill it
+      const chatsStore = Alpine.store('chats');
+      if (chatsStore) {
+        await chatsStore.killChat(ctxid);
+      }
+      return;
+    }
+
+    // Check if this IS the 'Closed Chats' node itself
+    const ctx = this._findContextByName_byId(ctxid);
+    if (ctx && (ctx.name || '').toLowerCase() === 'closed chats') {
+      // Don't close the Closed Chats folder itself - actually kill it if requested
+      const chatsStore = Alpine.store('chats');
+      if (chatsStore) {
+        await chatsStore.killChat(ctxid);
+      }
+      return;
+    }
+
+    // Move to 'Closed Chats'
+    const closedChatsId = await this._getOrCreateClosedChats();
+    if (!closedChatsId) {
+      console.error('[Superordinates] Could not get/create Closed Chats node');
+      return;
+    }
+
+    // Reparent the chat under 'Closed Chats'
+    await this.reparent(ctxid, closedChatsId, -1);
+
+    // Auto-expand 'Closed Chats' so user sees where it went
+    if (!this.isExpanded(closedChatsId)) {
+      this.expandedNodes = { ...this.expandedNodes, [closedChatsId]: true };
+      this._persistExpanded();
+    }
+  },
+
+
   // ── Drag-and-drop ──────────────────────────────────────────────
 
   /**
