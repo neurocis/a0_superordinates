@@ -232,13 +232,13 @@ const model = {
     event.stopPropagation();
     const childId = this.dragChildId;
     const mode = this.dragDropMode;
-    console.log('[Superordinates] drop:', { childId, targetId: ctxid, mode });
+    console.log('[Superordinates] drop event fired:', { ctxid, childId, mode, dragOverTarget: this.dragOverTarget, dragDropMode: this.dragDropMode });
 
     // Clear visual state immediately
     this._clearDragVisuals();
 
     if (!childId || childId === ctxid || !mode) {
-      console.log('[Superordinates] drop aborted:', { childId, ctxid, mode });
+      console.log('[Superordinates] drop aborted - missing data:', { childId, ctxid, mode });
       return;
     }
 
@@ -267,8 +267,15 @@ const model = {
       }
     }
 
-    console.log('[Superordinates] reparent params:', { childId, newParentId, position });
-    await this.reparent(childId, newParentId, position);
+    console.log('[Superordinates] computed reparent params:', { childId, newParentId, position, mode, targetParent });
+    
+    // Call reparent with explicit error handling
+    try {
+      await this.reparent(childId, newParentId, position);
+      console.log('[Superordinates] reparent call completed');
+    } catch (e) {
+      console.error('[Superordinates] reparent threw exception:', e);
+    }
   },
 
   /** End drag (cleanup) */
