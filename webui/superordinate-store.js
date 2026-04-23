@@ -488,35 +488,46 @@ const model = {
   /**
    * Create a new chat and pin it to the top of the Superordinates tree.
    * Assigns a short realistic name and locks it against auto-rename.
+   * Uses the superordinate_create API to set the name server-side
+   * BEFORE any UI refresh, so "Chat #XX" never flashes.
    */
   async newChat() {
     const chatsStore = Alpine.store('chats');
     if (!chatsStore) return;
 
-    // Pre-pick the name so we can apply it instantly
+    // Pre-pick the name
     const name = this._pickUnusedName();
 
-    const beforeId = chatsStore.selected;
-    await chatsStore.newChat();
-    const newId = chatsStore.selected;
-    if (newId && newId !== beforeId) {
-      // Optimistically set the name in local contexts immediately
-      // so the UI never flashes "Chat #XX"
-      const ctx = chatsStore.contexts.find(c => c.id === newId);
-      if (ctx) {
-        ctx.name = name;
-        // Trigger Alpine reactivity by replacing the array
-        chatsStore.contexts = [...chatsStore.contexts];
+    // Create the context with the name pre-set on the server
+    let newId;
+    try {
+      const res = await callJsonApi('plugins/a0_superordinates/superordinate_create', {
+        name: name,
+        position: 0,
+      });
+      if (!res || !res.ok || !res.ctxid) {
+        console.error('[Superordinates] superordinate_create failed:', res);
+        return;
       }
+      newId = res.ctxid;
+    } catch (e) {
+      console.error('[Superordinates] superordinate_create call failed:', e);
+      return;
+    }
 
-      // Persist the name server-side (non-blocking)
-      callJsonApi('plugins/a0_superordinates/superordinate_rename', {
-        ctxid: newId,
-        new_name: name,
-      }).catch(e => console.error('[Superordinates] Auto-name failed:', e));
+    // Place at position 0 in root order
+    try {
+      await callJsonApi('plugins/a0_superordinates/superordinate_reparent', {
+        child_id: newId, new_parent_id: '', position: 0,
+      });
+    } catch (e) {
+      console.error('[Superordinates] reparent to root failed:', e);
+    }
 
-      // Persist at position 0 so it stays at top after fetchMap refreshes
-      await this.reparent(newId, null, 0);
+    // Refresh hierarchy and select the new chat
+    await this.fetchMap();
+    if (chatsStore.selectChat) {
+      await chatsStore.selectChat(newId);
     }
   },
 
@@ -567,66 +578,43 @@ const model = {
   /**
    * Get or create the 'Closed Chats' root node.
    * Returns the context ID of the 'Closed Chats' node.
-   * Created with no project (default) regardless of current active project.
+   * Uses superordinate_create API so the name is set server-side immediately.
    */
   async _getOrCreateClosedChats() {
     // Check if 'Closed Chats' already exists
     const existing = this._findContextByName('Closed Chats');
-    if (existing) {
-      console.warn('[Superordinates] Found existing Closed Chats:', existing.id);
-      return existing.id;
-    }
+    if (existing) return existing.id;
 
-    console.warn('[Superordinates] Creating new Closed Chats node...');
-
-    // Create a new chat for 'Closed Chats'
-    const chatsStore = Alpine.store('chats');
-    if (!chatsStore) return null;
-
-    const beforeId = chatsStore.selected;
-    await chatsStore.newChat();
-    const newId = chatsStore.selected;
-    console.warn('[Superordinates] New chat created:', newId, 'beforeId:', beforeId);
-
-    if (!newId || newId === beforeId) {
-      console.error('[Superordinates] Failed to create new chat for Closed Chats');
+    // Create 'Closed Chats' with name pre-set on server
+    let newId;
+    try {
+      const res = await callJsonApi('plugins/a0_superordinates/superordinate_create', {
+        name: 'Closed Chats',
+      });
+      if (!res || !res.ok || !res.ctxid) {
+        console.error('[Superordinates] Failed to create Closed Chats:', res);
+        return null;
+      }
+      newId = res.ctxid;
+    } catch (e) {
+      console.error('[Superordinates] superordinate_create failed:', e);
       return null;
     }
 
-    // Deactivate any inherited project so 'Closed Chats' has no project
+    // Deactivate any inherited project
     try {
       await callJsonApi('projects', { action: 'deactivate', context_id: newId });
-      console.warn('[Superordinates] Project deactivated on Closed Chats');
     } catch (e) {
-      console.error('[Superordinates] Failed to deactivate project on Closed Chats:', e);
+      // ignore — context may have no project
     }
 
-    // Rename it to 'Closed Chats'
+    // Place at the bottom of root
     try {
-      await callJsonApi('plugins/a0_superordinates/superordinate_rename', {
-        ctxid: newId,
-        new_name: 'Closed Chats',
+      await callJsonApi('plugins/a0_superordinates/superordinate_reparent', {
+        child_id: newId, new_parent_id: '', position: -1,
       });
-      console.warn('[Superordinates] Renamed to Closed Chats');
-    } catch (e) {
-      console.error('[Superordinates] Failed to rename Closed Chats node:', e);
-    }
-
-    // Place at the bottom of root (use direct API call to avoid extra fetchMap)
-    try {
-      const res = await callJsonApi('plugins/a0_superordinates/superordinate_reparent', {
-        child_id: newId,
-        new_parent_id: '',
-        position: -1,
-      });
-      console.warn('[Superordinates] Closed Chats reparented to root:', res);
     } catch (e) {
       console.error('[Superordinates] Failed to reparent Closed Chats:', e);
-    }
-
-    // Re-select the previous chat if we changed selection
-    if (beforeId && chatsStore.selected !== beforeId) {
-      await chatsStore.selectChat(beforeId);
     }
 
     // Refresh hierarchy to include new node
