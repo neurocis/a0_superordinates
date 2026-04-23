@@ -299,10 +299,17 @@ const model = {
         ? this.getChildren(newParentId)
         : this._getRootIds(flatTree);
       const targetIdx = siblings.indexOf(ctxid);
+      const childCurrentIdx = siblings.indexOf(childId);
       if (mode === 'before') {
         position = Math.max(0, targetIdx);
       } else {
         position = targetIdx + 1;
+      }
+      // When reordering within the same parent, the backend removes the child
+      // first (shifting indices down), then inserts at the given position.
+      // If the child was before the target, adjust position down by 1.
+      if (childCurrentIdx >= 0 && childCurrentIdx < position) {
+        position -= 1;
       }
     }
 
