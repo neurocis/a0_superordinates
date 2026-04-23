@@ -567,6 +567,7 @@ const model = {
   /**
    * Get or create the 'Closed Chats' root node.
    * Returns the context ID of the 'Closed Chats' node.
+   * Created with no project (default) regardless of current active project.
    */
   async _getOrCreateClosedChats() {
     // Check if 'Closed Chats' already exists
@@ -582,6 +583,13 @@ const model = {
     const newId = chatsStore.selected;
 
     if (!newId || newId === beforeId) return null;
+
+    // Deactivate any inherited project so 'Closed Chats' has no project
+    try {
+      await callJsonApi('projects', { action: 'deactivate', context_id: newId });
+    } catch (e) {
+      console.error('[Superordinates] Failed to deactivate project on Closed Chats:', e);
+    }
 
     // Rename it to 'Closed Chats'
     try {
