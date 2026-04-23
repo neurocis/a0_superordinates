@@ -283,8 +283,20 @@ const model = {
     event.preventDefault();
     event.stopPropagation();
     const childId = this.dragChildId;
-    const mode = this.dragDropMode;
-    console.log('[Superordinates] drop event fired:', { ctxid, childId, mode, dragOverTarget: this.dragOverTarget, dragDropMode: this.dragDropMode });
+
+    // Compute drop mode directly from event position (don't rely on
+    // stored dragDropMode which dragLeave may have cleared)
+    let mode = this.dragDropMode;
+    if (!mode && event.currentTarget) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const y = event.clientY - rect.top;
+      const h = rect.height;
+      const zone = h / 4;
+      if (y < zone) mode = 'before';
+      else if (y > h - zone) mode = 'after';
+      else mode = 'child';
+    }
+    console.log('[Superordinates] drop event fired:', { ctxid, childId, mode, storedMode: this.dragDropMode });
 
     // Clear visual state immediately
     this._clearDragVisuals();
