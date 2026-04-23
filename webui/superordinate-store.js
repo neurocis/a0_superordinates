@@ -6,6 +6,11 @@ const model = {
   rootOrder: [],          // [ctxid] - ordered list of root-level context IDs
   expandedNodes: {},     // {ctxid: bool}
   _refreshInterval: null,
+  // Status tracking state (independent of Chat Status Marklet)
+  _prevRunning: {},
+  _finishedUnseen: {},
+  _statusPatched: false,
+
 
   // Drag-and-drop state (flat properties for Alpine reactivity)
   dragChildId: null,       // ctxid being dragged
@@ -25,6 +30,9 @@ const model = {
     // where we stop them from reaching document (attachmentsStore never sees them).
     // We wait for the DOM element to appear, then attach once.
     this._attachTreeListeners();
+    // Status tracking
+    this._restoreUnseen();
+    this._patchStatusTracking();
   },
 
   _treeListenersAttached: false,
@@ -168,6 +176,7 @@ const model = {
           _depth: depth,
           _hasChildren: hasKids,
           _isExpanded: hasKids && this.isExpanded(node.id),
+          _isUnseen: !!this._finishedUnseen[node.id],
         });
         // Add children if expanded
         if (hasKids && this.isExpanded(node.id)) {
@@ -196,6 +205,106 @@ const model = {
   refresh() {
     this.fetchMap();
   },
+
+  // ── Status tracking (independent of Chat Status Marklet) ────────
+
+  _UNSEEN_STORAGE_KEY: 'sup_finishedUnseen',
+
+  _persistUnseen() {
+    try {
+      const ids = Object.keys(this._finishedUnseen).filter(k => this._finishedUnseen[k]);
+      sessionStorage.setItem(this._UNSEEN_STORAGE_KEY, JSON.stringify(ids));
+    } catch (_e) { /* no-op */ }
+  },
+
+  _restoreUnseen() {
+    try {
+      const raw = sessionStorage.getItem(this._UNSEEN_STORAGE_KEY);
+      if (raw) {
+        const ids = JSON.parse(raw);
+        if (Array.isArray(ids)) {
+          const map = {};
+          ids.forEach(id => { map[id] = true; });
+          this._finishedUnseen = map;
+        }
+      }
+    } catch (_e) { /* no-op */ }
+  },
+
+  _patchStatusTracking() {
+    if (this._statusPatched) return;
+    const chatsStore = Alpine.store('chats');
+    if (!chatsStore) {
+      // Store not ready yet, retry
+      setTimeout(() => this._patchStatusTracking(), 200);
+      return;
+    }
+    this._statusPatched = true;
+
+    // Initialize previous running state
+    const contexts = Array.isArray(chatsStore.contexts) ? chatsStore.contexts : [];
+    const map = {};
+    contexts.forEach(ctx => { map[ctx.id] = !!ctx.running; });
+    this._prevRunning = map;
+
+    // Patch applyContexts to detect running→stopped transitions
+    const origApply = chatsStore.applyContexts.bind(chatsStore);
+    const self = this;
+    chatsStore.applyContexts = function(contextsList) {
+      origApply(contextsList);
+      self._detectTransitions(contextsList);
+    };
+
+    // Patch selectChat to clear unseen on selection
+    const origSelect = chatsStore.selectChat.bind(chatsStore);
+    chatsStore.selectChat = async function(id) {
+      await origSelect(id);
+      self._clearUnseen(id);
+    };
+
+    // Clear for currently selected chat
+    if (chatsStore.selected) {
+      this._clearUnseen(chatsStore.selected);
+    }
+  },
+
+  _detectTransitions(contextsList) {
+    const contexts = Array.isArray(contextsList) ? contextsList : [];
+    const prev = this._prevRunning;
+    const newPrev = {};
+    const chatsStore = Alpine.store('chats');
+    const selected = chatsStore?.selected;
+
+    contexts.forEach(ctx => {
+      const wasRunning = !!prev[ctx.id];
+      const isRunning = !!ctx.running;
+      newPrev[ctx.id] = isRunning;
+
+      // Transition: was running, now stopped
+      if (wasRunning && !isRunning && ctx.id !== selected) {
+        this._finishedUnseen = { ...this._finishedUnseen, [ctx.id]: true };
+      }
+
+      // If context started running again, clear any unseen mark
+      if (isRunning && this._finishedUnseen[ctx.id]) {
+        const updated = { ...this._finishedUnseen };
+        delete updated[ctx.id];
+        this._finishedUnseen = updated;
+      }
+    });
+
+    this._prevRunning = newPrev;
+    this._persistUnseen();
+  },
+
+  _clearUnseen(contextId) {
+    if (!contextId || !this._finishedUnseen[contextId]) return;
+    const updated = { ...this._finishedUnseen };
+    delete updated[contextId];
+    this._finishedUnseen = updated;
+    this._persistUnseen();
+  },
+
 
   /**
    * Create a new chat and pin it to the top of the Superordinates tree.

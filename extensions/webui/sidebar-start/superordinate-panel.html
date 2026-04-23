@@ -45,6 +45,9 @@
                   <span class="chat-name"
                     x-text="node.name ? node.name : 'Chat #' + node.no"></span>
                 </div>
+                <!-- Status indicators (independent of Chat Status Marklet) -->
+                <span class="sup-running-dot" x-show="node.running" title="Process running"></span>
+                <span class="sup-unseen-dot" x-show="!node.running && node._isUnseen" title="Process finished (unseen)"></span>
                 <button class="btn-icon-action chat-list-action-btn" title="Close chat" @click.stop="$confirmClick($event, () => $store.chats.killChat(node.id))">
                   <span class="material-symbols-outlined">close</span>
                 </button>
@@ -59,6 +62,55 @@
 </html>
 
 <style>
+  /* ── Status indicator dots ────────────────────────────── */
+  .sup-running-dot,
+  .sup-unseen-dot {
+    display: inline-block;
+    flex-shrink: 0;
+    border-radius: 50%;
+    pointer-events: none;
+    margin-right: 4px;
+  }
+
+  /* Running: pulsing blue dot */
+  .sup-running-dot {
+    width: 6px;
+    height: 6px;
+    background-color: #4361ee;
+    box-shadow: 0 0 3px rgba(67, 97, 238, 0.6);
+    animation: sup-pulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes sup-pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.4;
+      transform: scale(0.75);
+    }
+  }
+
+  /* Finished unseen: solid green dot */
+  .sup-unseen-dot {
+    width: 6px;
+    height: 6px;
+    background-color: #2a9d8f;
+    box-shadow: 0 0 3px rgba(42, 157, 143, 0.5);
+  }
+
+  /* Light mode adjustments */
+  .light-mode .sup-running-dot {
+    background-color: #2540b3;
+    box-shadow: 0 0 3px rgba(37, 64, 179, 0.5);
+  }
+
+  .light-mode .sup-unseen-dot {
+    background-color: #1a6f65;
+    box-shadow: 0 0 3px rgba(26, 111, 101, 0.4);
+  }
+
   /* Section wrapper — participates in sidebar flex chain */
   .superordinate-section {
     display: flex;
