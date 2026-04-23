@@ -14,6 +14,30 @@ const model = {
   init() {
     // Store registered - fetch map immediately
     this.fetchMap();
+    
+    // Register capture-phase document listeners to prevent attachmentsStore
+    // from intercepting drag events when we're doing an internal superordinate drag.
+    // attachmentsStore uses bubble-phase (false) listeners on document for
+    // dragenter/dragover/drop to show a file-upload overlay. That overlay
+    // captures our drop events. By using capture phase (true) + stopImmediatePropagation,
+    // we prevent attachmentsStore from ever seeing these events during internal drags.
+    const blockIfInternal = (e) => {
+      if (window._superordinateDragging) {
+        // Allow events inside the superordinate tree so our Alpine handlers work
+        const tree = document.querySelector('.superordinate-tree');
+        if (tree && tree.contains(e.target)) {
+          // Don't block - let our Alpine handlers process this
+          return;
+        }
+        // Block events outside the tree (prevents attachmentsStore overlay)
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('dragenter', blockIfInternal, true);
+    document.addEventListener('dragover', blockIfInternal, true);
+    document.addEventListener('drop', blockIfInternal, true);
+    document.addEventListener('dragleave', blockIfInternal, true);
   },
 
   onOpen() {
@@ -177,6 +201,8 @@ const model = {
   /** Start dragging a node */
   dragStart(ctxid, event) {
     console.log('[Superordinates] dragStart:', ctxid);
+    // Set global flag BEFORE any other drag events fire
+    window._superordinateDragging = true;
     this.dragChildId = ctxid;
     this.dragOverTarget = null;
     this.dragDropMode = null;
@@ -281,6 +307,7 @@ const model = {
   /** End drag (cleanup) */
   dragEnd(event) {
     console.log('[Superordinates] dragEnd');
+    window._superordinateDragging = false;
     this._clearDragVisuals();
   },
 
