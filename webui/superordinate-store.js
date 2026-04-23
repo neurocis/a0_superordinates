@@ -429,7 +429,7 @@ const model = {
 
 
 
-  // ── Short name pool for new chats (< 9 chars each) ──────────
+  // ── Short name pool for new chats (< 9 chars each, 256 entries) ──
   _SHORT_NAMES: [
     'Nova','Echo','Sage','Bolt','Onyx','Iris','Flux','Rune',
     'Halo','Vex','Lynx','Aero','Dusk','Cleo','Pike','Myth',
@@ -439,6 +439,30 @@ const model = {
     'Drift','Zen','Mica','Nero','Sable','Vale','Dex','Rio',
     'Ash','Luna','Bex','Mars','Coda','Hex','Orion','Jade',
     'Storm','Hawk','Brio','Finn','Lyra','Rex','Kite','Zephyr',
+    'Blaze','Cove','Pyre','Slate','Thorn','Vibe','Wisp','Yara',
+    'Aegis','Bryn','Clay','Dove','Elm','Frost','Gale','Hart',
+    'Ion','Jett','Knox','Lux','Myst','Noel','Ozma','Plume',
+    'Quinn','Rift','Silk','Tide','Uma','Volt','Wynn','Xyla',
+    'Yew','Zinc','Aria','Birch','Cruz','Dune','Ether','Flint',
+    'Gem','Haven','Ignis','Jest','Kelp','Loom','Mote','Nexus',
+    'Oak','Prism','Quasar','Reed','Spark','Trove','Umbra','Verve',
+    'Wrap','Xenon','Yarn','Zeal','Apex','Bask','Cliff','Dawn',
+    'Edge','Forge','Grit','Husk','Ink','Jaunt','Knack','Leaf',
+    'Moss','Niche','Oath','Prowl','Qualm','Roost','Shard','Turf',
+    'Usher','Vigor','Weft','Xerus','Yoke','Zepto','Agate','Bay',
+    'Cairn','Dell','Epoch','Fjord','Glint','Helm','Ivory','Joust',
+    'Karma','Ledge','Myrrh','Nave','Orbit','Pact','Relic','Spire',
+    'Trail','Umber','Vault','Whisk','Yucca','Zenith','Alto','Brook',
+    'Chord','Dirge','Elegy','Fugue','Gleam','Hymn','Idyll','Jig',
+    'Keen','Lilt','March','Nocte','Opus','Psalm','Rondo','Sway',
+    'Tempo','Udder','Verse','Waltz','Xylem','Yodel','Zonal','Aspen',
+    'Basil','Cedar','Daisy','Erica','Flora','Gorse','Holly','Indus',
+    'Lotus','Maple','Nettle','Olive','Peony','Rue','Sedge','Thyme',
+    'Viola','Alder','Briar','Clove','Dill','Elder','Fig','Grain',
+    'Hazel','Ione','Jas','Kale','Lilac','Mint','Nutmeg','Poppy',
+    'Rosa','Sorrel','Tansy','Vetch','Aster','Bloom','Cress','Dahlia',
+    'Elan','Fable','Grace','Honor','Ideal','Joie','Kudos','Lumen',
+    'Merit','Noble','Omega','Peace','Quest','Royal','Sepia','Token',
   ],
 
   /**
