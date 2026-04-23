@@ -22,7 +22,7 @@
               @dragover.prevent.stop="$store.superordinates.dragOver(node.id, $event)"
               @dragleave="$store.superordinates.dragLeave(node.id, $event)"
               @drop.prevent.stop="$store.superordinates.drop(node.id, $event, _flatTree)"
-              @dragend="$store.superordinates.dragEnd($event)">
+              @dragend.stop="$store.superordinates.dragEnd($event)">
               <div :class="{'chat-container': true, 'chat-selected': node.id === $store.chats.selected}"
                 @click="$store.chats.selectChat(node.id)">
                 <div class="chat-list-button">
