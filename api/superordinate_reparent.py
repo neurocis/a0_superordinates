@@ -139,7 +139,10 @@ class SuperordinateReparent(ApiHandler):
         if old_parent_id:
             old_parent_ctx = AgentContext.get(old_parent_id)
             if not old_parent_ctx:
-                old_parent_ctx = self.use_context(old_parent_id, create_if_not_exists=False)
+                try:
+                    old_parent_ctx = self.use_context(old_parent_id, create_if_not_exists=False)
+                except Exception:
+                    old_parent_ctx = None
             if old_parent_ctx:
                 old_children = old_parent_ctx.data.get("sup_children", [])
                 old_parent_ctx.data["sup_children"] = [
@@ -147,6 +150,10 @@ class SuperordinateReparent(ApiHandler):
                 ]
                 save_tmp_chat(old_parent_ctx)
                 log.warning(f"[REPARENT] removed child from old parent sup_children, remaining: {[c.get('ctxid') for c in old_parent_ctx.data.get('sup_children', [])]}")
+            else:
+                # Old parent no longer exists — just clear the stale reference
+                log.warning(f"[REPARENT] old parent '{old_parent_id}' not found, clearing stale sup_parent")
+                child_ctx.data.pop("sup_parent", None)
 
         # --- Remove from root order if it was a root item ---
         if was_root:
