@@ -428,9 +428,42 @@ const model = {
   },
 
 
+
+  // ── Short name pool for new chats (< 9 chars each) ──────────
+  _SHORT_NAMES: [
+    'Nova','Echo','Sage','Bolt','Onyx','Iris','Flux','Rune',
+    'Halo','Vex','Lynx','Aero','Dusk','Cleo','Pike','Myth',
+    'Zara','Nix','Koda','Wren','Opal','Jinx','Mace','Fern',
+    'Quill','Blitz','Vero','Silo','Crux','Lark','Raya','Kai',
+    'Ember','Juno','Tao','Sol','Axle','Ivy','Rook','Pixel',
+    'Drift','Zen','Mica','Nero','Sable','Vale','Dex','Rio',
+    'Ash','Luna','Bex','Mars','Coda','Hex','Orion','Jade',
+    'Storm','Hawk','Brio','Finn','Lyra','Rex','Kite','Zephyr',
+  ],
+
+  /**
+   * Pick the first name from the pool not already used by any context.
+   */
+  _pickUnusedName() {
+    const chatsStore = Alpine.store('chats');
+    const usedNames = new Set();
+    if (chatsStore?.contexts) {
+      for (const ctx of chatsStore.contexts) {
+        if (ctx.name) usedNames.add(ctx.name.toLowerCase());
+      }
+    }
+    for (const name of this._SHORT_NAMES) {
+      if (!usedNames.has(name.toLowerCase())) return name;
+    }
+    // Fallback: append number to first name
+    let i = 2;
+    while (usedNames.has((this._SHORT_NAMES[0] + i).toLowerCase())) i++;
+    return this._SHORT_NAMES[0] + i;
+  },
+
   /**
    * Create a new chat and pin it to the top of the Superordinates tree.
-   * Calls the chats store newChat(), then persists the new ID at rootOrder[0].
+   * Assigns a short realistic name and locks it against auto-rename.
    */
   async newChat() {
     const chatsStore = Alpine.store('chats');
@@ -439,6 +472,16 @@ const model = {
     await chatsStore.newChat();
     const newId = chatsStore.selected;
     if (newId && newId !== beforeId) {
+      // Assign a short unique name
+      const name = this._pickUnusedName();
+      try {
+        await callJsonApi('plugins/a0_superordinates/superordinate_rename', {
+          ctxid: newId,
+          new_name: name,
+        });
+      } catch (e) {
+        console.error('[Superordinates] Auto-name failed:', e);
+      }
       // Persist at position 0 so it stays at top after fetchMap refreshes
       await this.reparent(newId, null, 0);
     }
