@@ -146,13 +146,13 @@ const model = {
     roots.sort((a, b) => {
       const aIdx = savedRootOrder.indexOf(a.id);
       const bIdx = savedRootOrder.indexOf(b.id);
-      // Items in rootOrder come first, in their saved order
+      // Items in rootOrder keep their saved order; new items (not in rootOrder) float to top
       if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx;
-      if (aIdx >= 0) return -1;  // a is in order, b is not
-      if (bIdx >= 0) return 1;   // b is in order, a is not
-      // Neither in rootOrder - use original contexts order
+      if (aIdx >= 0) return 1;   // a is ordered, b is new → b goes first
+      if (bIdx >= 0) return -1;  // b is ordered, a is new → a goes first
+      // Neither in rootOrder - newest first (reverse original order)
       const origOrder = contexts.map(c => c.id);
-      return origOrder.indexOf(a.id) - origOrder.indexOf(b.id);
+      return origOrder.indexOf(b.id) - origOrder.indexOf(a.id);
     });
     // Flatten tree recursively
     const result = [];
