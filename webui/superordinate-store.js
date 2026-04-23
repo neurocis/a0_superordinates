@@ -197,6 +197,23 @@ const model = {
     this.fetchMap();
   },
 
+  /**
+   * Create a new chat and pin it to the top of the Superordinates tree.
+   * Calls the chats store newChat(), then persists the new ID at rootOrder[0].
+   */
+  async newChat() {
+    const chatsStore = Alpine.store('chats');
+    if (!chatsStore) return;
+    const beforeId = chatsStore.selected;
+    await chatsStore.newChat();
+    const newId = chatsStore.selected;
+    if (newId && newId !== beforeId) {
+      // Persist at position 0 so it stays at top after fetchMap refreshes
+      await this.reparent(newId, null, 0);
+    }
+  },
+
+
   // ── Drag-and-drop ──────────────────────────────────────────────
 
   /**
