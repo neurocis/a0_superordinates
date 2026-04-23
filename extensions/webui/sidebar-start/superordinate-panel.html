@@ -10,16 +10,18 @@
         <div class="config-list-header">
           <h3>Superordinates</h3>
         </div>
-        <ul class="config-list chats-config-list superordinate-tree no-scrollbar" x-show="$store.chats.contexts.length > 0">
+        <ul class="config-list chats-config-list superordinate-tree no-scrollbar"
+          x-show="$store.chats.contexts.length > 0"
+          @dragover.prevent>
           <template x-for="node in _flatTree" :key="node.id">
             <li :style="{ paddingLeft: (node._depth * 16) + 'px' }"
               class="tree-item"
               :class="$store.superordinates.getDropClass(node.id)"
               draggable="true"
-              @dragstart="$store.superordinates.dragStart(node.id, $event)"
-              @dragover="$store.superordinates.dragOver(node.id, $event)"
+              @dragstart.stop="$store.superordinates.dragStart(node.id, $event)"
+              @dragover.prevent.stop="$store.superordinates.dragOver(node.id, $event)"
               @dragleave="$store.superordinates.dragLeave(node.id, $event)"
-              @drop="$store.superordinates.drop(node.id, $event, _flatTree)"
+              @drop.prevent.stop="$store.superordinates.drop(node.id, $event, _flatTree)"
               @dragend="$store.superordinates.dragEnd($event)">
               <div :class="{'chat-container': true, 'chat-selected': node.id === $store.chats.selected}"
                 @click="$store.chats.selectChat(node.id)">
@@ -66,6 +68,11 @@
   .tree-item {
     position: relative;
     transition: background-color 0.15s ease;
+    cursor: grab;
+  }
+
+  .tree-item:active {
+    cursor: grabbing;
   }
 
   /* Dragging state - make the source item semi-transparent */
@@ -133,7 +140,8 @@
   }
 
   /* Prevent text selection during drag */
-  .superordinate-tree[dragging] * {
-    user-select: none;
+  .superordinate-tree.dragging-active,
+  .superordinate-tree.dragging-active * {
+    user-select: none !important;
   }
 </style>

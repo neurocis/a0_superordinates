@@ -6,12 +6,10 @@ const model = {
   expandedNodes: {},     // {ctxid: bool}
   _refreshInterval: null,
 
-  // Drag-and-drop state
-  dragState: {
-    dragging: null,       // ctxid being dragged
-    overTarget: null,     // ctxid currently hovered
-    dropMode: null,       // 'before' | 'after' | 'child'
-  },
+  // Drag-and-drop state (flat properties for Alpine reactivity)
+  dragChildId: null,       // ctxid being dragged
+  dragOverTarget: null,    // ctxid currently hovered
+  dragDropMode: null,      // 'before' | 'after' | 'child'
 
   init() {
     // Store registered - fetch map immediately
@@ -159,11 +157,13 @@ const model = {
    */
   async reparent(childId, newParentId, position) {
     if (!childId || childId === newParentId) return;
+    console.log('[Superordinates] reparent called:', { childId, newParentId, position });
     try {
       const res = await callJsonApi(
         "plugins/a0_superordinates/superordinate_reparent",
         { child_id: childId, new_parent_id: newParentId || "", position: position }
       );
+      console.log('[Superordinates] reparent response:', res);
       if (res && !res.ok) {
         console.error("[Superordinates] reparent error:", res.error);
       }
@@ -176,10 +176,13 @@ const model = {
 
   /** Start dragging a node */
   dragStart(ctxid, event) {
-    this.dragState = { dragging: ctxid, overTarget: null, dropMode: null };
+    console.log('[Superordinates] dragStart:', ctxid);
+    this.dragChildId = ctxid;
+    this.dragOverTarget = null;
+    this.dragDropMode = null;
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', ctxid);
-    // Add a small delay class for visual feedback
+    // Visual feedback on source item
     requestAnimationFrame(() => {
       const el = event.target.closest('li');
       if (el) el.classList.add('dragging');
@@ -188,7 +191,8 @@ const model = {
 
   /** Compute drop mode from mouse position within target element */
   dragOver(ctxid, event) {
-    if (!this.dragState.dragging || this.dragState.dragging === ctxid) {
+    const dragging = this.dragChildId;
+    if (!dragging || dragging === ctxid) {
       return;
     }
     event.preventDefault();
@@ -197,7 +201,7 @@ const model = {
     const rect = event.currentTarget.getBoundingClientRect();
     const y = event.clientY - rect.top;
     const h = rect.height;
-    const zone = h / 4; // divide into 4 zones
+    const zone = h / 4;
 
     let mode;
     if (y < zone) {
@@ -208,27 +212,35 @@ const model = {
       mode = 'child';
     }
 
-    this.dragState = { ...this.dragState, overTarget: ctxid, dropMode: mode };
+    this.dragOverTarget = ctxid;
+    this.dragDropMode = mode;
   },
 
   /** Clear hover state on drag leave */
   dragLeave(ctxid, event) {
-    // Only clear if actually leaving this element (not entering a child)
     const related = event.relatedTarget;
     if (related && event.currentTarget.contains(related)) return;
-    if (this.dragState.overTarget === ctxid) {
-      this.dragState = { ...this.dragState, overTarget: null, dropMode: null };
+    if (this.dragOverTarget === ctxid) {
+      this.dragOverTarget = null;
+      this.dragDropMode = null;
     }
   },
 
   /** Handle drop - compute new parent and position, call reparent */
   async drop(ctxid, event, flatTree) {
     event.preventDefault();
-    const childId = this.dragState.dragging;
-    const mode = this.dragState.dropMode;
-    this._clearDragState(event);
+    event.stopPropagation();
+    const childId = this.dragChildId;
+    const mode = this.dragDropMode;
+    console.log('[Superordinates] drop:', { childId, targetId: ctxid, mode });
 
-    if (!childId || childId === ctxid || !mode) return;
+    // Clear visual state immediately
+    this._clearDragVisuals();
+
+    if (!childId || childId === ctxid || !mode) {
+      console.log('[Superordinates] drop aborted:', { childId, ctxid, mode });
+      return;
+    }
 
     // Determine new parent and position based on drop mode
     const targetParent = this.getParent(ctxid);
@@ -236,17 +248,14 @@ const model = {
     let newParentId, position;
 
     if (mode === 'child') {
-      // Drop as child of the target node
       newParentId = ctxid;
-      position = -1; // append
+      position = -1;
       // Auto-expand the target so the dropped child is visible
       if (!this.isExpanded(ctxid)) {
         this.expandedNodes = { ...this.expandedNodes, [ctxid]: true };
       }
     } else {
-      // Drop as sibling (before or after the target)
       newParentId = targetParent || null;
-      // Find position among siblings
       const siblings = newParentId
         ? this.getChildren(newParentId)
         : this._getRootIds(flatTree);
@@ -258,12 +267,14 @@ const model = {
       }
     }
 
+    console.log('[Superordinates] reparent params:', { childId, newParentId, position });
     await this.reparent(childId, newParentId, position);
   },
 
   /** End drag (cleanup) */
   dragEnd(event) {
-    this._clearDragState(event);
+    console.log('[Superordinates] dragEnd');
+    this._clearDragVisuals();
   },
 
   /** Get root-level context IDs from flat tree */
@@ -273,15 +284,17 @@ const model = {
   },
 
   /** Clear all drag visual state */
-  _clearDragState(event) {
+  _clearDragVisuals() {
     document.querySelectorAll('.superordinate-tree .dragging').forEach(el => el.classList.remove('dragging'));
-    this.dragState = { dragging: null, overTarget: null, dropMode: null };
+    this.dragChildId = null;
+    this.dragOverTarget = null;
+    this.dragDropMode = null;
   },
 
   /** Get CSS class for drop indicator on a tree item */
   getDropClass(ctxid) {
-    if (this.dragState.overTarget !== ctxid || !this.dragState.dropMode) return '';
-    return 'drop-' + this.dragState.dropMode;
+    if (this.dragOverTarget !== ctxid || !this.dragDropMode) return '';
+    return 'drop-' + this.dragDropMode;
   },
 };
 
