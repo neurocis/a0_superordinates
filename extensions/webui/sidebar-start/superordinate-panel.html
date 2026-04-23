@@ -12,7 +12,7 @@
         </div>
         <ul class="config-list chats-config-list superordinate-tree no-scrollbar"
           x-show="$store.chats.contexts.length > 0"
-          @dragover.prevent>
+          @dragover.prevent.stop="">
           <template x-for="node in _flatTree" :key="node.id">
             <li :style="{ paddingLeft: (node._depth * 16) + 'px' }"
               class="tree-item"
