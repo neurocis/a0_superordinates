@@ -15,29 +15,42 @@ const model = {
     // Store registered - fetch map immediately
     this.fetchMap();
     
-    // Register capture-phase document listeners to prevent attachmentsStore
-    // from intercepting drag events when we're doing an internal superordinate drag.
-    // attachmentsStore uses bubble-phase (false) listeners on document for
-    // dragenter/dragover/drop to show a file-upload overlay. That overlay
-    // captures our drop events. By using capture phase (true) + stopImmediatePropagation,
-    // we prevent attachmentsStore from ever seeing these events during internal drags.
-    const blockIfInternal = (e) => {
+    // Block attachmentsStore from intercepting internal superordinate drags.
+    // attachmentsStore registers document-level bubble-phase listeners for
+    // dragenter/dragover/drop that show a file-upload overlay, stealing our drops.
+    //
+    // Strategy: Add bubble-phase listeners on the .superordinate-tree container.
+    // Events fire on <li> first (Alpine handlers work), then bubble to <ul>
+    // where we stop them from reaching document (attachmentsStore never sees them).
+    // We wait for the DOM element to appear, then attach once.
+    this._attachTreeListeners();
+  },
+
+  _treeListenersAttached: false,
+
+  _attachTreeListeners() {
+    if (this._treeListenersAttached) return;
+    const tree = document.querySelector('.superordinate-tree');
+    if (!tree) {
+      // Tree not in DOM yet, retry after a short delay
+      setTimeout(() => this._attachTreeListeners(), 200);
+      return;
+    }
+    this._treeListenersAttached = true;
+    
+    const stopBubble = (e) => {
       if (window._superordinateDragging) {
-        // Allow events inside the superordinate tree so our Alpine handlers work
-        const tree = document.querySelector('.superordinate-tree');
-        if (tree && tree.contains(e.target)) {
-          // Don't block - let our Alpine handlers process this
-          return;
-        }
-        // Block events outside the tree (prevents attachmentsStore overlay)
-        e.stopImmediatePropagation();
-        e.preventDefault();
+        e.stopPropagation();
       }
     };
-    document.addEventListener('dragenter', blockIfInternal, true);
-    document.addEventListener('dragover', blockIfInternal, true);
-    document.addEventListener('drop', blockIfInternal, true);
-    document.addEventListener('dragleave', blockIfInternal, true);
+    // Bubble-phase listeners on the tree container.
+    // Events from <li> Alpine handlers fire first, then hit the <ul> where
+    // we stop propagation so document-level listeners never see them.
+    tree.addEventListener('dragenter', stopBubble, false);
+    tree.addEventListener('dragover', stopBubble, false);
+    tree.addEventListener('drop', stopBubble, false);
+    tree.addEventListener('dragleave', stopBubble, false);
+    console.log('[Superordinates] Tree-level drag listeners attached');
   },
 
   onOpen() {
