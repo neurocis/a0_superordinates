@@ -3,15 +3,24 @@
   <script type="module" src="/plugins/a0_superordinates/webui/superordinate-store.js"></script>
 </head>
 <body>
-  <div x-data x-move-after="#chats-section">
+  <div x-data="{ _flatTree: [] }" x-move-after="#chats-section"
+    x-effect="_flatTree = $store.superordinates?.getFlatTree($store.chats?.contexts) || []">
     <template x-if="$store.superordinates && $store.chats">
       <div>
         <div class="config-list-header">
           <h3>Superordinates</h3>
         </div>
         <ul class="config-list chats-config-list superordinate-tree no-scrollbar" x-show="$store.chats.contexts.length > 0">
-          <template x-for="node in $store.superordinates.getFlatTree($store.chats.contexts)" :key="node.id">
-            <li :style="{ paddingLeft: (node._depth * 16) + 'px' }" class="tree-item">
+          <template x-for="node in _flatTree" :key="node.id">
+            <li :style="{ paddingLeft: (node._depth * 16) + 'px' }"
+              class="tree-item"
+              :class="$store.superordinates.getDropClass(node.id)"
+              draggable="true"
+              @dragstart="$store.superordinates.dragStart(node.id, $event)"
+              @dragover="$store.superordinates.dragOver(node.id, $event)"
+              @dragleave="$store.superordinates.dragLeave(node.id, $event)"
+              @drop="$store.superordinates.drop(node.id, $event, _flatTree)"
+              @dragend="$store.superordinates.dragEnd($event)">
               <div :class="{'chat-container': true, 'chat-selected': node.id === $store.chats.selected}"
                 @click="$store.chats.selectChat(node.id)">
                 <div class="chat-list-button">
@@ -55,7 +64,49 @@
 
   /* Indentation is applied via inline paddingLeft on <li> */
   .tree-item {
-    /* Remove default list padding so indentation is precise */
+    position: relative;
+    transition: background-color 0.15s ease;
+  }
+
+  /* Dragging state - make the source item semi-transparent */
+  .tree-item.dragging {
+    opacity: 0.4;
+  }
+
+  /* Drop indicator: line ABOVE the target (insert before) */
+  .tree-item.drop-before::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    background: var(--color-accent, #4a9eff);
+    border-radius: 1px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* Drop indicator: line BELOW the target (insert after) */
+  .tree-item.drop-after::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    background: var(--color-accent, #4a9eff);
+    border-radius: 1px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* Drop indicator: highlight for 'nest as child' */
+  .tree-item.drop-child {
+    background-color: rgba(74, 158, 255, 0.12);
+    outline: 1px dashed var(--color-accent, #4a9eff);
+    outline-offset: -1px;
+    border-radius: 4px;
   }
 
   .tree-toggle-indicator {
@@ -79,5 +130,10 @@
   /* Ensure chat-list-button gap accounts for indicator */
   .superordinate-tree .chat-list-button {
     gap: 0.5em;
+  }
+
+  /* Prevent text selection during drag */
+  .superordinate-tree[dragging] * {
+    user-select: none;
   }
 </style>

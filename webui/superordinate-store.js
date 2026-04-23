@@ -6,6 +6,13 @@ const model = {
   expandedNodes: {},     // {ctxid: bool}
   _refreshInterval: null,
 
+  // Drag-and-drop state
+  dragState: {
+    dragging: null,       // ctxid being dragged
+    overTarget: null,     // ctxid currently hovered
+    dropMode: null,       // 'before' | 'after' | 'child'
+  },
+
   init() {
     // Store registered - fetch map immediately
     this.fetchMap();
@@ -140,6 +147,141 @@ const model = {
 
   refresh() {
     this.fetchMap();
+  },
+
+  // ── Drag-and-drop ──────────────────────────────────────────────
+
+  /**
+   * Reparent a context node.
+   * @param {string} childId - context being moved
+   * @param {string|null} newParentId - new parent (null = root)
+   * @param {number} position - index among siblings (-1 = append)
+   */
+  async reparent(childId, newParentId, position) {
+    if (!childId || childId === newParentId) return;
+    try {
+      const res = await callJsonApi(
+        "plugins/a0_superordinates/superordinate_reparent",
+        { child_id: childId, new_parent_id: newParentId || "", position: position }
+      );
+      if (res && !res.ok) {
+        console.error("[Superordinates] reparent error:", res.error);
+      }
+    } catch (e) {
+      console.error("[Superordinates] reparent call failed:", e);
+    }
+    // Always refresh regardless of outcome
+    await this.fetchMap();
+  },
+
+  /** Start dragging a node */
+  dragStart(ctxid, event) {
+    this.dragState = { dragging: ctxid, overTarget: null, dropMode: null };
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', ctxid);
+    // Add a small delay class for visual feedback
+    requestAnimationFrame(() => {
+      const el = event.target.closest('li');
+      if (el) el.classList.add('dragging');
+    });
+  },
+
+  /** Compute drop mode from mouse position within target element */
+  dragOver(ctxid, event) {
+    if (!this.dragState.dragging || this.dragState.dragging === ctxid) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const y = event.clientY - rect.top;
+    const h = rect.height;
+    const zone = h / 4; // divide into 4 zones
+
+    let mode;
+    if (y < zone) {
+      mode = 'before';
+    } else if (y > h - zone) {
+      mode = 'after';
+    } else {
+      mode = 'child';
+    }
+
+    this.dragState = { ...this.dragState, overTarget: ctxid, dropMode: mode };
+  },
+
+  /** Clear hover state on drag leave */
+  dragLeave(ctxid, event) {
+    // Only clear if actually leaving this element (not entering a child)
+    const related = event.relatedTarget;
+    if (related && event.currentTarget.contains(related)) return;
+    if (this.dragState.overTarget === ctxid) {
+      this.dragState = { ...this.dragState, overTarget: null, dropMode: null };
+    }
+  },
+
+  /** Handle drop - compute new parent and position, call reparent */
+  async drop(ctxid, event, flatTree) {
+    event.preventDefault();
+    const childId = this.dragState.dragging;
+    const mode = this.dragState.dropMode;
+    this._clearDragState(event);
+
+    if (!childId || childId === ctxid || !mode) return;
+
+    // Determine new parent and position based on drop mode
+    const targetParent = this.getParent(ctxid);
+
+    let newParentId, position;
+
+    if (mode === 'child') {
+      // Drop as child of the target node
+      newParentId = ctxid;
+      position = -1; // append
+      // Auto-expand the target so the dropped child is visible
+      if (!this.isExpanded(ctxid)) {
+        this.expandedNodes = { ...this.expandedNodes, [ctxid]: true };
+      }
+    } else {
+      // Drop as sibling (before or after the target)
+      newParentId = targetParent || null;
+      // Find position among siblings
+      const siblings = newParentId
+        ? this.getChildren(newParentId)
+        : this._getRootIds(flatTree);
+      const targetIdx = siblings.indexOf(ctxid);
+      if (mode === 'before') {
+        position = Math.max(0, targetIdx);
+      } else {
+        position = targetIdx + 1;
+      }
+    }
+
+    await this.reparent(childId, newParentId, position);
+  },
+
+  /** End drag (cleanup) */
+  dragEnd(event) {
+    this._clearDragState(event);
+  },
+
+  /** Get root-level context IDs from flat tree */
+  _getRootIds(flatTree) {
+    if (!flatTree) return [];
+    return flatTree.filter(n => n._depth === 0).map(n => n.id);
+  },
+
+  /** Clear all drag visual state */
+  _clearDragState(event) {
+    document.querySelectorAll('.superordinate-tree .dragging').forEach(el => el.classList.remove('dragging'));
+    this.dragState = { dragging: null, overTarget: null, dropMode: null };
+  },
+
+  /** Get CSS class for drop indicator on a tree item */
+  getDropClass(ctxid) {
+    if (this.dragState.overTarget !== ctxid || !this.dragState.dropMode) return '';
+    return 'drop-' + this.dragState.dropMode;
   },
 };
 
