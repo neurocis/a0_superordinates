@@ -11,6 +11,13 @@ const model = {
   _finishedUnseen: {},
   _statusPatched: false,
 
+  // Inline rename state
+  renamingId: null,        // ctxid currently being renamed (null = not renaming)
+  renamingValue: '',       // current text in the rename input
+  _lastNameClick: null,    // {id, time} for slow-double-click detection
+  _nameClickTimer: null,   // timer for pending slow-click rename
+
+
 
   // Drag-and-drop state (flat properties for Alpine reactivity)
   dragChildId: null,       // ctxid being dragged
@@ -208,6 +215,94 @@ const model = {
   refresh() {
     this.fetchMap();
   },
+
+  // ── Inline rename ──────────────────────────────────────────────
+
+  /**
+   * Click handler on the name span.
+   * Detects "slow double-click" (two clicks 400-1500ms apart on the same
+   * already-selected node) to enter rename mode.
+   */
+  handleNameClick(id, currentName, event) {
+    if (event) event.stopPropagation();
+
+    // If already renaming a different node, commit that first
+    if (this.renamingId && this.renamingId !== id) {
+      this.commitRename();
+    }
+    // If already renaming this node, do nothing (let the input handle it)
+    if (this.renamingId === id) return;
+
+    const now = Date.now();
+    const last = this._lastNameClick;
+
+    if (last && last.id === id && (now - last.time) >= 400 && (now - last.time) <= 1500) {
+      // Slow double-click detected on the same node → rename
+      this._lastNameClick = null;
+      if (this._nameClickTimer) { clearTimeout(this._nameClickTimer); this._nameClickTimer = null; }
+      this.startRename(id, currentName);
+    } else {
+      // Record this click; also select the chat
+      this._lastNameClick = { id, time: now };
+      Alpine.store('chats')?.selectChat(id);
+      // Clear stale click tracking after the slow-click window expires
+      if (this._nameClickTimer) clearTimeout(this._nameClickTimer);
+      this._nameClickTimer = setTimeout(() => { this._lastNameClick = null; }, 1600);
+    }
+  },
+
+  /**
+   * Fast double-click on the name span → toggle expand/collapse.
+   * Cancels any pending slow-click rename.
+   */
+  handleNameDblClick(id, event) {
+    if (event) event.stopPropagation();
+    // Cancel pending rename detection
+    this._lastNameClick = null;
+    if (this._nameClickTimer) { clearTimeout(this._nameClickTimer); this._nameClickTimer = null; }
+    // Toggle expand/collapse
+    this.toggleExpand(id);
+  },
+
+  startRename(id, currentName) {
+    this.renamingId = id;
+    this.renamingValue = currentName || '';
+    // Focus the input on next tick
+    this.$nextTick?.(() => {
+      const input = document.querySelector('.sup-rename-input');
+      if (input) { input.focus(); input.select(); }
+    });
+    // Fallback focus via setTimeout if $nextTick not available
+    setTimeout(() => {
+      const input = document.querySelector('.sup-rename-input');
+      if (input && document.activeElement !== input) { input.focus(); input.select(); }
+    }, 50);
+  },
+
+  async commitRename() {
+    const id = this.renamingId;
+    const newName = (this.renamingValue || '').trim();
+    this.renamingId = null;
+
+    if (!id || !newName) return;
+
+    try {
+      await callJsonApi('plugins/a0_superordinates/superordinate_rename', {
+        ctxid: id,
+        new_name: newName,
+      });
+      // Refresh to pick up the new name
+      this.fetchMap();
+    } catch (e) {
+      console.error('[Superordinates] Rename failed:', e);
+    }
+  },
+
+  cancelRename() {
+    this.renamingId = null;
+    this.renamingValue = '';
+  },
+
 
 
   _EXPANDED_STORAGE_KEY: 'sup_expandedNodes',

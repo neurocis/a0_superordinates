@@ -42,8 +42,21 @@
                     <span :class="{'project-color-ball': true, 'heartbeat': node.running}"
                       :style="node.project?.color ? { backgroundColor: node.project.color } : { border: '1px solid var(--color-border)' }"></span>
                   </template>
-                  <span class="chat-name"
-                    x-text="node.name ? node.name : 'Chat #' + node.no"></span>
+                  <!-- Name: show span or inline rename input -->
+                  <template x-if="$store.superordinates.renamingId !== node.id">
+                    <span class="chat-name sup-name-clickable"
+                      x-text="node.name ? node.name : 'Chat #' + node.no"
+                      @click.stop="$store.superordinates.handleNameClick(node.id, node.name || ('Chat #' + node.no), $event)"
+                      @dblclick.stop="$store.superordinates.handleNameDblClick(node.id, $event)"></span>
+                  </template>
+                  <template x-if="$store.superordinates.renamingId === node.id">
+                    <input type="text" class="sup-rename-input"
+                      x-model="$store.superordinates.renamingValue"
+                      @keydown.enter.stop="$store.superordinates.commitRename()"
+                      @keydown.escape.stop="$store.superordinates.cancelRename()"
+                      @blur="$store.superordinates.commitRename()"
+                      @click.stop />
+                  </template>
                 </div>
                 <!-- Status indicators (independent of Chat Status Marklet) -->
                 <span class="sup-running-dot" x-show="node.running" title="Process running"></span>
@@ -233,5 +246,30 @@
   .superordinate-tree.dragging-active,
   .superordinate-tree.dragging-active * {
     user-select: none !important;
+  }
+  /* ── Inline rename ──────────────────────────────────── */
+  .sup-name-clickable {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .sup-rename-input {
+    background: var(--color-bg-input, var(--color-bg-secondary, #1a1a2e));
+    color: var(--color-text, #e0e0e0);
+    border: 1px solid var(--color-accent, #4a9eff);
+    border-radius: 3px;
+    font: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    padding: 0 4px;
+    margin: 0;
+    width: 100%;
+    min-width: 0;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .sup-rename-input:focus {
+    box-shadow: 0 0 0 1px var(--color-accent, #4a9eff);
   }
 </style>
