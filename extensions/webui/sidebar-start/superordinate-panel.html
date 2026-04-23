@@ -8,8 +8,11 @@
     class="superordinate-section">
     <template x-if="$store.superordinates && $store.chats">
       <div class="superordinate-inner">
-        <div class="config-list-header">
-          <h3>Superordinates</h3>
+        <div class="section-header-row">
+          <h3 class="section-header">Superordinates</h3>
+          <button class="btn-icon-action chat-list-action-btn" @click="$store.chats.newChat()" aria-label="New Chat" title="New Chat">
+            <span class="material-symbols-outlined">chat_add_on</span>
+          </button>
         </div>
         <ul class="config-list chats-config-list superordinate-tree"
           x-show="$store.chats.contexts.length > 0"
