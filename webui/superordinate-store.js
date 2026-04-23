@@ -572,7 +572,12 @@ const model = {
   async _getOrCreateClosedChats() {
     // Check if 'Closed Chats' already exists
     const existing = this._findContextByName('Closed Chats');
-    if (existing) return existing.id;
+    if (existing) {
+      console.warn('[Superordinates] Found existing Closed Chats:', existing.id);
+      return existing.id;
+    }
+
+    console.warn('[Superordinates] Creating new Closed Chats node...');
 
     // Create a new chat for 'Closed Chats'
     const chatsStore = Alpine.store('chats');
@@ -581,12 +586,17 @@ const model = {
     const beforeId = chatsStore.selected;
     await chatsStore.newChat();
     const newId = chatsStore.selected;
+    console.warn('[Superordinates] New chat created:', newId, 'beforeId:', beforeId);
 
-    if (!newId || newId === beforeId) return null;
+    if (!newId || newId === beforeId) {
+      console.error('[Superordinates] Failed to create new chat for Closed Chats');
+      return null;
+    }
 
     // Deactivate any inherited project so 'Closed Chats' has no project
     try {
       await callJsonApi('projects', { action: 'deactivate', context_id: newId });
+      console.warn('[Superordinates] Project deactivated on Closed Chats');
     } catch (e) {
       console.error('[Superordinates] Failed to deactivate project on Closed Chats:', e);
     }
@@ -597,17 +607,30 @@ const model = {
         ctxid: newId,
         new_name: 'Closed Chats',
       });
+      console.warn('[Superordinates] Renamed to Closed Chats');
     } catch (e) {
       console.error('[Superordinates] Failed to rename Closed Chats node:', e);
     }
 
-    // Reparent to the bottom of root
-    await this.reparent(newId, null, -1);
+    // Place at the bottom of root (use direct API call to avoid extra fetchMap)
+    try {
+      const res = await callJsonApi('plugins/a0_superordinates/superordinate_reparent', {
+        child_id: newId,
+        new_parent_id: '',
+        position: -1,
+      });
+      console.warn('[Superordinates] Closed Chats reparented to root:', res);
+    } catch (e) {
+      console.error('[Superordinates] Failed to reparent Closed Chats:', e);
+    }
 
-    // Re-select the previous chat if we had one
-    if (beforeId) {
+    // Re-select the previous chat if we changed selection
+    if (beforeId && chatsStore.selected !== beforeId) {
       await chatsStore.selectChat(beforeId);
     }
+
+    // Refresh hierarchy to include new node
+    await this.fetchMap();
 
     return newId;
   },
@@ -618,8 +641,10 @@ const model = {
    * Otherwise, move it under 'Closed Chats'.
    */
   async closeChat(ctxid) {
+    console.warn('[Superordinates] closeChat called for:', ctxid);
+
     if (this._isUnderClosedChats(ctxid)) {
-      // Already under 'Closed Chats' → actually kill it
+      console.warn('[Superordinates] Chat is under Closed Chats, killing it');
       const chatsStore = Alpine.store('chats');
       if (chatsStore) {
         await chatsStore.killChat(ctxid);
@@ -630,7 +655,7 @@ const model = {
     // Check if this IS the 'Closed Chats' node itself
     const ctx = this._findContextByName_byId(ctxid);
     if (ctx && (ctx.name || '').toLowerCase() === 'closed chats') {
-      // Don't close the Closed Chats folder itself - actually kill it if requested
+      console.warn('[Superordinates] This IS Closed Chats node, killing it');
       const chatsStore = Alpine.store('chats');
       if (chatsStore) {
         await chatsStore.killChat(ctxid);
@@ -639,14 +664,32 @@ const model = {
     }
 
     // Move to 'Closed Chats'
+    console.warn('[Superordinates] Getting/creating Closed Chats folder...');
     const closedChatsId = await this._getOrCreateClosedChats();
+    console.warn('[Superordinates] Closed Chats ID:', closedChatsId);
     if (!closedChatsId) {
       console.error('[Superordinates] Could not get/create Closed Chats node');
       return;
     }
 
-    // Reparent the chat under 'Closed Chats'
-    await this.reparent(ctxid, closedChatsId, -1);
+    // Reparent the chat under 'Closed Chats' via direct API call
+    // (avoids any race with fetchMap from _getOrCreateClosedChats)
+    console.warn('[Superordinates] Reparenting', ctxid, 'under', closedChatsId);
+    try {
+      const res = await callJsonApi(
+        'plugins/a0_superordinates/superordinate_reparent',
+        { child_id: ctxid, new_parent_id: closedChatsId, position: -1 }
+      );
+      console.warn('[Superordinates] Reparent result:', res);
+      if (res && !res.ok) {
+        console.error('[Superordinates] Reparent failed:', res.error);
+      }
+    } catch (e) {
+      console.error('[Superordinates] Reparent call failed:', e);
+    }
+
+    // Refresh the map after reparenting
+    await this.fetchMap();
 
     // Auto-expand 'Closed Chats' so user sees where it went
     if (!this.isExpanded(closedChatsId)) {
