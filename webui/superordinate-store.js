@@ -30,8 +30,10 @@ const model = {
     // where we stop them from reaching document (attachmentsStore never sees them).
     // We wait for the DOM element to appear, then attach once.
     this._attachTreeListeners();
-    // Status tracking
+    // Persistence
+    this._restoreExpanded();
     this._restoreUnseen();
+    // Status tracking
     this._patchStatusTracking();
   },
 
@@ -121,6 +123,7 @@ const model = {
     if (event) event.stopPropagation();
     // Must replace entire object for Alpine proxy reactivity
     this.expandedNodes = { ...this.expandedNodes, [ctxid]: !this.isExpanded(ctxid) };
+    this._persistExpanded();
   },
 
   /**
@@ -204,6 +207,30 @@ const model = {
 
   refresh() {
     this.fetchMap();
+  },
+
+
+  _EXPANDED_STORAGE_KEY: 'sup_expandedNodes',
+
+  _persistExpanded() {
+    try {
+      const ids = Object.keys(this.expandedNodes).filter(k => this.expandedNodes[k]);
+      localStorage.setItem(this._EXPANDED_STORAGE_KEY, JSON.stringify(ids));
+    } catch (_e) { /* no-op */ }
+  },
+
+  _restoreExpanded() {
+    try {
+      const raw = localStorage.getItem(this._EXPANDED_STORAGE_KEY);
+      if (raw) {
+        const ids = JSON.parse(raw);
+        if (Array.isArray(ids)) {
+          const map = {};
+          ids.forEach(id => { map[id] = true; });
+          this.expandedNodes = map;
+        }
+      }
+    } catch (_e) { /* no-op */ }
   },
 
   // ── Status tracking (independent of Chat Status Marklet) ────────
@@ -447,6 +474,7 @@ const model = {
       // Auto-expand the target so the dropped child is visible
       if (!this.isExpanded(ctxid)) {
         this.expandedNodes = { ...this.expandedNodes, [ctxid]: true };
+        this._persistExpanded();
       }
     } else {
       newParentId = targetParent || null;
