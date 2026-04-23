@@ -50,10 +50,21 @@ class SuperordinateMessage(Tool):
         # - If superordinate is running: sets intervention message on the running agent
         task = sub_context.communicate(UserMessage(message=message))
 
-        # Wait for the result (with timeout handling)
+        # Wait for the result with a short timeout so we don't block the monologue
         try:
-            result = await task.result(timeout=300)  # 5 minute timeout
+            result = await task.result(timeout=20)
         except Exception as e:
+            err = str(e).lower()
+            if "timeout" in err or "timed out" in err:
+                return Response(
+                    message="SuperOrdinate '{}' is still processing (timed out after 20s). "
+                            "Continue with your current task and check back later using "
+                            "superordinate_lastresponse(name='{}').".format(
+                                sub_context.name or superordinate_id,
+                                name or superordinate_id,
+                            ),
+                    break_loop=False,
+                )
             return Response(
                 message="Error waiting for superordinate '{}': {}".format(sub_context.name or superordinate_id, str(e)),
                 break_loop=False,

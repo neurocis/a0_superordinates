@@ -492,20 +492,29 @@ const model = {
   async newChat() {
     const chatsStore = Alpine.store('chats');
     if (!chatsStore) return;
+
+    // Pre-pick the name so we can apply it instantly
+    const name = this._pickUnusedName();
+
     const beforeId = chatsStore.selected;
     await chatsStore.newChat();
     const newId = chatsStore.selected;
     if (newId && newId !== beforeId) {
-      // Assign a short unique name
-      const name = this._pickUnusedName();
-      try {
-        await callJsonApi('plugins/a0_superordinates/superordinate_rename', {
-          ctxid: newId,
-          new_name: name,
-        });
-      } catch (e) {
-        console.error('[Superordinates] Auto-name failed:', e);
+      // Optimistically set the name in local contexts immediately
+      // so the UI never flashes "Chat #XX"
+      const ctx = chatsStore.contexts.find(c => c.id === newId);
+      if (ctx) {
+        ctx.name = name;
+        // Trigger Alpine reactivity by replacing the array
+        chatsStore.contexts = [...chatsStore.contexts];
       }
+
+      // Persist the name server-side (non-blocking)
+      callJsonApi('plugins/a0_superordinates/superordinate_rename', {
+        ctxid: newId,
+        new_name: name,
+      }).catch(e => console.error('[Superordinates] Auto-name failed:', e));
+
       // Persist at position 0 so it stays at top after fetchMap refreshes
       await this.reparent(newId, null, 0);
     }
