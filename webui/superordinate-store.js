@@ -226,7 +226,7 @@ const model = {
 
   /** Start dragging a node */
   dragStart(ctxid, event) {
-    console.log('[Superordinates] dragStart:', ctxid);
+    console.warn('[Superordinates] === DRAG START ===', ctxid);
     // Set global flag BEFORE any other drag events fire
     window._superordinateDragging = true;
     this.dragChildId = ctxid;
@@ -264,6 +264,9 @@ const model = {
       mode = 'child';
     }
 
+    if (this.dragOverTarget !== ctxid || this.dragDropMode !== mode) {
+      console.warn('[Superordinates] dragOver:', ctxid, 'mode:', mode);
+    }
     this.dragOverTarget = ctxid;
     this.dragDropMode = mode;
   },
@@ -282,6 +285,7 @@ const model = {
   async drop(ctxid, event, flatTree) {
     event.preventDefault();
     event.stopPropagation();
+    console.warn('[Superordinates] === DROP EVENT FIRED ===', { ctxid, dragChildId: this.dragChildId, storedMode: this.dragDropMode });
     const childId = this.dragChildId;
 
     // Compute drop mode directly from event position (don't rely on
@@ -295,14 +299,14 @@ const model = {
       if (y < zone) mode = 'before';
       else if (y > h - zone) mode = 'after';
       else mode = 'child';
+      console.warn('[Superordinates] drop mode computed from position:', mode);
     }
-    console.log('[Superordinates] drop event fired:', { ctxid, childId, mode, storedMode: this.dragDropMode });
 
     // Clear visual state immediately
     this._clearDragVisuals();
 
     if (!childId || childId === ctxid || !mode) {
-      console.log('[Superordinates] drop aborted - missing data:', { childId, ctxid, mode });
+      console.warn('[Superordinates] drop ABORTED - missing data:', { childId, ctxid, mode });
       return;
     }
 
@@ -338,12 +342,12 @@ const model = {
       }
     }
 
-    console.log('[Superordinates] computed reparent params:', { childId, newParentId, position, mode, targetParent });
+    console.warn('[Superordinates] === CALLING REPARENT ===', { childId, newParentId, position, mode, targetParent });
     
     // Call reparent with explicit error handling
     try {
       await this.reparent(childId, newParentId, position);
-      console.log('[Superordinates] reparent call completed');
+      console.warn('[Superordinates] reparent call completed successfully');
     } catch (e) {
       console.error('[Superordinates] reparent threw exception:', e);
     }
@@ -351,7 +355,7 @@ const model = {
 
   /** End drag (cleanup) */
   dragEnd(event) {
-    console.log('[Superordinates] dragEnd');
+    console.warn('[Superordinates] === DRAG END ===');
     window._superordinateDragging = false;
     this._clearDragVisuals();
   },

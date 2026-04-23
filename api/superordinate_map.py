@@ -48,14 +48,16 @@ class SuperordinateMap(ApiHandler):
         # 1b. Disk fallback for contexts not currently loaded in memory
         if os.path.isdir(chats_dir):
             for d in os.listdir(chats_dir):
-                if d in seen_ids:
-                    continue  # Already have in-memory data, skip disk
+                if d.startswith("_") or d in seen_ids:
+                    continue  # Skip metadata files/dirs and already-loaded contexts
                 chat_file = os.path.join(chats_dir, d, "chat.json")
                 if not os.path.isfile(chat_file):
                     continue
                 try:
                     with open(chat_file, "r") as f:
                         data = json.load(f)
+                    if not isinstance(data, dict):
+                        continue  # Skip malformed chat files
                     all_ctx_data[d] = data.get("data", {})
                 except (json.JSONDecodeError, OSError, KeyError):
                     continue

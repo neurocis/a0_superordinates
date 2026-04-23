@@ -57,14 +57,16 @@ def _build_complete_root_order() -> list[str]:
     
     if os.path.isdir(chats_dir):
         for d in os.listdir(chats_dir):
-            if d in all_root_ids:
-                continue
+            if d.startswith("_") or d in all_root_ids:
+                continue  # Skip metadata files/dirs and already-seen contexts
             chat_file = os.path.join(chats_dir, d, "chat.json")
             if not os.path.isfile(chat_file):
                 continue
             try:
                 with open(chat_file, "r") as f:
                     data = json.load(f)
+                if not isinstance(data, dict):
+                    continue  # Skip malformed chat files
                 if not data.get("data", {}).get("sup_parent"):
                     all_root_ids.add(d)
             except (json.JSONDecodeError, OSError, KeyError):
