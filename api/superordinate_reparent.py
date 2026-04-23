@@ -12,6 +12,9 @@ affected contexts, persists to disk, and maintains root-level ordering.
 
 import json
 import os
+import logging
+
+log = logging.getLogger("a0.superordinates.reparent")
 
 from agent import AgentContext
 from helpers.api import ApiHandler, Request, Response
@@ -29,6 +32,53 @@ def _load_root_order() -> list[str]:
         except (json.JSONDecodeError, OSError):
             pass
     return []
+
+
+def _build_complete_root_order() -> list[str]:
+    """Build a complete root order including ALL root items.
+    
+    Saved items maintain their positions; unsaved root items are appended
+    in sorted order for stability. This ensures position indices from the
+    frontend match the backend's list.
+    """
+    saved = _load_root_order()
+    chats_dir = os.path.dirname(ROOT_ORDER_FILE)  # /a0/usr/chats
+    all_root_ids = set()
+    
+    # Scan all contexts to find root items
+    # Use in-memory contexts first, then disk
+    try:
+        from agent import AgentContext as _AC
+        for ctx in _AC.all():
+            if ctx.id and not (ctx.data.get("sup_parent") if ctx.data else None):
+                all_root_ids.add(ctx.id)
+    except Exception:
+        pass
+    
+    if os.path.isdir(chats_dir):
+        for d in os.listdir(chats_dir):
+            if d in all_root_ids:
+                continue
+            chat_file = os.path.join(chats_dir, d, "chat.json")
+            if not os.path.isfile(chat_file):
+                continue
+            try:
+                with open(chat_file, "r") as f:
+                    data = json.load(f)
+                if not data.get("data", {}).get("sup_parent"):
+                    all_root_ids.add(d)
+            except (json.JSONDecodeError, OSError, KeyError):
+                continue
+    
+    # Build complete list: saved items first (if still root), then unsaved
+    complete = []
+    for rid in saved:
+        if rid in all_root_ids:
+            complete.append(rid)
+    for rid in sorted(all_root_ids):
+        if rid not in complete:
+            complete.append(rid)
+    return complete
 
 
 def _save_root_order(order: list[str]) -> None:
@@ -82,6 +132,7 @@ class SuperordinateReparent(ApiHandler):
         # --- Detach from old parent ---
         old_parent_id = child_ctx.data.get("sup_parent") or None
         was_root = not old_parent_id
+        log.warning(f"[REPARENT] child={child_id}, new_parent={new_parent_id}, pos={position}, old_parent={old_parent_id}, was_root={was_root}")
 
         if old_parent_id:
             old_parent_ctx = AgentContext.get(old_parent_id)
@@ -93,10 +144,11 @@ class SuperordinateReparent(ApiHandler):
                     c for c in old_children if c.get("ctxid") != child_id
                 ]
                 save_tmp_chat(old_parent_ctx)
+                log.warning(f"[REPARENT] removed child from old parent sup_children, remaining: {[c.get('ctxid') for c in old_parent_ctx.data.get('sup_children', [])]}")
 
         # --- Remove from root order if it was a root item ---
         if was_root:
-            root_order = _load_root_order()
+            root_order = _build_complete_root_order()
             root_order = [r for r in root_order if r != child_id]
             _save_root_order(root_order)
 
@@ -119,10 +171,11 @@ class SuperordinateReparent(ApiHandler):
 
             new_parent_ctx.data["sup_children"] = new_children
             save_tmp_chat(new_parent_ctx)
+            log.warning(f"[REPARENT] inserted into new parent sup_children at pos={position}, order: {[c.get('ctxid') for c in new_children]}")
         else:
             # Moving to root - clear parent and update root order
             child_ctx.data.pop("sup_parent", None)
-            root_order = _load_root_order()
+            root_order = _build_complete_root_order()
             # Remove if already present (defensive)
             root_order = [r for r in root_order if r != child_id]
             # Insert at position
@@ -131,6 +184,7 @@ class SuperordinateReparent(ApiHandler):
             else:
                 root_order.insert(position, child_id)
             _save_root_order(root_order)
+            log.warning(f"[REPARENT] updated root_order: {root_order}")
 
         save_tmp_chat(child_ctx)
 

@@ -93,15 +93,35 @@ class SuperordinateMap(ApiHandler):
                     ordered.append(cid)
             children_of[par_id] = ordered
 
-        # Phase 2b: Root-level ordering from _sup_root_order.json
+        # Phase 2b: Root-level ordering.
+        # Load saved root order, then build a COMPLETE list that includes
+        # all current root items (not just those explicitly saved).
         root_order_file = os.path.join(chats_dir, "_sup_root_order.json")
-        root_order: list[str] = []
+        saved_root_order: list[str] = []
         if os.path.isfile(root_order_file):
             try:
                 with open(root_order_file, "r") as f:
-                    root_order = json.load(f)
+                    saved_root_order = json.load(f)
             except (json.JSONDecodeError, OSError):
-                root_order = []
+                saved_root_order = []
+
+        # Identify all root items: contexts that exist AND have no parent
+        # (or whose parent doesn't exist in our data)
+        all_root_ids = set()
+        for ctxid in all_ctx_data:
+            par = all_ctx_data[ctxid].get("sup_parent") or None
+            if par is None or par not in all_ctx_data:
+                all_root_ids.add(ctxid)
+
+        # Build complete root_order: saved items first (if still root),
+        # then unsaved root items appended in sorted order for stability
+        root_order: list[str] = []
+        for rid in saved_root_order:
+            if rid in all_root_ids:
+                root_order.append(rid)
+        for rid in sorted(all_root_ids):
+            if rid not in root_order:
+                root_order.append(rid)
 
         # Phase 3: Assemble the final hierarchy map.
         # Include any context that is either a parent or a child.
