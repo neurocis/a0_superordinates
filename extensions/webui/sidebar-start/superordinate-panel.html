@@ -86,6 +86,21 @@
     overflow: hidden;
   }
 
+  /* Header row — matches Chats section-header-row styling */
+  .superordinate-inner .section-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    flex-shrink: 0;
+    margin-bottom: var(--spacing-xs);
+    z-index: 10;
+  }
+
+  .superordinate-inner .section-header {
+    margin: 0;
+  }
 
   /* Indentation is applied via inline paddingLeft on <li> */
   .tree-item {
