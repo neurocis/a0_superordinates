@@ -4,13 +4,14 @@
 </head>
 <body>
   <div x-data="{ _flatTree: [] }" x-move-after="#chats-section"
-    x-effect="_flatTree = $store.superordinates?.getFlatTree($store.chats?.contexts) || []">
+    x-effect="_flatTree = $store.superordinates?.getFlatTree($store.chats?.contexts) || []"
+    class="superordinate-section">
     <template x-if="$store.superordinates && $store.chats">
-      <div>
+      <div class="superordinate-inner">
         <div class="config-list-header">
           <h3>Superordinates</h3>
         </div>
-        <ul class="config-list chats-config-list superordinate-tree no-scrollbar"
+        <ul class="config-list chats-config-list superordinate-tree"
           x-show="$store.chats.contexts.length > 0"
           @dragover.prevent.stop="">
           <template x-for="node in _flatTree" :key="node.id">
@@ -55,14 +56,33 @@
 </html>
 
 <style>
+  /* Section wrapper — participates in sidebar flex chain */
+  .superordinate-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
   /* Tree-specific styles */
   .superordinate-tree {
     flex: 1;
     min-height: 0;
-    overflow: scroll;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
-    max-height: 100%;
   }
+
+  /* Inner wrapper — must pass flex chain through template x-if */
+  .superordinate-inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
 
   /* Indentation is applied via inline paddingLeft on <li> */
   .tree-item {
