@@ -46,8 +46,9 @@ const model = {
     // Persistence
     this._restoreExpanded();
     this._restoreUnseen();
-    // Status tracking
     this._patchStatusTracking();
+    // Sidebar resize handle — mount after DOM is ready
+    this._scheduleMountResizeHandle();
   },
 
   _treeListenersAttached: false,
@@ -927,7 +928,19 @@ const model = {
   _resizeHandle: null,        // DOM element ref
 
   /**
-   * Called from x-init in sidebar-end extension.
+   * Schedule mounting of the resize handle once #left-panel exists in the DOM.
+   * Called from init() — retries until the panel is available.
+   */
+  _scheduleMountResizeHandle() {
+    const panel = document.getElementById('left-panel');
+    if (!panel) {
+      setTimeout(() => this._scheduleMountResizeHandle(), 200);
+      return;
+    }
+    this._mountResizeHandle();
+  },
+
+  /**
    * Creates a fixed-position handle element on document.body,
    * bypassing all x-extension/x-component wrapper issues.
    */

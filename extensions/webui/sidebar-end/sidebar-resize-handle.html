@@ -2,12 +2,11 @@
 <head></head>
 <body>
   <!--
-    Sidebar resize handle — lightweight trigger.
-    The actual handle element is created and managed entirely by JS
-    (appended to document.body with position:fixed) to bypass all
-    x-extension/x-component CSS positioning chain issues.
+    Sidebar resize handle CSS.
+    The handle element is created and positioned by the superordinate store's
+    init() → _scheduleMountResizeHandle() → _mountResizeHandle().
+    This extension only provides the global CSS needed during a resize drag.
   -->
-  <div x-data x-init="$store.superordinates?._mountResizeHandle()"></div>
 </body>
 </html>
 
