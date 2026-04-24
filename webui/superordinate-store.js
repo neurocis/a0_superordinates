@@ -624,30 +624,58 @@ const model = {
   },
 
   /**
+   * Collect all descendant context IDs recursively (depth-first).
+   * Returns an array with deepest descendants first (safe for bottom-up kill).
+   */
+  _collectDescendants(ctxid) {
+    const result = [];
+    const children = this.getChildren(ctxid);
+    for (const childId of children) {
+      // Recurse into grandchildren first (depth-first)
+      result.push(...this._collectDescendants(childId));
+      result.push(childId);
+    }
+    return result;
+  },
+
+  /**
    * Close chat handler for Superordinates.
-   * If the chat is under 'Closed Chats', actually kill it.
-   * Otherwise, move it under 'Closed Chats'.
+   * - If this IS 'Closed Chats': kill all descendants recursively, then kill it.
+   * - If under 'Closed Chats': actually kill it.
+   * - Otherwise: move it under 'Closed Chats'.
    */
   async closeChat(ctxid) {
     console.warn('[Superordinates] closeChat called for:', ctxid);
-
-    if (this._isUnderClosedChats(ctxid)) {
-      console.warn('[Superordinates] Chat is under Closed Chats, killing it');
-      const chatsStore = Alpine.store('chats');
-      if (chatsStore) {
-        await chatsStore.killChat(ctxid);
-      }
-      return;
-    }
+    const chatsStore = Alpine.store('chats');
+    if (!chatsStore) return;
 
     // Check if this IS the 'Closed Chats' node itself
     const ctx = this._findContextByName_byId(ctxid);
     if (ctx && (ctx.name || '').toLowerCase() === 'closed chats') {
-      console.warn('[Superordinates] This IS Closed Chats node, killing it');
-      const chatsStore = Alpine.store('chats');
-      if (chatsStore) {
-        await chatsStore.killChat(ctxid);
+      console.warn('[Superordinates] This IS Closed Chats — killing all descendants first');
+
+      // Collect all descendants (deepest first)
+      const descendants = this._collectDescendants(ctxid);
+      console.warn('[Superordinates] Descendants to kill:', descendants);
+
+      // Kill each descendant
+      for (const descId of descendants) {
+        try {
+          await chatsStore.killChat(descId);
+        } catch (e) {
+          console.error('[Superordinates] Failed to kill descendant:', descId, e);
+        }
       }
+
+      // Now kill the Closed Chats node itself
+      console.warn('[Superordinates] All descendants killed, now killing Closed Chats itself');
+      await chatsStore.killChat(ctxid);
+      return;
+    }
+
+    if (this._isUnderClosedChats(ctxid)) {
+      console.warn('[Superordinates] Chat is under Closed Chats, killing it');
+      await chatsStore.killChat(ctxid);
       return;
     }
 
@@ -661,7 +689,6 @@ const model = {
     }
 
     // Reparent the chat under 'Closed Chats' via direct API call
-    // (avoids any race with fetchMap from _getOrCreateClosedChats)
     console.warn('[Superordinates] Reparenting', ctxid, 'under', closedChatsId);
     try {
       const res = await callJsonApi(
