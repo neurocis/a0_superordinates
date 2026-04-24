@@ -652,23 +652,23 @@ const model = {
     // Check if this IS the 'Closed Chats' node itself
     const ctx = this._findContextByName_byId(ctxid);
     if (ctx && (ctx.name || '').toLowerCase() === 'closed chats') {
-      console.warn('[Superordinates] This IS Closed Chats — killing all descendants first');
+      console.warn('[Superordinates] This IS Closed Chats — closing all descendants first');
 
       // Collect all descendants (deepest first)
       const descendants = this._collectDescendants(ctxid);
-      console.warn('[Superordinates] Descendants to kill:', descendants);
+      console.warn('[Superordinates] Descendants to close:', descendants);
 
-      // Kill each descendant
+      // Close each descendant through the standard closeChat flow
       for (const descId of descendants) {
         try {
-          await chatsStore.killChat(descId);
+          await this.closeChat(descId);
         } catch (e) {
-          console.error('[Superordinates] Failed to kill descendant:', descId, e);
+          console.error('[Superordinates] Failed to close descendant:', descId, e);
         }
       }
 
       // Now kill the Closed Chats node itself
-      console.warn('[Superordinates] All descendants killed, now killing Closed Chats itself');
+      console.warn('[Superordinates] All descendants closed, now killing Closed Chats itself');
       await chatsStore.killChat(ctxid);
       return;
     }
