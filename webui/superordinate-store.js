@@ -24,6 +24,12 @@ const model = {
   dragOverTarget: null,    // ctxid currently hovered
   dragDropMode: null,      // 'before' | 'after' | 'child'
 
+  // Sidebar resize state
+  sidebarWidth: null,      // px width (null = CSS default 250px)
+  _isResizing: false,      // true while drag-resizing sidebar
+  _resizeBound: null,      // bound mousemove handler ref
+  _resizeEndBound: null,   // bound mouseup handler ref
+
   init() {
     // Store registered - fetch map immediately
     this.fetchMap();
@@ -911,6 +917,105 @@ const model = {
     if (this.dragOverTarget !== ctxid || !this.dragDropMode) return '';
     return 'drop-' + this.dragDropMode;
   },
-};
 
+  // ── Sidebar width resize ──────────────────────────────────
+
+  _SIDEBAR_WIDTH_KEY: 'superordinates.sidebarWidth',
+  _SIDEBAR_DEFAULT: 250,
+  _SIDEBAR_MIN: 150,
+  _SIDEBAR_MAX: 600,
+
+  /** Called from x-init on the resize handle element */
+  _initSidebarResize() {
+    const saved = localStorage.getItem(this._SIDEBAR_WIDTH_KEY);
+    if (saved) {
+      const w = parseInt(saved, 10);
+      if (w >= this._SIDEBAR_MIN && w <= this._SIDEBAR_MAX) {
+        this.sidebarWidth = w;
+        this._applySidebarWidth(w);
+      }
+    }
+  },
+
+  /** Mousedown on the resize handle — start tracking */
+  startSidebarResize(event) {
+    event.preventDefault();
+    this._isResizing = true;
+
+    // Add active class to handle
+    const handle = event.currentTarget;
+    if (handle) handle.classList.add('active');
+
+    // Prevent text selection and set cursor globally
+    document.body.classList.add('sidebar-resizing');
+
+    // Bind handlers (store refs for cleanup)
+    this._resizeBound = (e) => this._onSidebarResize(e);
+    this._resizeEndBound = (e) => this._endSidebarResize(e, handle);
+
+    document.addEventListener('mousemove', this._resizeBound);
+    document.addEventListener('mouseup', this._resizeEndBound);
+  },
+
+  /** Mousemove — update sidebar width */
+  _onSidebarResize(event) {
+    if (!this._isResizing) return;
+    // event.clientX is the mouse position from left edge of viewport
+    let newWidth = event.clientX;
+    // Clamp to min/max
+    newWidth = Math.max(this._SIDEBAR_MIN, Math.min(this._SIDEBAR_MAX, newWidth));
+    this.sidebarWidth = newWidth;
+    this._applySidebarWidth(newWidth);
+  },
+
+  /** Mouseup — stop tracking and persist */
+  _endSidebarResize(event, handle) {
+    if (!this._isResizing) return;
+    this._isResizing = false;
+
+    // Remove active class from handle
+    if (handle) handle.classList.remove('active');
+
+    // Restore normal cursor and selection
+    document.body.classList.remove('sidebar-resizing');
+
+    // Cleanup document listeners
+    if (this._resizeBound) {
+      document.removeEventListener('mousemove', this._resizeBound);
+      this._resizeBound = null;
+    }
+    if (this._resizeEndBound) {
+      document.removeEventListener('mouseup', this._resizeEndBound);
+      this._resizeEndBound = null;
+    }
+
+    // Persist
+    this._persistSidebarWidth();
+  },
+
+  /** Double-click — reset to default width */
+  resetSidebarWidth() {
+    this.sidebarWidth = null;
+    this._applySidebarWidth(this._SIDEBAR_DEFAULT);
+    localStorage.removeItem(this._SIDEBAR_WIDTH_KEY);
+  },
+
+  /** Apply width to #left-panel */
+  _applySidebarWidth(width) {
+    const panel = document.getElementById('left-panel');
+    if (!panel) return;
+    const px = width + 'px';
+    panel.style.width = px;
+    panel.style.minWidth = px;
+    // Set CSS variable for the hidden margin calculation
+    panel.style.setProperty('--sidebar-width', px);
+  },
+
+  /** Persist sidebar width to localStorage */
+  _persistSidebarWidth() {
+    if (this.sidebarWidth != null) {
+      localStorage.setItem(this._SIDEBAR_WIDTH_KEY, String(this.sidebarWidth));
+    }
+  },
+};
 export const store = createStore("superordinates", model);
