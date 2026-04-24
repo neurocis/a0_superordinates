@@ -125,6 +125,16 @@ class SuperordinateMap(ApiHandler):
             if rid not in root_order:
                 root_order.append(rid)
 
+        # Persist root_order back to disk if it changed (ensures newly
+        # discovered roots or pruned stale entries are locked in)
+        if root_order != saved_root_order:
+            try:
+                with open(root_order_file, "w") as f:
+                    json.dump(root_order, f)
+            except OSError:
+                pass
+
+
         # Phase 3: Assemble the final hierarchy map.
         # Include any context that is either a parent or a child.
         hierarchy_map: dict[str, dict] = {}
