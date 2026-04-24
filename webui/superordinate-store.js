@@ -75,7 +75,6 @@ const model = {
     tree.addEventListener('dragover', stopBubble, false);
     tree.addEventListener('drop', stopBubble, false);
     tree.addEventListener('dragleave', stopBubble, false);
-    console.log('[Superordinates] Tree-level drag listeners attached');
   },
 
   onOpen() {
@@ -652,18 +651,15 @@ const model = {
    * - Otherwise: move it under 'Closed Chats'.
    */
   async closeChat(ctxid) {
-    console.warn('[Superordinates] closeChat called for:', ctxid);
     const chatsStore = Alpine.store('chats');
     if (!chatsStore) return;
 
     // Check if this IS the 'Closed Chats' node itself
     const ctx = this._findContextByName_byId(ctxid);
     if (ctx && (ctx.name || '').toLowerCase() === 'closed chats') {
-      console.warn('[Superordinates] This IS Closed Chats — closing all descendants first');
 
       // Collect all descendants (deepest first)
       const descendants = this._collectDescendants(ctxid);
-      console.warn('[Superordinates] Descendants to close:', descendants);
 
       // Close each descendant through the standard closeChat flow
       for (const descId of descendants) {
@@ -675,34 +671,28 @@ const model = {
       }
 
       // Now kill the Closed Chats node itself
-      console.warn('[Superordinates] All descendants closed, now killing Closed Chats itself');
       await chatsStore.killChat(ctxid);
       return;
     }
 
     if (this._isUnderClosedChats(ctxid)) {
-      console.warn('[Superordinates] Chat is under Closed Chats, killing it');
       await chatsStore.killChat(ctxid);
       return;
     }
 
     // Move to 'Closed Chats'
-    console.warn('[Superordinates] Getting/creating Closed Chats folder...');
     const closedChatsId = await this._getOrCreateClosedChats();
-    console.warn('[Superordinates] Closed Chats ID:', closedChatsId);
     if (!closedChatsId) {
       console.error('[Superordinates] Could not get/create Closed Chats node');
       return;
     }
 
     // Reparent the chat under 'Closed Chats' via direct API call
-    console.warn('[Superordinates] Reparenting', ctxid, 'under', closedChatsId);
     try {
       const res = await callJsonApi(
         'plugins/a0_superordinates/superordinate_reparent',
         { child_id: ctxid, new_parent_id: closedChatsId, position: -1 }
       );
-      console.warn('[Superordinates] Reparent result:', res);
       if (res && !res.ok) {
         console.error('[Superordinates] Reparent failed:', res.error);
       }
@@ -731,13 +721,11 @@ const model = {
    */
   async reparent(childId, newParentId, position) {
     if (!childId || childId === newParentId) return;
-    console.log('[Superordinates] reparent called:', { childId, newParentId, position });
     try {
       const res = await callJsonApi(
         "plugins/a0_superordinates/superordinate_reparent",
         { child_id: childId, new_parent_id: newParentId || "", position: position }
       );
-      console.log('[Superordinates] reparent response:', res);
       if (res && !res.ok) {
         console.error("[Superordinates] reparent error:", res.error);
       }
@@ -750,7 +738,6 @@ const model = {
 
   /** Start dragging a node */
   dragStart(ctxid, event) {
-    console.warn('[Superordinates] === DRAG START ===', ctxid);
     // Set global flag BEFORE any other drag events fire
     window._superordinateDragging = true;
     this.dragChildId = ctxid;
@@ -789,7 +776,6 @@ const model = {
     }
 
     if (this.dragOverTarget !== ctxid || this.dragDropMode !== mode) {
-      console.warn('[Superordinates] dragOver:', ctxid, 'mode:', mode);
     }
     this.dragOverTarget = ctxid;
     this.dragDropMode = mode;
@@ -809,7 +795,6 @@ const model = {
   async drop(ctxid, event, flatTree) {
     event.preventDefault();
     event.stopPropagation();
-    console.warn('[Superordinates] === DROP EVENT FIRED ===', { ctxid, dragChildId: this.dragChildId, storedMode: this.dragDropMode });
     const childId = this.dragChildId;
 
     // Compute drop mode directly from event position (don't rely on
@@ -823,14 +808,12 @@ const model = {
       if (y < zone) mode = 'before';
       else if (y > h - zone) mode = 'after';
       else mode = 'child';
-      console.warn('[Superordinates] drop mode computed from position:', mode);
     }
 
     // Clear visual state immediately
     this._clearDragVisuals();
 
     if (!childId || childId === ctxid || !mode) {
-      console.warn('[Superordinates] drop ABORTED - missing data:', { childId, ctxid, mode });
       return;
     }
 
@@ -867,12 +850,10 @@ const model = {
       }
     }
 
-    console.warn('[Superordinates] === CALLING REPARENT ===', { childId, newParentId, position, mode, targetParent });
     
     // Call reparent with explicit error handling
     try {
       await this.reparent(childId, newParentId, position);
-      console.warn('[Superordinates] reparent call completed successfully');
     } catch (e) {
       console.error('[Superordinates] reparent threw exception:', e);
     }
@@ -880,7 +861,6 @@ const model = {
 
   /** End drag (cleanup) */
   dragEnd(event) {
-    console.warn('[Superordinates] === DRAG END ===');
     window._superordinateDragging = false;
     this._clearDragVisuals();
   },
@@ -1012,7 +992,6 @@ const model = {
       observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
     }
 
-    console.log('[sidebar-resize] handle mounted and positioned');
   },
 
   /** Position the handle at the right edge of #left-panel */
