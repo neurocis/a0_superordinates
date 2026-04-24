@@ -156,5 +156,5 @@ def _prune_root_order():
 
 class PruneStaleHierarchy(Extension):
 
-    async def execute(self, **kwargs):
+    def execute(self, **kwargs):
         _prune_all_chats()
