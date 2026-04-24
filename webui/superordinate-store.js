@@ -924,97 +924,151 @@ const model = {
   _SIDEBAR_DEFAULT: 250,
   _SIDEBAR_MIN: 150,
   _SIDEBAR_MAX: 600,
+  _resizeHandle: null,        // DOM element ref
 
-  /** Called from x-init on the resize handle element */
-  _initSidebarResize() {
+  /**
+   * Called from x-init in sidebar-end extension.
+   * Creates a fixed-position handle element on document.body,
+   * bypassing all x-extension/x-component wrapper issues.
+   */
+  _mountResizeHandle() {
+    // Only create once
+    if (this._resizeHandle) return;
+
+    const handle = document.createElement('div');
+    handle.className = 'sidebar-resize-handle';
+    handle.title = 'Drag to resize sidebar, double-click to reset';
+
+    // Style it directly — position:fixed on body, no CSS chain dependency
+    Object.assign(handle.style, {
+      position: 'fixed',
+      top: '0',
+      width: '6px',
+      height: '100vh',
+      cursor: 'col-resize',
+      zIndex: '1100',
+      background: 'transparent',
+      transition: 'background-color 0.15s ease',
+    });
+
+    // Hover effect
+    handle.addEventListener('mouseenter', () => {
+      handle.style.backgroundColor = 'rgba(74, 158, 255, 0.5)';
+    });
+    handle.addEventListener('mouseleave', () => {
+      if (!this._isResizing) handle.style.backgroundColor = 'transparent';
+    });
+
+    // Start resize on mousedown
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this._startSidebarResize(e, handle);
+    });
+
+    // Double-click to reset
+    handle.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this._resetSidebarWidth(handle);
+    });
+
+    document.body.appendChild(handle);
+    this._resizeHandle = handle;
+
+    // Restore saved width
     const saved = localStorage.getItem(this._SIDEBAR_WIDTH_KEY);
     if (saved) {
       const w = parseInt(saved, 10);
       if (w >= this._SIDEBAR_MIN && w <= this._SIDEBAR_MAX) {
         this.sidebarWidth = w;
-        this._applySidebarWidth(w);
+        this._applySidebarWidth(w, handle);
+      } else {
+        this._positionHandle(handle);
       }
+    } else {
+      this._positionHandle(handle);
     }
+
+    // Reposition handle when sidebar toggled open/closed
+    const observer = new MutationObserver(() => {
+      requestAnimationFrame(() => this._positionHandle(handle));
+    });
+    const panel = document.getElementById('left-panel');
+    if (panel) {
+      observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    console.log('[sidebar-resize] handle mounted and positioned');
   },
 
-  /** Mousedown on the resize handle — start tracking */
-  startSidebarResize(event) {
-    event.preventDefault();
+  /** Position the handle at the right edge of #left-panel */
+  _positionHandle(handle) {
+    const panel = document.getElementById('left-panel');
+    if (!panel || !handle) return;
+    const rect = panel.getBoundingClientRect();
+    handle.style.left = (rect.right - 3) + 'px';
+    handle.style.top = rect.top + 'px';
+    handle.style.height = rect.height + 'px';
+    // Hide handle when sidebar is hidden
+    handle.style.display = panel.classList.contains('hidden') ? 'none' : 'block';
+  },
+
+  /** Mousedown — start resize tracking */
+  _startSidebarResize(event, handle) {
     this._isResizing = true;
-
-    // Add active class to handle
-    const handle = event.currentTarget;
-    if (handle) handle.classList.add('active');
-
-    // Prevent text selection and set cursor globally
+    handle.style.backgroundColor = 'rgba(74, 158, 255, 0.5)';
     document.body.classList.add('sidebar-resizing');
 
-    // Bind handlers (store refs for cleanup)
-    this._resizeBound = (e) => this._onSidebarResize(e);
-    this._resizeEndBound = (e) => this._endSidebarResize(e, handle);
+    // Disable sidebar transition during drag
+    const panel = document.getElementById('left-panel');
+    if (panel) panel.style.transition = 'none';
 
-    document.addEventListener('mousemove', this._resizeBound);
-    document.addEventListener('mouseup', this._resizeEndBound);
-  },
+    const onMove = (e) => {
+      if (!this._isResizing) return;
+      let newWidth = Math.max(this._SIDEBAR_MIN, Math.min(this._SIDEBAR_MAX, e.clientX));
+      this.sidebarWidth = newWidth;
+      this._applySidebarWidth(newWidth, handle);
+    };
 
-  /** Mousemove — update sidebar width */
-  _onSidebarResize(event) {
-    if (!this._isResizing) return;
-    // event.clientX is the mouse position from left edge of viewport
-    let newWidth = event.clientX;
-    // Clamp to min/max
-    newWidth = Math.max(this._SIDEBAR_MIN, Math.min(this._SIDEBAR_MAX, newWidth));
-    this.sidebarWidth = newWidth;
-    this._applySidebarWidth(newWidth);
-  },
+    const onUp = () => {
+      this._isResizing = false;
+      handle.style.backgroundColor = 'transparent';
+      document.body.classList.remove('sidebar-resizing');
 
-  /** Mouseup — stop tracking and persist */
-  _endSidebarResize(event, handle) {
-    if (!this._isResizing) return;
-    this._isResizing = false;
+      // Re-enable sidebar transition
+      if (panel) panel.style.transition = '';
 
-    // Remove active class from handle
-    if (handle) handle.classList.remove('active');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
 
-    // Restore normal cursor and selection
-    document.body.classList.remove('sidebar-resizing');
+      // Persist
+      if (this.sidebarWidth != null) {
+        localStorage.setItem(this._SIDEBAR_WIDTH_KEY, String(this.sidebarWidth));
+      }
+    };
 
-    // Cleanup document listeners
-    if (this._resizeBound) {
-      document.removeEventListener('mousemove', this._resizeBound);
-      this._resizeBound = null;
-    }
-    if (this._resizeEndBound) {
-      document.removeEventListener('mouseup', this._resizeEndBound);
-      this._resizeEndBound = null;
-    }
-
-    // Persist
-    this._persistSidebarWidth();
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   },
 
   /** Double-click — reset to default width */
-  resetSidebarWidth() {
+  _resetSidebarWidth(handle) {
     this.sidebarWidth = null;
-    this._applySidebarWidth(this._SIDEBAR_DEFAULT);
+    this._applySidebarWidth(this._SIDEBAR_DEFAULT, handle);
     localStorage.removeItem(this._SIDEBAR_WIDTH_KEY);
   },
 
-  /** Apply width to #left-panel */
-  _applySidebarWidth(width) {
+  /** Apply width to #left-panel and reposition handle */
+  _applySidebarWidth(width, handle) {
     const panel = document.getElementById('left-panel');
     if (!panel) return;
     const px = width + 'px';
     panel.style.width = px;
     panel.style.minWidth = px;
-    // Set CSS variable for the hidden margin calculation
     panel.style.setProperty('--sidebar-width', px);
-  },
-
-  /** Persist sidebar width to localStorage */
-  _persistSidebarWidth() {
-    if (this.sidebarWidth != null) {
-      localStorage.setItem(this._SIDEBAR_WIDTH_KEY, String(this.sidebarWidth));
+    if (handle) {
+      handle.style.left = (width - 3) + 'px';
     }
   },
 };

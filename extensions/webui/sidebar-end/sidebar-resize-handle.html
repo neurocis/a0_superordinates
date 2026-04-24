@@ -1,59 +1,27 @@
 <html>
 <head></head>
 <body>
-  <!-- Sidebar resize handle — injected at the end of #left-panel -->
-  <div x-data
-    x-init="$store.superordinates?._initSidebarResize()"
-    class="sidebar-resize-handle"
-    @mousedown.prevent.stop="$store.superordinates?.startSidebarResize($event)"
-    @dblclick.prevent.stop="$store.superordinates?.resetSidebarWidth()"
-    title="Drag to resize sidebar, double-click to reset">
-  </div>
+  <!--
+    Sidebar resize handle — lightweight trigger.
+    The actual handle element is created and managed entirely by JS
+    (appended to document.body with position:fixed) to bypass all
+    x-extension/x-component CSS positioning chain issues.
+  -->
+  <div x-data x-init="$store.superordinates?._mountResizeHandle()"></div>
 </body>
 </html>
 
 <style>
-  /* ── Sidebar resize handle ──────────────────────────────── */
-  .sidebar-resize-handle {
-    position: absolute;
-    top: 0;
-    right: -3px;
-    width: 6px;
-    height: 100%;
-    cursor: col-resize;
-    z-index: 1010;
-    background: transparent;
-    transition: background-color 0.15s ease;
-  }
-
-  .sidebar-resize-handle:hover,
-  .sidebar-resize-handle.active {
-    background-color: var(--color-accent, #4a9eff);
-    opacity: 0.5;
-  }
-
-  /* Ensure #left-panel is positioned for the absolute handle */
-  #left-panel {
-    position: relative !important;
-  }
-
-  /* Prevent text selection and pointer events during resize */
+  /* Prevent text selection and pointer events during sidebar resize */
   body.sidebar-resizing {
     cursor: col-resize !important;
     user-select: none !important;
     -webkit-user-select: none !important;
   }
-
   body.sidebar-resizing * {
     cursor: col-resize !important;
   }
-
   body.sidebar-resizing iframe {
     pointer-events: none !important;
-  }
-
-  /* Override the hidden margin to match custom width */
-  #left-panel.hidden {
-    margin-left: calc(-1 * var(--sidebar-width, 250px)) !important;
   }
 </style>
