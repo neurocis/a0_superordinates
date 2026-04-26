@@ -9,7 +9,9 @@ Runs once at framework startup. Scans all chat directories on disk and:
 
 import json
 import os
+import sys
 import logging
+import traceback
 
 from helpers.extension import Extension
 
@@ -17,6 +19,39 @@ log = logging.getLogger("a0.superordinates.startup_prune")
 
 CHATS_DIR = "/a0/usr/chats"
 ROOT_ORDER_FILE = os.path.join(CHATS_DIR, "_sup_root_order.json")
+
+# DEBUG: install a process-wide audit hook to trace writes to ROOT_ORDER_FILE
+_AUDIT_INSTALLED = False
+
+
+def _install_write_audit_hook():
+    global _AUDIT_INSTALLED
+    if _AUDIT_INSTALLED:
+        return
+    _AUDIT_INSTALLED = True
+
+    def _audit(event, args):
+        try:
+            if event == "open":
+                path = args[0] if args else None
+                mode = args[1] if len(args) > 1 else None
+                if isinstance(path, str) and path.endswith("_sup_root_order.json") and isinstance(mode, str) and ("w" in mode or "a" in mode):
+                    from datetime import datetime as _dt
+                    stack = "".join(traceback.format_stack(limit=30))
+                    with open("/tmp/sup_map_debug.log", "a") as _df:
+                        _df.write(f"\n!!! AUDIT WRITE EVENT {_dt.now().isoformat()} mode={mode} path={path} !!!\n")
+                        _df.write(stack)
+                        _df.write("!!! END AUDIT !!!\n\n")
+        except Exception:
+            pass
+
+    try:
+        sys.addaudithook(_audit)
+    except Exception:
+        pass
+
+
+_install_write_audit_hook()
 
 
 def _context_exists_on_disk(ctxid: str) -> bool:
