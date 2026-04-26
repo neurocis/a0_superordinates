@@ -20,7 +20,7 @@ from agent import AgentContext
 from helpers.api import ApiHandler, Request, Response
 from helpers.persist_chat import save_tmp_chat
 
-ROOT_ORDER_FILE = "/a0/usr/chats/_sup_root_order.json"
+ROOT_ORDER_FILE = "/a0/usr/chats/_sup_root_order.dat"  # NOT .json - framework's _convert_v080_chats() migrates *.json files at startup
 
 
 def _load_root_order() -> list[str]:

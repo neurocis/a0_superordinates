@@ -16,7 +16,80 @@ from helpers.extension import Extension
 log = logging.getLogger("a0.superordinates.startup_prune")
 
 CHATS_DIR = "/a0/usr/chats"
-ROOT_ORDER_FILE = os.path.join(CHATS_DIR, "_sup_root_order.json")
+# NOTE: Use .dat (NOT .json) - the framework's _convert_v080_chats() in
+# helpers/persist_chat.py runs at startup and moves any *.json file at the top
+# of CHATS_DIR into <name>/chat.json (legacy v0.8.0 chat migration). This
+# silently destroys our root order file. Using .dat sidesteps that scan.
+ROOT_ORDER_FILE = os.path.join(CHATS_DIR, "_sup_root_order.dat")
+LEGACY_ROOT_ORDER_JSON = os.path.join(CHATS_DIR, "_sup_root_order.json")
+LEGACY_ROOT_ORDER_ARTIFACT = os.path.join(CHATS_DIR, "_sup_root_order", "chat.json")
+LEGACY_ROOT_ORDER_ARTIFACT_DIR = os.path.join(CHATS_DIR, "_sup_root_order")
+
+
+def _migrate_legacy_root_order():
+    """Recover root order from legacy locations and clean up artifacts.
+
+    Three possible legacy states (any may exist on startup):
+    1. ``_sup_root_order.json`` at top of chats dir (will be eaten by v080
+       migration unless we move it to .dat first).
+    2. ``_sup_root_order/chat.json`` directory (the v080 migration artifact
+       from a previous startup).
+    3. Nothing (file already migrated, or never existed).
+
+    Strategy: pick the freshest valid order from any legacy source, write it
+    to the new .dat path, then remove the legacy files/dir.
+    """
+    candidates = []  # (mtime, order, source_path)
+    for src in (LEGACY_ROOT_ORDER_JSON, LEGACY_ROOT_ORDER_ARTIFACT):
+        if os.path.isfile(src):
+            try:
+                with open(src, "r") as f:
+                    order = json.load(f)
+                if isinstance(order, list):
+                    candidates.append((os.path.getmtime(src), order, src))
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    if candidates:
+        # If new .dat doesn't exist, or legacy is newer, use legacy
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        newest_mtime, newest_order, newest_src = candidates[0]
+        write_dat = True
+        if os.path.isfile(ROOT_ORDER_FILE):
+            try:
+                if os.path.getmtime(ROOT_ORDER_FILE) >= newest_mtime:
+                    write_dat = False
+            except OSError:
+                pass
+        if write_dat:
+            try:
+                with open(ROOT_ORDER_FILE, "w") as f:
+                    json.dump(newest_order, f)
+                log.warning(
+                    f"[PRUNE] Migrated root order from legacy {newest_src} to {ROOT_ORDER_FILE}"
+                )
+            except OSError as e:
+                log.warning(f"[PRUNE] Failed to migrate root order: {e}")
+
+    # Clean up legacy artifacts (whether or not we migrated)
+    try:
+        if os.path.isfile(LEGACY_ROOT_ORDER_JSON):
+            os.remove(LEGACY_ROOT_ORDER_JSON)
+            log.warning(f"[PRUNE] Removed legacy {LEGACY_ROOT_ORDER_JSON}")
+    except OSError as e:
+        log.warning(f"[PRUNE] Failed to remove legacy json: {e}")
+    try:
+        if os.path.isfile(LEGACY_ROOT_ORDER_ARTIFACT):
+            os.remove(LEGACY_ROOT_ORDER_ARTIFACT)
+        if os.path.isdir(LEGACY_ROOT_ORDER_ARTIFACT_DIR):
+            # Only remove if empty (defensive - should be empty after removing chat.json)
+            try:
+                os.rmdir(LEGACY_ROOT_ORDER_ARTIFACT_DIR)
+                log.warning(f"[PRUNE] Removed legacy artifact dir {LEGACY_ROOT_ORDER_ARTIFACT_DIR}")
+            except OSError:
+                pass
+    except OSError as e:
+        log.warning(f"[PRUNE] Failed to remove legacy artifact: {e}")
 
 def _context_exists_on_disk(ctxid: str) -> bool:
     """Check if a context's chat directory exists on disk."""
@@ -130,7 +203,7 @@ def _prune_all_chats():
 
 
 def _prune_root_order():
-    """Remove non-existent context IDs from _sup_root_order.json."""
+    """Remove non-existent context IDs from _sup_root_order.dat."""
     if not os.path.isfile(ROOT_ORDER_FILE):
         return
     try:
@@ -156,4 +229,5 @@ def _prune_root_order():
 class PruneStaleHierarchy(Extension):
 
     def execute(self, **kwargs):
+        _migrate_legacy_root_order()
         _prune_all_chats()

@@ -98,7 +98,7 @@ class SuperordinateMap(ApiHandler):
         # Phase 2b: Root-level ordering.
         # Load saved root order, then build a COMPLETE list that includes
         # all current root items (not just those explicitly saved).
-        root_order_file = os.path.join(chats_dir, "_sup_root_order.json")
+        root_order_file = os.path.join(chats_dir, "_sup_root_order.dat")  # NOT .json - framework's _convert_v080_chats() migrates *.json files at startup
         saved_root_order: list[str] = []
         if os.path.isfile(root_order_file):
             try:
