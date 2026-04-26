@@ -106,13 +106,9 @@ class SuperordinateMap(ApiHandler):
                     saved_root_order = json.load(f)
             except (json.JSONDecodeError, OSError):
                 saved_root_order = []
-        # DEBUG: log what we read from disk
-        try:
-            import logging as _logging
-            _log = _logging.getLogger("a0.superordinates.map")
-            _log.warning(f"[MAP-DEBUG] saved_root_order from file: {saved_root_order}")
-        except Exception:
-            pass
+        # DEBUG: write to plain text file we can easily read
+        _debug_lines = []
+        _debug_lines.append(f"saved_root_order from file: {saved_root_order}")
         # Identify all root items: contexts that exist AND have no parent
         # (or whose parent doesn't exist in our data)
         all_root_ids = set()
@@ -130,11 +126,16 @@ class SuperordinateMap(ApiHandler):
         for rid in sorted(all_root_ids):
             if rid not in root_order:
                 root_order.append(rid)
+        _debug_lines.append(f"all_root_ids: {sorted(all_root_ids)}")
+        _debug_lines.append(f"computed root_order: {root_order}")
+        _debug_lines.append(f"in_mem_count={len(seen_ids)} disk_count={len(all_ctx_data)-len(seen_ids)} total_ctx={len(all_ctx_data)}")
+        _debug_lines.append(f"match_saved: {root_order == saved_root_order}")
         try:
-            _log.warning(f"[MAP-DEBUG] all_root_ids: {sorted(all_root_ids)}")
-            _log.warning(f"[MAP-DEBUG] computed root_order: {root_order}")
-            _log.warning(f"[MAP-DEBUG] in_mem_count={len(seen_ids)} disk_count={len(all_ctx_data)-len(seen_ids)} total_ctx={len(all_ctx_data)}")
-            _log.warning(f"[MAP-DEBUG] match_saved: {root_order == saved_root_order}")
+            from datetime import datetime as _dt
+            with open('/tmp/sup_map_debug.log', 'a') as _df:
+                _df.write(f"=== {_dt.now().isoformat()} ===\n")
+                for _line in _debug_lines:
+                    _df.write(f"{_line}\n")
         except Exception:
             pass
 
