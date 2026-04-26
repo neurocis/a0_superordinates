@@ -132,26 +132,50 @@ def _prune_all_chats():
 
 def _prune_root_order():
     """Remove non-existent context IDs from _sup_root_order.json."""
+    # DEBUG: log everything we see and do
+    def _dbg(msg):
+        try:
+            from datetime import datetime as _dt
+            with open('/tmp/sup_map_debug.log', 'a') as _df:
+                _df.write(f"[PRUNE {_dt.now().isoformat()}] {msg}\n")
+        except Exception:
+            pass
+
     if not os.path.isfile(ROOT_ORDER_FILE):
+        _dbg(f"file does not exist: {ROOT_ORDER_FILE}")
         return
     try:
         with open(ROOT_ORDER_FILE, "r") as f:
             order = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as e:
+        _dbg(f"failed to load file: {e}")
         return
+
+    _dbg(f"loaded order: {order}")
 
     if not isinstance(order, list):
+        _dbg(f"order is not a list, skipping")
         return
 
+    # Check existence for each ctxid and log
+    existence_check = {ctxid: _context_exists_on_disk(ctxid) for ctxid in order}
+    _dbg(f"existence check: {existence_check}")
+
     pruned = [ctxid for ctxid in order if _context_exists_on_disk(ctxid)]
+    _dbg(f"pruned result: {pruned} (len={len(pruned)} vs order len={len(order)})")
+
     if len(pruned) < len(order):
         removed = set(order) - set(pruned)
         log.warning(f"[PRUNE] Root order: removed {len(removed)} stale entries: {removed}")
+        _dbg(f"WRITING file with pruned: {pruned}")
         try:
             with open(ROOT_ORDER_FILE, "w") as f:
                 json.dump(pruned, f)
         except OSError as e:
             log.warning(f"[PRUNE] Failed to save root order: {e}")
+            _dbg(f"OSError on write: {e}")
+    else:
+        _dbg("no changes needed, NOT writing file")
 
 
 class PruneStaleHierarchy(Extension):
