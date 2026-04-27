@@ -1,0 +1,151 @@
+<!--
+  Agent Profile Switcher
+  =====================
+  Floating dropdown that shows the current agent profile for the selected
+  chat and lets the user change it. Mounted into the same
+  `chat-input-progress-start` extension point as the LLM model-switcher,
+  so both pickers sit on the same horizontal line above the chat input.
+
+  Filename `profile-switcher.html` sorts alphabetically AFTER
+  `model-switcher.html`, which places this picker immediately to the right
+  of the LLM model picker.
+
+  Persistence: a successful change updates `data.sup_profile` on the
+  context (survives restarts) AND the live `AgentConfig.profile` (takes
+  effect on the next message loop). See:
+    - api/superordinate_list_profiles.py
+    - api/superordinate_set_profile.py
+    - webui/profile-switcher-store.js
+-->
+<script type="module">
+  import { store } from "/plugins/a0_superordinates/webui/profile-switcher-store.js";
+</script>
+
+<div x-data>
+  <template x-if="$store.profileSwitcher">
+    <div x-data="{ showDropdown: false }"
+         x-init="
+           await $store.profileSwitcher.refresh($store.chats?.selected || '');
+           $watch('$store.chats.selected', v => $store.profileSwitcher.refresh(v || ''));
+         ">
+      <template x-if="$store.profileSwitcher.allowed && !$store.profileSwitcher.loading && $store.profileSwitcher.ready">
+        <div class="profile-switcher-container">
+          <div class="profile-switcher-anchor">
+            <button class="btn-icon-action profile-switcher-btn"
+                    :class="{ 'has-current': !!$store.profileSwitcher.currentProfile }"
+                    @click="showDropdown = !showDropdown"
+                    @click.outside="showDropdown = false">
+              <span class="material-symbols-outlined" style="font-size: 16px;">person</span>
+              <span class="profile-switcher-label" x-text="$store.profileSwitcher.getCurrentLabel()"></span>
+              <span class="material-symbols-outlined" style="font-size: 0.7rem;"
+                    x-text="showDropdown ? 'expand_less' : 'expand_more'"></span>
+            </button>
+
+            <!-- Dropdown (opens upward, mirroring the LLM switcher) -->
+            <div class="profile-switcher-dropdown" x-show="showDropdown" x-transition.opacity>
+
+              <!-- No profiles message -->
+              <template x-if="$store.profileSwitcher.profiles.length === 0">
+                <div class="profile-switcher-item disabled">No profiles available</div>
+              </template>
+
+              <!-- Profile list -->
+              <template x-for="profile in $store.profileSwitcher.profiles" :key="profile.name">
+                <div class="profile-switcher-item"
+                     :class="{ 'active': $store.profileSwitcher.currentProfile === profile.name }"
+                     @click="
+                       $store.profileSwitcher.selectProfile($store.chats?.selected || '', profile.name);
+                       showDropdown = false;
+                     ">
+                  <div class="profile-switcher-name" x-text="profile.title"></div>
+                  <template x-if="profile.description">
+                    <div class="profile-switcher-description" x-text="profile.description"></div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>
+
+<style>
+  .profile-switcher-container {
+    position: relative;
+    z-index: 10;
+  }
+  .profile-switcher-anchor {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .profile-switcher-btn {
+    width: auto;
+    height: auto;
+    gap: 4px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: none;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .profile-switcher-btn:hover {
+    border: none;
+  }
+  .profile-switcher-label {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Dropdown - opens upward, aligned to left, matches model-switcher style */
+  .profile-switcher-dropdown {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    min-width: 240px;
+    max-width: 360px;
+    max-height: 400px;
+    overflow-y: auto;
+    background-color: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+  }
+  .profile-switcher-item {
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.1s ease;
+  }
+  .profile-switcher-item:hover {
+    background: var(--color-background-hover, rgba(255, 255, 255, 0.06));
+  }
+  .profile-switcher-item.active {
+    background: color-mix(in srgb, var(--color-highlight) 12%, transparent);
+  }
+  .profile-switcher-item.disabled {
+    opacity: 0.4;
+    cursor: default;
+    font-style: italic;
+  }
+  .profile-switcher-item.disabled:hover {
+    background: transparent;
+  }
+  .profile-switcher-name {
+    font-weight: 500;
+  }
+  .profile-switcher-description {
+    margin-top: 2px;
+    font-size: 0.7rem;
+    opacity: 0.65;
+    line-height: 1.3;
+    white-space: normal;
+  }
+</style>
