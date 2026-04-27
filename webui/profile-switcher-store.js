@@ -35,15 +35,19 @@ const model = {
 
   /**
    * Refresh the profile list and current profile for the given context.
-   * Called from the picker's x-init and x-watch on $store.chats.selected.
+   * Called from the picker's x-effect on $store.chats.selected.
    */
   async refresh(ctxid) {
-    // Avoid refetching if nothing changed
-    if (ctxid && ctxid === this.lastCtxid && this.ready) {
+    // Skip only if exact same ctxid AND we're already mid-fetch (avoid concurrent fetches for same ctx)
+    if (ctxid && ctxid === this._inflightCtxid) {
       return;
     }
 
+    // Track ctxid before fetch so concurrent calls for same ctx are skipped
+    const previousCtx = this.lastCtxid;
+    this._inflightCtxid = ctxid || "";
     this.loading = true;
+    console.debug("[ProfileSwitcher] refresh start", { ctxid, previousCtx });
     try {
       const res = await callJsonApi(
         "plugins/a0_superordinates/superordinate_list_profiles",
@@ -54,6 +58,11 @@ const model = {
         this.currentProfile = res.current_profile || "";
         this.lastCtxid = ctxid || null;
         this.ready = true;
+        console.debug("[ProfileSwitcher] refresh ok", {
+          ctxid,
+          currentProfile: this.currentProfile,
+          profilesCount: this.profiles.length,
+        });
       } else {
         console.error(
           "[ProfileSwitcher] list_profiles failed:",
@@ -64,6 +73,7 @@ const model = {
       console.error("[ProfileSwitcher] list_profiles call failed:", e);
     } finally {
       this.loading = false;
+      this._inflightCtxid = null;
     }
   },
 
