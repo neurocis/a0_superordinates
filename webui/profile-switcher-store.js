@@ -47,7 +47,7 @@ const model = {
     const previousCtx = this.lastCtxid;
     this._inflightCtxid = ctxid || "";
     this.loading = true;
-    console.debug("[ProfileSwitcher] refresh start", { ctxid, previousCtx });
+    console.log("[ProfileSwitcher] refresh start", { ctxid, previousCtx });
     try {
       const res = await callJsonApi(
         "plugins/a0_superordinates/superordinate_list_profiles",
@@ -58,7 +58,7 @@ const model = {
         this.currentProfile = res.current_profile || "";
         this.lastCtxid = ctxid || null;
         this.ready = true;
-        console.debug("[ProfileSwitcher] refresh ok", {
+        console.log("[ProfileSwitcher] refresh ok", {
           ctxid,
           currentProfile: this.currentProfile,
           profilesCount: this.profiles.length,
