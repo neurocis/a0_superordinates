@@ -29,7 +29,7 @@
            $watch('$store.chats.selected', v => $store.profileSwitcher.refresh(v || ''));
          ">
       <template x-if="$store.profileSwitcher.allowed && !$store.profileSwitcher.loading && $store.profileSwitcher.ready">
-        <div class="profile-switcher-container">
+        <div class="profile-switcher-container" x-move-before=".model-switcher-container">
           <div class="profile-switcher-anchor">
             <button class="btn-icon-action profile-switcher-btn"
                     :class="{ 'has-current': !!$store.profileSwitcher.currentProfile }"
