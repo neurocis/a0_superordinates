@@ -24,10 +24,7 @@
 <div x-data>
   <template x-if="$store.profileSwitcher">
     <div x-data="{ showDropdown: false }"
-         x-init="
-           await $store.profileSwitcher.refresh($store.chats?.selected || '');
-           $watch('$store.chats.selected', v => $store.profileSwitcher.refresh(v || ''));
-         ">
+         x-effect="$store.profileSwitcher.refresh($store.chats?.selected || '')">
       <template x-if="$store.profileSwitcher.allowed && !$store.profileSwitcher.loading && $store.profileSwitcher.ready">
         <div class="profile-switcher-container" x-move-before="x-component[path*='model-switcher.html']">
           <div class="profile-switcher-anchor">
