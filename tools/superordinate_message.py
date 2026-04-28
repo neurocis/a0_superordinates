@@ -45,10 +45,26 @@ class SuperordinateMessage(Tool):
             )
 
         # Send message to superordinate
+        # Append a callback instruction so the target sends its results back to
+        # the calling agent/context when done.
+        caller_ctxid = self.agent.context.id
+        caller_name = self.agent.context.name or f"Chat {caller_ctxid[:6]}"
+        callback_instruction = (
+            "
+
+[Instruction from framework]
+"
+            "When you finish this task, send your result back to the calling agent "
+            f"using superordinate_message with superordinate_id='{caller_ctxid}' and include your "
+            "final result in that message. "
+            f"The calling agent/context is: {caller_name}."
+        )
+        forwarded_message = (message or "") + callback_instruction
+
         # communicate() handles both cases:
         # - If superordinate is idle: starts a new task and returns it
         # - If superordinate is running: sets intervention message on the running agent
-        task = sub_context.communicate(UserMessage(message=message))
+        task = sub_context.communicate(UserMessage(message=forwarded_message))
 
         # Wait for the result with a short timeout so we don't block the monologue
         try:
