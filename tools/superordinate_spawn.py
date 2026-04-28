@@ -80,7 +80,7 @@ class SuperordinateSpawn(Tool):
 
         # Create new AgentContext with its own config
         # Set display name as "Name (Role)" for the chat
-        display_name = "{} ({})".format(name, profile)
+        display_name = "{} ({})".format(name, profile.capitalize())
         new_context = AgentContext(config=config, id=new_ctxid, name=display_name)
 
         # Store hierarchy metadata on child
