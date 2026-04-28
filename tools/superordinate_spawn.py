@@ -39,7 +39,14 @@ def _generate_name(profile: str) -> str:
 class SuperordinateSpawn(Tool):
 
     async def execute(self, **kwargs):
-        profile = kwargs.get("profile", "default")
+        requested_profile = (kwargs.get("profile", "") or "").strip()
+        parent_ctx = self.agent.context
+        inherited_profile = (
+            parent_ctx.data.get("sup_profile")
+            or (parent_ctx.config.profile if parent_ctx.config else "")
+            or "agent0"
+        )
+        profile = requested_profile if requested_profile and requested_profile != "default" else inherited_profile
         name = kwargs.get("name", "")
         message = kwargs.get("message", "")
 
