@@ -87,6 +87,12 @@ class SuperordinateSpawn(Tool):
         new_context.data["sup_parent"] = self.agent.context.id
         new_context.data["sup_profile"] = profile
 
+
+        # Inherit parent's LLM Profile (chat_model_override) so child uses same model
+        parent_model_override = self.agent.context.data.get("chat_model_override")
+        if parent_model_override:
+            new_context.data["chat_model_override"] = parent_model_override
+
         # Lock the chat name to prevent chat_rename plugin from overriding it
         new_context.data["chat_rename_manual_lock"] = True
         # Store hierarchy metadata on parent
