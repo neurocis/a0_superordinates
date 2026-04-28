@@ -86,6 +86,7 @@ class SuperordinateSpawn(Tool):
         # Store hierarchy metadata on child
         new_context.data["sup_parent"] = self.agent.context.id
         new_context.data["sup_profile"] = profile
+        new_context.data["sup_name"] = name
 
 
         # Inherit parent's LLM Profile (chat_model_override) so child uses same model
