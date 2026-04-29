@@ -25,6 +25,8 @@ const model = {
   currentProfile: "",
   // Last context id we refreshed for (lets us avoid redundant requests)
   lastCtxid: null,
+  // Last context id currently being fetched
+  _inflightCtxid: null,
   // Loading flag — UI hides switcher while true to prevent flicker
   loading: false,
   // Whether at least one successful refresh has happened
@@ -36,16 +38,32 @@ const model = {
   /**
    * Refresh the profile list and current profile for the given context.
    * Called from the picker's x-effect on $store.chats.selected.
+   *
+   * Alpine x-effect can re-run frequently as other stores update. The profile
+   * list is effectively static during a page session and the current profile
+   * only needs re-reading when the selected ctxid changes, so aggressively
+   * dedupe same-context refreshes unless explicitly forced.
    */
-  async refresh(ctxid) {
-    // Skip only if exact same ctxid AND we're already mid-fetch (avoid concurrent fetches for same ctx)
-    if (ctxid && ctxid === this._inflightCtxid) {
+  async refresh(ctxid, { force = false } = {}) {
+    const normalizedCtxid = ctxid || "";
+
+    // Avoid concurrent fetches for the same context.
+    if (normalizedCtxid === this._inflightCtxid) {
       return;
     }
 
-    // Track ctxid before fetch so concurrent calls for same ctx are skipped
-    const previousCtx = this.lastCtxid;
-    this._inflightCtxid = ctxid || "";
+    // Avoid repeat fetches for the same selected context after a successful
+    // load. This prevents x-effect/sidebar poll churn from hammering
+    // superordinate_list_profiles every ~200ms.
+    if (
+      !force &&
+      this.ready &&
+      normalizedCtxid === (this.lastCtxid || "")
+    ) {
+      return;
+    }
+
+    this._inflightCtxid = normalizedCtxid;
     this.loading = true;
     try {
       const res = await callJsonApi(
@@ -55,7 +73,7 @@ const model = {
       if (res && res.ok) {
         this.profiles = Array.isArray(res.profiles) ? res.profiles : [];
         this.currentProfile = res.current_profile || "";
-        this.lastCtxid = ctxid || null;
+        this.lastCtxid = normalizedCtxid || null;
         this.ready = true;
       } else {
         console.error(
@@ -108,9 +126,11 @@ const model = {
           `Agent profile changed to ${label}.`,
           "Profile",
         );
-        // Force the next refresh to actually re-fetch (display name may have
-        // changed, and we want the sidebar tree to pick up new metadata).
-        this.lastCtxid = null;
+        // Keep the local cache warm. The selected profile was just returned
+        // by set_profile, so the next x-effect pass does not need to call
+        // list_profiles again for the same ctxid.
+        this.lastCtxid = ctxid || null;
+        this.ready = true;
         // Trigger a chat list refresh so the new display name appears in the
         // sidebar without waiting for the next poll.
         try {
