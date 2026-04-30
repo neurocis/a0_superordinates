@@ -1,4 +1,4 @@
-### superordinate_lastresponse
+### superordinate_getresponse
 retrieve responses from a persistent superordinate's chat log. reads directly from disk — does not block or await any current processing.
 args: `name` or `superordinate_id`, optional `count`, optional `with_prompts`
 - `name`: the unique name of the superordinate (preferred)
@@ -16,8 +16,8 @@ example:
 ~~~json
 {
   "thoughts": ["I want to check what Devvy last responded with."],
-  "headline": "Getting last response from superordinate",
-  "tool_name": "superordinate_lastresponse",
+  "headline": "Getting response from superordinate",
+  "tool_name": "superordinate_getresponse",
   "tool_args": {
     "name": "Devvy"
   }
@@ -28,7 +28,7 @@ example with count:
 {
   "thoughts": ["I want to see all of Devvy's responses."],
   "headline": "Getting all responses from superordinate",
-  "tool_name": "superordinate_lastresponse",
+  "tool_name": "superordinate_getresponse",
   "tool_args": {
     "name": "Devvy",
     "count": "0"
@@ -40,7 +40,7 @@ example with paired prompts:
 {
   "thoughts": ["I want the last 3 prompt+response cycles to review the conversation flow."],
   "headline": "Getting paired prompt+response cycles",
-  "tool_name": "superordinate_lastresponse",
+  "tool_name": "superordinate_getresponse",
   "tool_args": {
     "name": "Devvy",
     "count": "3",

@@ -309,7 +309,7 @@ class SuperordinateMessage(Tool):
                     message=(
                         "Target '{}' ({}) is still processing (timed out after {}s). "
                         "Continue with your current task and check back later using "
-                        "superordinate_lastresponse(name='{}')."
+                        "superordinate_getresponse(name='{}')."
                     ).format(target_label, relationship, reply_wait_seconds, name or superordinate_id),
                     break_loop=False,
                 )
