@@ -4,6 +4,9 @@
     display: inline-flex;
     align-items: stretch;
     --a0-calendar-panel-margin: clamp(0.5rem, 1.5vw, 1.25rem);
+    --a0-calendar-panel-width: min(960px, calc(100vw - 2rem));
+    --a0-calendar-panel-max-height: min(420px, 42vh);
+    --a0-calendar-tab-offset-left: 0px;
   }
 
   .a0-agent-calendar-tab-anchor > .text-button {
@@ -17,24 +20,34 @@
     border-radius: 4px 4px 0 0;
   }
 
+  .a0-agent-calendar-host-lifted {
+    position: relative;
+    z-index: 10002;
+    overflow: visible !important;
+    transform: translateY(calc(-1 * var(--a0-calendar-panel-lift, 18rem)));
+    transition: transform 180ms ease;
+    will-change: transform;
+  }
+
   .a0-agent-calendar-panel {
-    position: fixed;
-    left: var(--a0-calendar-panel-margin);
-    right: var(--a0-calendar-panel-margin);
-    bottom: var(--a0-calendar-panel-margin);
+    position: absolute;
+    top: calc(100% - 1px);
+    left: calc(-1 * var(--a0-calendar-tab-offset-left, 0px));
+    right: auto;
+    bottom: auto;
     z-index: 10001;
-    width: auto;
-    max-width: none;
-    max-height: min(720px, calc(100vh - 7rem));
+    width: var(--a0-calendar-panel-width, min(960px, calc(100vw - 2rem)));
+    max-width: calc(100vw - 1rem);
+    max-height: var(--a0-calendar-panel-max-height, min(420px, 42vh));
     display: flex;
     flex-direction: column;
     overflow: hidden;
     border: 1px solid var(--border-color, rgba(255,255,255,0.14));
-    border-radius: 0.85rem;
+    border-radius: 0 0 0.85rem 0.85rem;
     background: var(--background-primary, #151515);
     color: var(--text-primary, inherit);
     box-shadow: 0 18px 65px rgba(0, 0, 0, 0.42);
-    transform-origin: bottom center;
+    transform-origin: top center;
     will-change: transform, opacity;
   }
 
@@ -202,10 +215,6 @@
   @media (max-width: 920px) {
     .a0-agent-calendar-tab-anchor {
       --a0-calendar-panel-margin: 0.5rem;
-    }
-
-    .a0-agent-calendar-panel::before {
-      display: none;
     }
   }
 
@@ -416,25 +425,108 @@
       newSubscriptionName: "",
       newSubscriptionUrl: "",
       calendarTabWidth: "7rem",
+      calendarHostEl: null,
+      placementCleanupTimer: null,
 
+      calendarAnchor() {
+        return document.querySelector(".a0-agent-calendar-tab-anchor");
+      },
 
-      syncTabWidth() {
+      calendarButton() {
+        return document.querySelector(".a0-agent-calendar-tab-anchor > .text-button");
+      },
+
+      calendarActionHost() {
+        const anchor = this.calendarAnchor();
+        if (!anchor) return null;
+
+        let best = anchor.parentElement;
+        let node = anchor.parentElement;
+        const minUsefulWidth = Math.min(520, Math.max(260, window.innerWidth * 0.38));
+
+        while (node && node !== document.body && node !== document.documentElement) {
+          const rect = node.getBoundingClientRect();
+          const buttonCount = node.querySelectorAll?.("button, .text-button")?.length || 0;
+
+          if (rect.width >= minUsefulWidth && rect.height >= 20 && rect.height <= 180 && buttonCount >= 2) {
+            best = node;
+            break;
+          }
+
+          if (
+            rect.width > (best?.getBoundingClientRect?.().width || 0) &&
+            rect.width < window.innerWidth - 8 &&
+            rect.height <= 220
+          ) {
+            best = node;
+          }
+
+          node = node.parentElement;
+        }
+
+        return best || anchor.parentElement || anchor;
+      },
+
+      syncPanelPlacement() {
         try {
-          const button = document.querySelector(".a0-agent-calendar-tab-anchor > .text-button");
-          if (button) {
-            const rect = button.getBoundingClientRect();
-            const anchor = button.closest(".a0-agent-calendar-tab-anchor");
-            const marginValue = getComputedStyle(anchor || document.documentElement)
-              .getPropertyValue("--a0-calendar-panel-margin")
-              .trim();
-            const margin = Number.parseFloat(marginValue) || 0;
-            this.calendarTabWidth = `${Math.ceil(rect.width)}px`;
-            if (anchor) {
-              anchor.style.setProperty("--a0-calendar-tab-width", this.calendarTabWidth);
-              anchor.style.setProperty("--a0-calendar-tab-left", `${Math.max(0, Math.round(rect.left - margin))}px`);
-            }
+          if (this.placementCleanupTimer) {
+            window.clearTimeout(this.placementCleanupTimer);
+            this.placementCleanupTimer = null;
+          }
+
+          const anchor = this.calendarAnchor();
+          const button = this.calendarButton();
+          const host = this.calendarActionHost();
+          if (!anchor || !button || !host) return;
+
+          if (this.calendarHostEl && this.calendarHostEl !== host) {
+            this.calendarHostEl.classList.remove("a0-agent-calendar-host-lifted");
+            this.calendarHostEl.style.removeProperty("--a0-calendar-panel-lift");
+          }
+          this.calendarHostEl = host;
+
+          const hostRect = host.getBoundingClientRect();
+          const buttonRect = button.getBoundingClientRect();
+          const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+          const marginValue = getComputedStyle(anchor).getPropertyValue("--a0-calendar-panel-margin").trim();
+          const margin = Number.parseFloat(marginValue) || 8;
+
+          const desiredHeight = Math.round(Math.min(460, Math.max(260, viewportHeight * 0.42)));
+          const lift = desiredHeight + Math.round(margin);
+          const panelWidth = Math.max(280, Math.min(hostRect.width, window.innerWidth - (margin * 2)));
+          const offsetLeft = Math.max(0, Math.round(buttonRect.left - hostRect.left));
+
+          anchor.style.setProperty("--a0-calendar-panel-width", `${Math.round(panelWidth)}px`);
+          anchor.style.setProperty("--a0-calendar-panel-max-height", `${desiredHeight}px`);
+          anchor.style.setProperty("--a0-calendar-tab-offset-left", `${offsetLeft}px`);
+          anchor.style.setProperty("--a0-calendar-tab-width", `${Math.ceil(buttonRect.width)}px`);
+          anchor.style.setProperty("--a0-calendar-tab-left", `${offsetLeft}px`);
+
+          host.style.setProperty("--a0-calendar-panel-lift", `${lift}px`);
+          host.classList.add("a0-agent-calendar-host-lifted");
+        } catch (_e) {}
+      },
+
+      clearPanelPlacement() {
+        try {
+          const anchor = this.calendarAnchor();
+          if (this.calendarHostEl) {
+            this.calendarHostEl.classList.remove("a0-agent-calendar-host-lifted");
+            this.calendarHostEl.style.removeProperty("--a0-calendar-panel-lift");
+            this.calendarHostEl = null;
+          }
+          if (anchor) {
+            anchor.style.removeProperty("--a0-calendar-panel-width");
+            anchor.style.removeProperty("--a0-calendar-panel-max-height");
+            anchor.style.removeProperty("--a0-calendar-tab-offset-left");
+            anchor.style.removeProperty("--a0-calendar-tab-width");
+            anchor.style.removeProperty("--a0-calendar-tab-left");
           }
         } catch (_e) {}
+      },
+
+      syncTabWidth() {
+        this.syncPanelPlacement();
       },
 
       agentDisplayName() {
@@ -451,18 +543,21 @@
         await this.openCalendar();
       },
       async openCalendar() {
-        this.syncTabWidth();
         this.visible = true;
         const nextCtxid = selectedContextId();
         if (nextCtxid !== this.ctxid) this.agentName = "";
         this.ctxid = nextCtxid;
         const selectedName = selectedContextDisplayName();
         if (selectedName && selectedName !== this.ctxid) this.agentName = selectedName;
+        window.requestAnimationFrame(() => this.syncPanelPlacement());
         await this.refresh();
+        window.requestAnimationFrame(() => this.syncPanelPlacement());
       },
 
       closeCalendar() {
         this.visible = false;
+        if (this.placementCleanupTimer) window.clearTimeout(this.placementCleanupTimer);
+        this.placementCleanupTimer = window.setTimeout(() => this.clearPanelPlacement(), 220);
       },
 
       async refresh() {
@@ -499,6 +594,7 @@
         this.files = Array.isArray(result.files) ? result.files : [];
         this.subscriptions = Array.isArray(result.subscriptions) ? result.subscriptions : [];
         this.error = "";
+        if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
       },
 
       async createLocalCalendar() {
