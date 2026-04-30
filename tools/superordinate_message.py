@@ -28,7 +28,7 @@ def _is_descendant(target_ctxid: str, root_ctxid: str, max_depth: int = 64) -> b
                 continue
             children = ctx.data.get("sup_children") or []
             for entry in children:
-                child_id = entry.get("id") if isinstance(entry, dict) else entry
+                child_id = (entry.get("ctxid") or entry.get("id")) if isinstance(entry, dict) else entry
                 if not child_id:
                     continue
                 if child_id == target_ctxid:
