@@ -65,7 +65,24 @@
 
   .a0-agent-calendar-section {
     min-width: 0;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
     margin-top: 1rem;
+  }
+
+  .a0-agent-calendar-section-header {
+    margin: 0 0 0.6rem;
+  }
+
+  .a0-agent-calendar-files-list {
+    flex: 1 1 auto;
+  }
+
+  .a0-agent-calendar-files-actions {
+    margin-top: auto;
+    padding-top: 0.75rem;
+    justify-content: flex-end;
   }
 
   .a0-agent-calendar-section:first-child,
@@ -248,23 +265,13 @@
       <template x-if="!$store.agentCalendar.loading">
         <div class="a0-agent-calendar-content-grid">
           <div class="a0-agent-calendar-section">
-            <div class="a0-agent-calendar-actions">
-              <h3 style="margin-right:auto;">ICS Files</h3>
-              <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.createLocalCalendar()">
-                <i class="ti ti-file-plus" aria-hidden="true"></i>
-                New .ics
-              </button>
-              <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.refresh()">
-                <i class="ti ti-refresh" aria-hidden="true"></i>
-                Refresh
-              </button>
-            </div>
+            <h3 class="a0-agent-calendar-section-header" x-text="$store.agentCalendar.icsFilesHeading()"></h3>
 
             <template x-if="$store.agentCalendar.files.length === 0">
-              <div class="a0-agent-calendar-muted">No local .ics files yet.</div>
+              <div class="a0-agent-calendar-muted a0-agent-calendar-files-list">No local .ics files yet.</div>
             </template>
 
-            <div class="a0-agent-calendar-list">
+            <div class="a0-agent-calendar-list a0-agent-calendar-files-list">
               <template x-for="file in $store.agentCalendar.files" :key="file.relative_path">
                 <div class="a0-agent-calendar-row">
                   <div class="a0-agent-calendar-row-main">
@@ -283,10 +290,21 @@
                 </div>
               </template>
             </div>
+
+            <div class="a0-agent-calendar-actions a0-agent-calendar-files-actions">
+              <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.createLocalCalendar()">
+                <i class="ti ti-file-plus" aria-hidden="true"></i>
+                New ICS
+              </button>
+              <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.refresh()">
+                <i class="ti ti-refresh" aria-hidden="true"></i>
+                Refresh
+              </button>
+            </div>
           </div>
 
           <div class="a0-agent-calendar-section">
-            <h3>ICS Subscription Links</h3>
+            <h3 class="a0-agent-calendar-section-header">ICS Subscription Links</h3>
 
             <template x-if="$store.agentCalendar.subscriptions.length === 0">
               <div class="a0-agent-calendar-muted">No subscription links yet.</div>
@@ -348,6 +366,7 @@
       loading: false,
       error: "",
       ctxid: "",
+      agentName: "",
       calendarDir: "",
       files: [],
       subscriptions: [],
@@ -375,6 +394,12 @@
         } catch (_e) {}
       },
 
+      icsFilesHeading() {
+        const name = String(this.agentName || "").trim() || "Agent";
+        const ctxid = String(this.ctxid || "").trim();
+        return ctxid ? `${name} ICS Files (${ctxid})` : `${name} ICS Files`;
+      },
+
       async toggleCalendar() {
         if (this.visible) {
           this.closeCalendar();
@@ -385,7 +410,9 @@
       async openCalendar() {
         this.syncTabWidth();
         this.visible = true;
-        this.ctxid = selectedContextId();
+        const nextCtxid = selectedContextId();
+        if (nextCtxid !== this.ctxid) this.agentName = "";
+        this.ctxid = nextCtxid;
         await this.refresh();
       },
 
@@ -421,6 +448,7 @@
           return;
         }
         this.ctxid = result.ctxid || this.ctxid;
+        this.agentName = result.agent_name || this.agentName || "";
         this.calendarDir = result.calendar_dir || "";
         this.files = Array.isArray(result.files) ? result.files : [];
         this.subscriptions = Array.isArray(result.subscriptions) ? result.subscriptions : [];

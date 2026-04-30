@@ -56,6 +56,43 @@ def validate_context_id(ctxid: str) -> str:
     return clean
 
 
+
+def get_agent_display_name(ctxid: str) -> str:
+    """Return the best available human-facing name for a context/agent."""
+    clean = validate_context_id(ctxid)
+
+    try:
+        from usr.plugins.a0_superordinates.helpers.name_registry import lookup_by_ctxid
+
+        record = lookup_by_ctxid(clean)
+        if isinstance(record, dict):
+            for key in ("name", "display_name", "title", "static_name"):
+                value = record.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+        elif isinstance(record, str) and record.strip():
+            return record.strip()
+    except Exception:
+        pass
+
+    chat_dir = CHATS_ROOT / clean
+    for filename in ("chat.json", "context.json"):
+        try:
+            path = chat_dir / filename
+            if not path.exists():
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                continue
+            for key in ("static_name", "name", "title", "agent_name"):
+                value = data.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+        except Exception:
+            continue
+
+    return clean
+
 def context_calendar_dir(ctxid: str, create: bool = True) -> Path:
     clean = validate_context_id(ctxid)
     path = CHATS_ROOT / clean / CALENDAR_DIRNAME
@@ -183,12 +220,14 @@ def save_subscriptions(ctxid: str, registry: dict[str, Any]) -> None:
 
 
 def list_calendar_stack(ctxid: str) -> dict[str, Any]:
-    calendar_dir = context_calendar_dir(ctxid, create=True)
+    clean_ctxid = validate_context_id(ctxid)
+    calendar_dir = context_calendar_dir(clean_ctxid, create=True)
     files = [file_info(path, calendar_dir) for path in sorted(calendar_dir.glob("*.ics"), key=lambda p: p.name.lower())]
-    registry = load_subscriptions(ctxid)
+    registry = load_subscriptions(clean_ctxid)
     return {
         "ok": True,
-        "ctxid": validate_context_id(ctxid),
+        "ctxid": clean_ctxid,
+        "agent_name": get_agent_display_name(clean_ctxid),
         "calendar_dir": str(calendar_dir),
         "files": files,
         "subscriptions": registry.get("subscriptions", []),
