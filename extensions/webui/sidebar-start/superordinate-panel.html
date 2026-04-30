@@ -64,7 +64,7 @@
                 <button class="btn-icon-action chat-list-action-btn sup-pin-btn" :class="{ 'sup-pin-active': $store.superordinates.isPinned(node.id) }" :title="$store.superordinates.isPinned(node.id) ? 'Unpin' : 'Pin'" :aria-label="$store.superordinates.isPinned(node.id) ? 'Unpin' : 'Pin'" x-show="!$store.superordinates.isRootLocked(node.id)" @click.stop="$store.superordinates.togglePin(node.id)">
                   <span class="material-symbols-outlined" x-text="$store.superordinates.isPinned(node.id) ? 'keep' : 'keep_off'"></span>
                 </button>
-                <button class="btn-icon-action chat-list-action-btn sup-msgme-btn" :class="{ 'sup-msgme-active': $store.superordinates.isMsgMeEnabled(node.id) }" :title="$store.superordinates.isMsgMeEnabled(node.id) ? 'MsgMe (enabled)' : 'MsgMe (disabled)'" :aria-label="$store.superordinates.isMsgMeEnabled(node.id) ? 'MsgMe enabled' : 'MsgMe disabled'" @click.stop="$store.superordinates.toggleMsgMe(node.id)">
+                <button class="btn-icon-action chat-list-action-btn sup-msgme-btn" :class="{ 'sup-msgme-blocked': $store.superordinates.isMsgMeBlocked(node.id) }" :title="$store.superordinates.isMsgMeBlocked(node.id) ? 'Messaging blocked — click to allow' : 'Messaging allowed — click to block'" :aria-label="$store.superordinates.isMsgMeBlocked(node.id) ? 'Messaging blocked' : 'Messaging allowed'" @click.stop="$store.superordinates.toggleMsgMeBlocked(node.id)">
                   <span class="material-symbols-outlined">keyboard</span>
                 </button>
                 <button class="btn-icon-action chat-list-action-btn sup-onboard-btn" title="Onboard" aria-label="Onboard" x-show="!$store.superordinates.isOnboardBlocked(node.id)" @click.stop="$store.superordinates.onboardChild(node.id)">
@@ -264,12 +264,12 @@
 
   .superordinate-tree .chat-container:hover > .sup-msgme-btn,
   .superordinate-tree .chat-container.chat-selected > .sup-msgme-btn,
-  .superordinate-tree .chat-container > .sup-msgme-btn.sup-msgme-active {
+  .superordinate-tree .chat-container > .sup-msgme-btn.sup-msgme-blocked {
     opacity: 1;
   }
 
-  /* Active (MsgMe enabled) — red so it's visibly distinct */
-  .superordinate-tree .chat-container > .sup-msgme-btn.sup-msgme-active {
+  /* Active (MsgMe blocked) — red so it's visibly distinct */
+  .superordinate-tree .chat-container > .sup-msgme-btn.sup-msgme-blocked {
     color: #e63946;
   }
 
@@ -291,7 +291,7 @@
     color: var(--color-accent, #4a9eff);
   }
 
-  /* Disabled prompt input visual cue when MsgMe is OFF for selected chat */
+  /* Disabled prompt input visual cue when MsgMe-blocked is ON for selected chat */
   body.sup-msgme-disabled #chat-input {
     opacity: 0.6;
     cursor: not-allowed;

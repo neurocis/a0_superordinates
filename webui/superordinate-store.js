@@ -6,7 +6,7 @@ const model = {
   rootOrder: [],          // [ctxid] - ordered list of root-level context IDs
   expandedNodes: {},     // {ctxid: bool}
   pinnedNodes: {},       // {ctxid: bool} - pinned chats cannot be moved
-  msgMeNodes: {},        // {ctxid: bool} - chats where user has explicitly enabled prompt input
+  msgMeBlockedNodes: {},        // {ctxid: bool} - chats where user has explicitly BLOCKED prompt input (default: allowed)
   _refreshInterval: null,
   // Status tracking state (independent of Chat Status Marklet)
   _prevRunning: {},
@@ -48,7 +48,7 @@ const model = {
     // Persistence
     this._restoreExpanded();
     this._restorePinned();
-    this._restoreMsgMe();
+    this._restoreMsgMeBlocked();
     this._setupMsgMeWatcher();
     this._restoreUnseen();
     this._patchStatusTracking();
@@ -390,48 +390,48 @@ const model = {
     return false;
   },
 
-  // ── MsgMe (per-chat input enable) ──────────────────────────────
+  // ── MsgMe (per-chat input block) ──────────────────────────────
 
-  _MSGME_STORAGE_KEY: 'sup_msgMeNodes',
+  _MSGME_BLOCKED_STORAGE_KEY: 'sup_msgMeBlockedNodes',
 
-  _persistMsgMe() {
+  _persistMsgMeBlocked() {
     try {
-      const ids = Object.keys(this.msgMeNodes).filter(k => this.msgMeNodes[k]);
-      localStorage.setItem(this._MSGME_STORAGE_KEY, JSON.stringify(ids));
+      const ids = Object.keys(this.msgMeBlockedNodes).filter(k => this.msgMeBlockedNodes[k]);
+      localStorage.setItem(this._MSGME_BLOCKED_STORAGE_KEY, JSON.stringify(ids));
     } catch (_e) { /* no-op */ }
   },
 
-  _restoreMsgMe() {
+  _restoreMsgMeBlocked() {
     try {
-      const raw = localStorage.getItem(this._MSGME_STORAGE_KEY);
+      const raw = localStorage.getItem(this._MSGME_BLOCKED_STORAGE_KEY);
       if (raw) {
         const ids = JSON.parse(raw);
         if (Array.isArray(ids)) {
           const map = {};
           ids.forEach(id => { map[id] = true; });
-          this.msgMeNodes = map;
+          this.msgMeBlockedNodes = map;
         }
       }
     } catch (_e) { /* no-op */ }
   },
 
   /**
-   * Returns true if MsgMe is enabled for the given context.
-   * Default (no entry) is FALSE — input is disabled by default.
+   * Returns true if MsgMe is blocked for the given context.
+   * Default (no entry) is FALSE — input is ENABLED by default.
    */
-  isMsgMeEnabled(ctxid) {
-    return !!(ctxid && this.msgMeNodes[ctxid]);
+  isMsgMeBlocked(ctxid) {
+    return !!(ctxid && this.msgMeBlockedNodes[ctxid]);
   },
 
   /**
-   * Toggle MsgMe state for a chat. When OFF, prompt input is disabled
-   * for that chat while it is the selected context.
+   * Toggle MsgMe-blocked state for a chat. When blocked (red, active),
+   * prompt input is disabled while that chat is the selected context.
    */
-  toggleMsgMe(ctxid) {
+  toggleMsgMeBlocked(ctxid) {
     if (!ctxid) return;
-    const next = !this.isMsgMeEnabled(ctxid);
-    this.msgMeNodes = { ...this.msgMeNodes, [ctxid]: next };
-    this._persistMsgMe();
+    const next = !this.isMsgMeBlocked(ctxid);
+    this.msgMeBlockedNodes = { ...this.msgMeBlockedNodes, [ctxid]: next };
+    this._persistMsgMeBlocked();
     this._applyMsgMeToInput();
   },
 
@@ -446,12 +446,12 @@ const model = {
       const selected = chatsStore?.selected || null;
       const input = document.getElementById('chat-input');
       const sendBtn = document.querySelector('#send-button, [data-role="send-button"], button.send-button');
-      const enabled = !selected || this.isMsgMeEnabled(selected);
+      const enabled = !selected || !this.isMsgMeBlocked(selected);
       if (input) {
         input.disabled = !enabled;
         input.setAttribute('data-msgme-enabled', enabled ? '1' : '0');
         if (!enabled) {
-          input.setAttribute('placeholder', 'MsgMe is OFF — enable from the chat row to send messages');
+          input.setAttribute('placeholder', 'Messaging this Agent is blocked — toggle the MsgMe button on this chat row to allow input');
         } else {
           input.removeAttribute('placeholder');
         }
