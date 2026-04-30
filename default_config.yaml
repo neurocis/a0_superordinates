@@ -15,4 +15,4 @@ allow_sibling_messaging: false
 
 # Seconds superordinate_message waits for the target reply before returning.
 # If the target is still processing after this, use superordinate_lastresponse later.
-reply_wait_seconds: 10
+reply_wait_seconds: 5

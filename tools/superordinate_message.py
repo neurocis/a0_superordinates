@@ -111,10 +111,10 @@ def _setting_enabled(config: dict, key: str, default: bool = True) -> bool:
     return bool(value)
 
 
-def _reply_wait_seconds(config: dict, default: int = 10) -> int:
+def _reply_wait_seconds(config: dict, default: int = 5) -> int:
     """Return configured superordinate_message reply wait seconds.
 
-    Falls back to 10 seconds and clamps to a sane positive range so broken or
+    Falls back to 5 seconds and clamps to a sane positive range so broken or
     missing config cannot create an infinite wait or immediate zero-timeout.
     """
     value = config.get("reply_wait_seconds", default)
@@ -122,7 +122,7 @@ def _reply_wait_seconds(config: dict, default: int = 10) -> int:
         seconds = int(value)
     except (TypeError, ValueError):
         seconds = default
-    return max(1, min(seconds, 3600))
+    return max(1, min(seconds, 600))
 
 
 def _direct_parent_id(ctx) -> str:

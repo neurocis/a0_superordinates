@@ -10,7 +10,7 @@ args: `superordinate_id` or `name`, `message`
 - `message`: the message to send
 use `name` when you know the target's name, or `superordinate_id` for the raw context ID.
 the response payload includes a `relationship` field (`descendant`, `ancestor`, or `sibling`) so the caller knows which way the message went.
-the tool waits up to the configured `reply_wait_seconds` value for a reply before returning a check-later timeout response; the default is 10 seconds.
+the tool waits up to the configured `reply_wait_seconds` value for a reply before returning a check-later timeout response; the default is 5 seconds.
 if sibling messaging is disabled in the `a0_superordinates` settings, sibling attempts are rejected with a clear settings-disabled response.
 if parent/ancestor messaging is disabled, direct-child messages to the immediate parent use notification fallback: the parent receives only `{ContextID} has a message for you.`, while the full message/conclusion is returned locally in the sender context instead of being sent upward. Non-parent ancestors are rejected.
 example (messaging a child/descendant):
