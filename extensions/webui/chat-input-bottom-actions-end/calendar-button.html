@@ -75,6 +75,11 @@
     margin: 0 0 0.6rem;
   }
 
+  .a0-agent-calendar-heading-context {
+    font-weight: 400;
+    opacity: 0.78;
+  }
+
   .a0-agent-calendar-files-list {
     flex: 1 1 auto;
   }
@@ -265,7 +270,11 @@
       <template x-if="!$store.agentCalendar.loading">
         <div class="a0-agent-calendar-content-grid">
           <div class="a0-agent-calendar-section">
-            <h3 class="a0-agent-calendar-section-header" x-text="$store.agentCalendar.icsFilesHeading()"></h3>
+            <h3 class="a0-agent-calendar-section-header">
+              <span x-text="$store.agentCalendar.agentDisplayName()"></span>
+              <span> ICS Files </span>
+              <span class="a0-agent-calendar-heading-context" x-show="$store.agentCalendar.ctxid" x-text="`(${$store.agentCalendar.ctxid})`"></span>
+            </h3>
 
             <template x-if="$store.agentCalendar.files.length === 0">
               <div class="a0-agent-calendar-muted a0-agent-calendar-files-list">No local .ics files yet.</div>
@@ -394,10 +403,8 @@
         } catch (_e) {}
       },
 
-      icsFilesHeading() {
-        const name = String(this.agentName || "").trim() || "Agent";
-        const ctxid = String(this.ctxid || "").trim();
-        return ctxid ? `${name} ICS Files (${ctxid})` : `${name} ICS Files`;
+      agentDisplayName() {
+        return String(this.agentName || "").trim() || String(this.ctxid || "").trim() || "Agent";
       },
 
       async toggleCalendar() {
