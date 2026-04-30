@@ -975,6 +975,7 @@ const model = {
     }
 
     // Reparent the chat under 'Closed Chats' via direct API call
+    let movedToClosedChats = false;
     try {
       const res = await callJsonApi(
         'plugins/a0_superordinates/superordinate_reparent',
@@ -982,9 +983,24 @@ const model = {
       );
       if (res && !res.ok) {
         console.error('[Superordinates] Reparent failed:', res.error);
+      } else {
+        movedToClosedChats = true;
       }
     } catch (e) {
       console.error('[Superordinates] Reparent call failed:', e);
+    }
+
+    // When a normal chat is moved into Closed Chats, make it and its moved
+    // subtree Msgs-Only (prompt-blocked) as part of the close operation.
+    // Chats already under Closed Chats are excluded because they return earlier
+    // and are killed rather than moved.
+    if (movedToClosedChats) {
+      const movedIds = [ctxid, ...this._collectDescendants(ctxid)];
+      const nextBlocked = { ...this.msgMeBlockedNodes };
+      movedIds.forEach(id => { nextBlocked[id] = true; });
+      this.msgMeBlockedNodes = nextBlocked;
+      this._persistMsgMeBlocked();
+      this._applyMsgMeToInput();
     }
 
     // Refresh the map after reparenting
