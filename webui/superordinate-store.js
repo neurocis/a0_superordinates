@@ -654,6 +654,26 @@ const model = {
   },
 
   /**
+   * Check if Onboard should be hidden for this context.
+   * Returns true if the context itself or any ancestor is named
+   * 'Archived' or 'Closed Chats' (case-insensitive).
+   */
+  isOnboardBlocked(ctxid) {
+    if (!ctxid) return false;
+    const blocked = new Set(['archived', 'closed chats']);
+    let current = ctxid;
+    const visited = new Set();
+    while (current && !visited.has(current)) {
+      visited.add(current);
+      const ctx = this._findContextByName_byId(current);
+      const nm = (ctx?.name || '').toLowerCase();
+      if (blocked.has(nm)) return true;
+      current = this.getParent(current);
+      if (!current) break;
+    }
+    return false;
+  },
+  /**
    * Find a context by ID from the chats store.
    */
   _findContextByName_byId(id) {
