@@ -779,7 +779,10 @@ const model = {
   },
 
 
-  // ── Close Chat (soft-close → 'Closed Chats' folder) ────────────
+  // ── Close Chat (soft-close → special closed folder) ─────────────
+
+  _CLOSED_CHATS_NAME: 'Closed Chats',
+  _CLOSED_CHATS_STORAGE_KEY: 'sup_closedChatsId',
 
   /**
    * Find a context by name from the chats store.
@@ -793,61 +796,6 @@ const model = {
   },
 
   /**
-   * Check if a context is anywhere under a 'Closed Chats' ancestor.
-   * Walks up the parent chain using hierarchyMap.
-   */
-  _isUnderClosedChats(ctxid) {
-    let current = ctxid;
-    const visited = new Set();
-    while (current) {
-      const parentId = this.getParent(current);
-      if (!parentId || visited.has(parentId)) break;
-      visited.add(parentId);
-      // Look up the parent's name
-      const parentCtx = this._findContextByName_byId(parentId);
-      if (parentCtx && (parentCtx.name || '').toLowerCase() === 'closed chats') {
-        return true;
-      }
-      current = parentId;
-    }
-    return false;
-  },
-
-  /**
-   * Check if Onboard should be hidden for this context.
-   * Returns true if the context itself or any ancestor is named
-   * 'Closed Chats' (case-insensitive).
-   */
-  isOnboardBlocked(ctxid) {
-    if (!ctxid) return false;
-    const blocked = new Set(['closed chats']);
-    let current = ctxid;
-    const visited = new Set();
-    while (current && !visited.has(current)) {
-      visited.add(current);
-      const ctx = this._findContextByName_byId(current);
-      const nm = (ctx?.name || '').toLowerCase();
-      if (blocked.has(nm)) return true;
-      current = this.getParent(current);
-      if (!current) break;
-    }
-    return false;
-  },
-
-  /**
-   * Check if this context is a root-level locked node.
-   * Returns true only when the context has NO parent AND is named
-   * 'Closed Chats' (case-insensitive).
-   * Used to prevent moving this special folder out of root.
-   */
-  isRootLocked(ctxid) {
-    if (!ctxid) return false;
-    if (this.getParent(ctxid)) return false;
-    const ctx = this._findContextByName_byId(ctxid);
-    const nm = (ctx?.name || '').toLowerCase();
-    return nm === 'closed chats';
-  },
-  /**
    * Find a context by ID from the chats store.
    */
   _findContextByName_byId(id) {
@@ -856,36 +804,131 @@ const model = {
     return chatsStore.contexts.find(c => c.id === id) || null;
   },
 
+  _persistClosedChatsId(ctxid) {
+    try {
+      if (ctxid) localStorage.setItem(this._CLOSED_CHATS_STORAGE_KEY, ctxid);
+      else localStorage.removeItem(this._CLOSED_CHATS_STORAGE_KEY);
+    } catch (_e) { /* no-op */ }
+  },
+
+  _getStoredClosedChatsId() {
+    try { return localStorage.getItem(this._CLOSED_CHATS_STORAGE_KEY) || null; }
+    catch (_e) { return null; }
+  },
+
   /**
-   * Get or create the 'Closed Chats' root node.
-   * Returns the context ID of the 'Closed Chats' node.
+   * Resolve the special closed-folder context.
+   *
+   * Primary identity is the persisted context ID. The display name is used only
+   * as a migration/fallback path when no valid ID is stored yet. Once found, the
+   * ID is persisted so later checks survive user renames.
+   */
+  _findClosedChatsContext() {
+    const chatsStore = Alpine.store('chats');
+    const contexts = Array.isArray(chatsStore?.contexts) ? chatsStore.contexts : [];
+    if (!contexts.length) return null;
+
+    const storedId = this._getStoredClosedChatsId();
+    if (storedId) {
+      const byId = contexts.find(c => c.id === storedId) || null;
+      if (byId) return byId;
+      // Stored ID no longer exists; clear it and fall back to name migration.
+      this._persistClosedChatsId(null);
+    }
+
+    const lower = this._CLOSED_CHATS_NAME.toLowerCase();
+    // Prefer a root-level name match to avoid accidentally adopting a nested
+    // ordinary chat with the same display name.
+    const byRootName = contexts.find(c => (c.name || '').toLowerCase() === lower && !this.getParent(c.id)) || null;
+    const byAnyName = contexts.find(c => (c.name || '').toLowerCase() === lower) || null;
+    const found = byRootName || byAnyName || null;
+    if (found) this._persistClosedChatsId(found.id);
+    return found;
+  },
+
+  /**
+   * True if ctxid is the special closed-folder context.
+   */
+  isClosedChatsNode(ctxid) {
+    if (!ctxid) return false;
+    const closedCtx = this._findClosedChatsContext();
+    return !!(closedCtx && closedCtx.id === ctxid);
+  },
+
+  /**
+   * Check if a context is anywhere under the special closed-folder ancestor.
+   * Walks up the parent chain using hierarchyMap and compares IDs, not names.
+   */
+  _isUnderClosedChats(ctxid) {
+    let current = ctxid;
+    const visited = new Set();
+    while (current) {
+      const parentId = this.getParent(current);
+      if (!parentId || visited.has(parentId)) break;
+      visited.add(parentId);
+      if (this.isClosedChatsNode(parentId)) return true;
+      current = parentId;
+    }
+    return false;
+  },
+
+  /**
+   * Check if Closed Chats restrictions should apply for this context.
+   * True for the special closed folder itself and all descendants.
+   */
+  isClosedChatsRestricted(ctxid) {
+    return this.isClosedChatsNode(ctxid) || this._isUnderClosedChats(ctxid);
+  },
+
+  /**
+   * Check if Onboard should be hidden for this context.
+   */
+  isOnboardBlocked(ctxid) {
+    return this.isClosedChatsRestricted(ctxid);
+  },
+
+  /**
+   * Check if this context is a root-level locked node.
+   * Only the special closed folder is root-locked.
+   */
+  isRootLocked(ctxid) {
+    if (!ctxid) return false;
+    if (this.getParent(ctxid)) return false;
+    return this.isClosedChatsNode(ctxid);
+  },
+
+  /**
+   * Get or create the special closed-folder root node.
+   * Returns the context ID of the special closed-folder node.
    * Uses superordinate_create API so the name is set server-side immediately.
    */
   async _getOrCreateClosedChats() {
-    // Check if 'Closed Chats' already exists
-    const existing = this._findContextByName('Closed Chats');
+    // Resolve by persisted ID first; display-name fallback is migration only.
+    const existing = this._findClosedChatsContext();
     if (existing) {
       // Closed Chats is Msgs-Only by default. The Keyboard toggle is hidden
       // for this special folder, but we still persist the blocked state so
       // selecting it cannot prompt that agent.
+      this._persistClosedChatsId(existing.id);
       this.msgMeBlockedNodes = { ...this.msgMeBlockedNodes, [existing.id]: true };
       this._persistMsgMeBlocked();
       this._applyMsgMeToInput();
       return existing.id;
     }
 
-    // Create 'Closed Chats' with name pre-set on server
+    // Create the special closed folder with name pre-set on server
     let newId;
     try {
       const res = await callJsonApi('plugins/a0_superordinates/superordinate_create', {
-        name: 'Closed Chats',
+        name: this._CLOSED_CHATS_NAME,
       });
       if (!res || !res.ok || !res.ctxid) {
         console.error('[Superordinates] Failed to create Closed Chats:', res);
         return null;
       }
       newId = res.ctxid;
-      // Closed Chats is created as Msgs-Only. The Keyboard toggle is hidden
+      this._persistClosedChatsId(newId);
+      // The special closed folder is created as Msgs-Only. The Keyboard toggle is hidden
       // for this special folder, but the hidden state remains toggled/blocked.
       this.msgMeBlockedNodes = { ...this.msgMeBlockedNodes, [newId]: true };
       this._persistMsgMeBlocked();
@@ -941,9 +984,8 @@ const model = {
     const chatsStore = Alpine.store('chats');
     if (!chatsStore) return;
 
-    // Check if this IS the 'Closed Chats' node itself
-    const ctx = this._findContextByName_byId(ctxid);
-    if (ctx && (ctx.name || '').toLowerCase() === 'closed chats') {
+    // Check if this IS the special closed-folder node itself
+    if (this.isClosedChatsNode(ctxid)) {
 
       // Collect all descendants (deepest first)
       const descendants = this._collectDescendants(ctxid);
@@ -1028,11 +1070,7 @@ const model = {
     if (this.isMoveLocked && this.isMoveLocked(childId)) {
       return;
     }
-    const newParentCtx = newParentId ? this._findContextByName_byId(newParentId) : null;
-    const newParentName = (newParentCtx?.name || '').toLowerCase();
-    const movingUnderClosedChats = !!newParentId && (
-      newParentName === 'closed chats' || this._isUnderClosedChats(newParentId)
-    );
+    const movingUnderClosedChats = !!newParentId && this.isClosedChatsRestricted(newParentId);
 
     let reparented = false;
     try {
