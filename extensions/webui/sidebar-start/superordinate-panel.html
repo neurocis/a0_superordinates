@@ -10,7 +10,7 @@
       <div class="superordinate-inner">
         <div class="section-header-row">
           <h3 class="section-header">Superordinates</h3>
-          <button class="btn-icon-action chat-list-action-btn" @click="$store.superordinates.newChat()" aria-label="New Chat" title="New Chat">
+          <button class="btn-icon-action chat-list-action-btn" @click="$store.superordinates.newChat()" aria-label="Onboard" title="Onboard">
             <span class="material-symbols-outlined">chat_add_on</span>
           </button>
         </div>
@@ -61,7 +61,7 @@
                 <!-- Status indicators (independent of Chat Status Marklet) -->
                 <span class="sup-running-dot" x-show="node.running" title="Process running"></span>
                 <span class="sup-unseen-dot" x-show="!node.running && node._isUnseen" title="Process finished (unseen)"></span>
-                <button class="btn-icon-action chat-list-action-btn sup-onboard-btn" title="Onboard new SuperOrdinate under this context" aria-label="Onboard" @click.stop="$store.superordinates.onboardChild(node.id)">
+                <button class="btn-icon-action chat-list-action-btn sup-onboard-btn" title="Onboard" aria-label="Onboard" @click.stop="$store.superordinates.onboardChild(node.id)">
                   <span class="material-symbols-outlined">person_add</span>
                 </button>
                 <button class="btn-icon-action chat-list-action-btn" title="Close chat" @click.stop="$confirmClick($event, () => $store.superordinates.closeChat(node.id))">
