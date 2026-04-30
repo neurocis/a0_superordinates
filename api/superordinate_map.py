@@ -19,23 +19,8 @@ import os
 
 from agent import AgentContext
 from helpers.api import ApiHandler, Request, Response
+from usr.plugins.a0_superordinates.helpers.static_name import sync_static_name_output
 
-
-def _parse_bool(value, default: bool = False) -> bool:
-    """Parse persisted boolean-ish values without making string 'false' truthy."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "yes", "y", "on"}:
-            return True
-        if lowered in {"0", "false", "no", "n", "off", ""}:
-            return False
-    return default
 
 
 class SuperordinateMap(ApiHandler):
@@ -57,21 +42,27 @@ class SuperordinateMap(ApiHandler):
         try:
             for ctx in AgentContext.all():
                 if ctx.id and ctx.id not in seen_ids:
+                    # Cheap in-memory normalization only: if an already-loaded
+                    # context has data.StaticName from an older plugin version,
+                    # mirror it into output_data so the regular context snapshot
+                    # exposes the lock to the WebUI. No chat.json reread here.
+                    sync_static_name_output(ctx)
                     all_ctx_data[ctx.id] = ctx.data if ctx.data else {}
                     seen_ids.add(ctx.id)
         except Exception:
             pass  # AgentContext.all() may not exist in all versions
 
-        # 1b. Disk metadata merge/fallback.
-        # In-memory contexts are generally the freshest source for hierarchy
-        # movement, but they can be missing metadata added by plugin upgrades
-        # (for example StaticName on an already-loaded Closed Entities folder).
-        # Merge disk keys underneath memory keys so memory still wins when both
-        # sources define a value, while disk-only metadata remains visible.
+        # 1b. Disk fallback only for contexts not loaded in memory.
+        # In-memory contexts are the freshest source for hierarchy movement.
+        # Per-agent StaticName is intentionally exposed through normal context
+        # output_data/snapshot now, so map.py no longer rereads every chat.json
+        # just to merge plugin lock metadata.
         if os.path.isdir(chats_dir):
             for d in os.listdir(chats_dir):
                 if d.startswith("_"):
                     continue  # Skip metadata files/dirs
+                if d in seen_ids:
+                    continue
                 chat_file = os.path.join(chats_dir, d, "chat.json")
                 if not os.path.isfile(chat_file):
                     continue
@@ -80,19 +71,8 @@ class SuperordinateMap(ApiHandler):
                         data = json.load(f)
                     if not isinstance(data, dict):
                         continue  # Skip malformed chat files
-                    disk_data = data.get("data", {}) or {}
-                    if d in all_ctx_data:
-                        mem_data = all_ctx_data.get(d, {}) or {}
-                        merged = {**disk_data, **mem_data}
-                        # StaticName is a lock flag; if either source says true,
-                        # preserve true so stale in-memory false/missing metadata
-                        # cannot reopen rename mode.
-                        if _parse_bool(disk_data.get("StaticName", disk_data.get("static_name")), False) or _parse_bool(mem_data.get("StaticName", mem_data.get("static_name")), False):
-                            merged["StaticName"] = True
-                            merged["static_name"] = True
-                        all_ctx_data[d] = merged
-                    else:
-                        all_ctx_data[d] = disk_data
+                    all_ctx_data[d] = data.get("data", {}) or {}
+                    seen_ids.add(d)
                 except (json.JSONDecodeError, OSError, KeyError):
                     continue
 
@@ -169,17 +149,11 @@ class SuperordinateMap(ApiHandler):
         # Include any context that is either a parent or a child.
         hierarchy_map: dict[str, dict] = {}
 
-        def _static_name_for(ctxid: str) -> bool:
-            data = all_ctx_data.get(ctxid, {})
-            return _parse_bool(data.get("StaticName", data.get("static_name")), False)
-
         # Add all contexts that have a parent
         for ctxid, par_id in parent_of.items():
             hierarchy_map[ctxid] = {
                 "parent": par_id,
                 "children": children_of.get(ctxid, []),
-                "StaticName": _static_name_for(ctxid),
-                "static_name": _static_name_for(ctxid),
             }
 
         # Add all contexts that have children (even if they have no parent)
@@ -188,26 +162,19 @@ class SuperordinateMap(ApiHandler):
                 hierarchy_map[ctxid] = {
                     "parent": parent_of.get(ctxid),
                     "children": kids,
-                    "StaticName": _static_name_for(ctxid),
-                    "static_name": _static_name_for(ctxid),
                 }
             # If already added (context is both parent and child), ensure
             # children list is set from our derived data
             else:
                 hierarchy_map[ctxid]["children"] = kids
-                hierarchy_map[ctxid]["StaticName"] = _static_name_for(ctxid)
-                hierarchy_map[ctxid]["static_name"] = _static_name_for(ctxid)
 
 
-        # Add standalone/root contexts too so per-agent metadata such as
-        # StaticName is available even before a node has hierarchy edges.
+        # Add standalone/root contexts too so every visible chat is represented.
         for ctxid in all_ctx_data:
             if ctxid not in hierarchy_map:
                 hierarchy_map[ctxid] = {
                     "parent": parent_of.get(ctxid),
                     "children": children_of.get(ctxid, []),
-                    "StaticName": _static_name_for(ctxid),
-                    "static_name": _static_name_for(ctxid),
                 }
 
         # Include name registry for name-based lookups

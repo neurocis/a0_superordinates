@@ -19,6 +19,7 @@ from helpers.tool import Tool, Response
 from agent import AgentContext
 from helpers import persist_chat, guids
 from helpers.persist_chat import save_tmp_chat
+from usr.plugins.a0_superordinates.helpers.static_name import set_static_name
 from helpers.state_monitor_integration import mark_dirty_all
 
 
@@ -194,7 +195,7 @@ def _create_closed_chats(agent=None) -> str:
     ctx = AgentContext(config=config, id=new_id, name=folder_name)
     # Lock the name so chat_rename plugin and user/API rename flows can't re-title it.
     ctx.data["chat_rename_manual_lock"] = True
-    ctx.data["StaticName"] = True
+    set_static_name(ctx, True)
     save_tmp_chat(ctx)
 
     order = _load_root_order()

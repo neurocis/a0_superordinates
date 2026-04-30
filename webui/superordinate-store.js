@@ -192,13 +192,9 @@ const model = {
   },
 
   // Hidden per-agent rename lock. Defaults false.
+  // Primary source is the normal chats context snapshot: StaticName is mirrored
+  // into AgentContext.output_data by the backend creation/migration paths.
   isStaticName(ctxid) {
-    const entry = this.hierarchyMap[ctxid] || {};
-    if (this._parseBool(entry.StaticName ?? entry.static_name, false)) return true;
-
-    // Fallback to the live chats context if available. This makes the UI guard
-    // resilient while the hierarchy map is still refreshing or if a future chats
-    // payload exposes context data directly.
     const contexts = Alpine.store('chats')?.contexts;
     if (Array.isArray(contexts)) {
       const ctx = contexts.find(c => c?.id === ctxid);
@@ -206,6 +202,11 @@ const model = {
       if (this._parseBool(ctx?.StaticName ?? ctx?.static_name, false)) return true;
       if (this._parseBool(data.StaticName ?? data.static_name, false)) return true;
     }
+
+    // Legacy/fallback only. superordinate_map no longer performs broad disk
+    // metadata merging for StaticName, but older map payloads may still include it.
+    const entry = this.hierarchyMap[ctxid] || {};
+    if (this._parseBool(entry.StaticName ?? entry.static_name, false)) return true;
 
     return false;
   },

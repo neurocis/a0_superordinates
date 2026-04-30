@@ -24,7 +24,89 @@ ROOT_ORDER_FILE = os.path.join(CHATS_DIR, "_sup_root_order.dat")
 LEGACY_ROOT_ORDER_JSON = os.path.join(CHATS_DIR, "_sup_root_order.json")
 LEGACY_ROOT_ORDER_ARTIFACT = os.path.join(CHATS_DIR, "_sup_root_order", "chat.json")
 LEGACY_ROOT_ORDER_ARTIFACT_DIR = os.path.join(CHATS_DIR, "_sup_root_order")
+STATIC_NAME_KEYS = ("StaticName", "static_name")
 
+
+
+def _parse_bool(value, default: bool = False) -> bool:
+    """Parse boolean-ish values without making string 'false' truthy."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
+
+
+def _static_name_value(mapping: dict | None):
+    if not isinstance(mapping, dict):
+        return None
+    for key in STATIC_NAME_KEYS:
+        if key in mapping:
+            return mapping.get(key)
+    return None
+
+
+def _sync_static_name_output_data():
+    """Expose persisted StaticName through normal context output_data.
+
+    AgentContext.output() includes output_data in the regular WebUI snapshot.
+    Mirroring the lock there lets the sidebar enforce StaticName without the
+    hierarchy-map endpoint rereading and merging every chat.json file.
+    """
+    if not os.path.isdir(CHATS_DIR):
+        return
+
+    synced = 0
+    for entry in os.listdir(CHATS_DIR):
+        if entry.startswith("_") or entry.startswith("."):
+            continue
+        chat_dir = os.path.join(CHATS_DIR, entry)
+        if not os.path.isdir(chat_dir):
+            continue
+
+        raw = _load_chat_data(entry)
+        if not isinstance(raw, dict):
+            continue
+
+        ctx_data = raw.get("data") or {}
+        output_data = raw.get("output_data") or {}
+        if not isinstance(ctx_data, dict):
+            ctx_data = {}
+        if not isinstance(output_data, dict):
+            output_data = {}
+
+        locked = _parse_bool(_static_name_value(ctx_data), False) or _parse_bool(_static_name_value(output_data), False)
+        has_any_static = any(k in ctx_data for k in STATIC_NAME_KEYS) or any(k in output_data for k in STATIC_NAME_KEYS)
+        if not locked and not has_any_static:
+            continue
+
+        changed = False
+        if ctx_data.get("StaticName") is not locked:
+            ctx_data["StaticName"] = locked
+            changed = True
+        if output_data.get("StaticName") is not locked:
+            output_data["StaticName"] = locked
+            changed = True
+        if output_data.get("static_name") is not locked:
+            output_data["static_name"] = locked
+            changed = True
+
+        if changed:
+            raw["data"] = ctx_data
+            raw["output_data"] = output_data
+            _save_chat_data(entry, raw)
+            synced += 1
+
+    if synced:
+        log.warning(f"[PRUNE] Mirrored StaticName into output_data for {synced} chats")
 
 def _migrate_legacy_root_order():
     """Recover root order from legacy locations and clean up artifacts.
@@ -231,3 +313,4 @@ class PruneStaleHierarchy(Extension):
     def execute(self, **kwargs):
         _migrate_legacy_root_order()
         _prune_all_chats()
+        _sync_static_name_output_data()

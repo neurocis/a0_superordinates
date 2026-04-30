@@ -11,6 +11,7 @@ Accepts:
 
 import logging
 
+from usr.plugins.a0_superordinates.helpers.static_name import parse_bool as _parse_bool, set_static_name
 from agent import AgentContext
 from helpers.api import ApiHandler, Request, Response
 from helpers.persist_chat import save_tmp_chat
@@ -18,22 +19,6 @@ from helpers import guids
 
 log = logging.getLogger("a0.superordinates.create")
 
-
-def _parse_bool(value, default: bool = False) -> bool:
-    """Parse API boolean-ish values without making string 'false' truthy."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "yes", "y", "on"}:
-            return True
-        if lowered in {"0", "false", "no", "n", "off", ""}:
-            return False
-    return default
 
 
 class SuperordinateCreate(ApiHandler):
@@ -59,8 +44,9 @@ class SuperordinateCreate(ApiHandler):
             return {"ok": False, "error": "Failed to create context"}
 
         # Hidden per-agent rename lock. Defaults false; when true, user/API
-        # rename attempts are refused by superordinate_rename.
-        new_ctx.data["StaticName"] = static_name
+        # rename attempts are refused by superordinate_rename. Mirror it into
+        # output_data so the normal context snapshot exposes it to the WebUI.
+        set_static_name(new_ctx, static_name)
 
         # Set the name immediately
         if name:

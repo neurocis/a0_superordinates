@@ -7,40 +7,29 @@ from helpers.api import ApiHandler
 from flask import Request, Response
 from agent import AgentContext
 from helpers.persist_chat import save_tmp_chat
+from usr.plugins.a0_superordinates.helpers.static_name import is_static_name_locked, parse_bool as _parse_bool
 
-
-def _parse_bool(value, default: bool = False) -> bool:
-    """Parse persisted boolean-ish values without making string 'false' truthy."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "yes", "y", "on"}:
-            return True
-        if lowered in {"0", "false", "no", "n", "off", ""}:
-            return False
-    return default
 
 def _is_static_name_locked(ctx) -> bool:
-    data = getattr(ctx, "data", {}) or {}
-    if _parse_bool(data.get("StaticName", data.get("static_name")), False):
+    if is_static_name_locked(ctx):
         return True
 
-    # Defensive disk fallback: if the process has an older in-memory context
-    # without plugin metadata, still honor StaticName persisted in chat.json.
+    # Rare server-side fallback only: if a process somehow has an older loaded
+    # context, still honor StaticName persisted in chat.json. The hot WebUI path
+    # now uses normal context output_data instead of map-wide disk merging.
     ctxid = getattr(ctx, "id", None)
     if ctxid:
         chat_file = os.path.join("/a0/usr/chats", ctxid, "chat.json")
         try:
             with open(chat_file, "r") as f:
                 raw = json.load(f)
-            disk_data = (raw.get("data") or {}) if isinstance(raw, dict) else {}
-            if _parse_bool(disk_data.get("StaticName", disk_data.get("static_name")), False):
-                return True
+            if isinstance(raw, dict):
+                disk_data = raw.get("data") or {}
+                disk_output = raw.get("output_data") or {}
+                if _parse_bool(disk_output.get("StaticName", disk_output.get("static_name")), False):
+                    return True
+                if _parse_bool(disk_data.get("StaticName", disk_data.get("static_name")), False):
+                    return True
         except (OSError, json.JSONDecodeError, KeyError):
             pass
 

@@ -1,6 +1,7 @@
 """Create a persistent superordinate agent with its own AgentContext."""
 
 from helpers.tool import Tool, Response
+from usr.plugins.a0_superordinates.helpers.static_name import parse_bool as _parse_bool, set_static_name
 from agent import AgentContext, UserMessage
 from initialize import initialize_agent
 from helpers import guids, projects
@@ -13,23 +14,6 @@ NAME_POOLS = {
     "h": ["Hack", "Harley", "Hazel", "Hunter", "Hex", "Hawk", "Hera", "Haze"],
     "a": ["Axel", "Ada", "Ash", "Aura", "Atlas", "Aero", "Abel", "Azura"],
 }
-
-
-def _parse_bool(value, default: bool = False) -> bool:
-    """Parse JSON/tool boolean-ish values without making string 'false' truthy."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "yes", "y", "on"}:
-            return True
-        if lowered in {"0", "false", "no", "n", "off", ""}:
-            return False
-    return default
 
 
 def _generate_name(profile: str) -> str:
@@ -105,7 +89,7 @@ class SuperordinateSpawn(Tool):
         new_context.data["sup_parent"] = self.agent.context.id
         new_context.data["sup_profile"] = profile
         new_context.data["sup_name"] = name
-        new_context.data["StaticName"] = static_name
+        set_static_name(new_context, static_name)
         # Spawned superagents start with Promptable disabled / Msgs-Only.
         # Keep this scoped to the spawn tool so other creation flows are unaffected.
         new_context.data["sup_msgme_blocked"] = True
