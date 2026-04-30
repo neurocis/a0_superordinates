@@ -991,6 +991,7 @@ const model = {
     try {
       const res = await callJsonApi('plugins/a0_superordinates/superordinate_create', {
         name: this.getClosedEntitiesFolderName(),
+        StaticName: true,
       });
       if (!res || !res.ok || !res.ctxid) {
         console.error('[Superordinates] Failed to create Closed Entities:', res);

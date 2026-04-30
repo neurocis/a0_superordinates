@@ -192,8 +192,9 @@ def _create_closed_chats(agent=None) -> str:
     config = initialize_agent()
     folder_name = _get_closed_entities_folder_name(agent)
     ctx = AgentContext(config=config, id=new_id, name=folder_name)
-    # Lock the name so chat_rename plugin can't re-title it
+    # Lock the name so chat_rename plugin and user/API rename flows can't re-title it.
     ctx.data["chat_rename_manual_lock"] = True
+    ctx.data["StaticName"] = True
     save_tmp_chat(ctx)
 
     order = _load_root_order()

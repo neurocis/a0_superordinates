@@ -20,12 +20,43 @@ STATIC_NAME_ALT_DATA_KEY = "static_name"
 MAX_AUTO_CHAT_NAME_LENGTH = 40
 
 
+def _parse_bool(value, default: bool = False) -> bool:
+    """Parse persisted boolean-ish values without making string 'false' truthy."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
+
+
+def _is_static_name_locked(context) -> bool:
+    """Check whether StaticName is enabled for this context."""
+    getter = getattr(context, "get_data", None)
+    if callable(getter):
+        value = getter(STATIC_NAME_DATA_KEY)
+        if value is None:
+            value = getter(STATIC_NAME_ALT_DATA_KEY)
+        return _parse_bool(value, False)
+    data = getattr(context, "data", None)
+    if isinstance(data, dict):
+        return _parse_bool(data.get(STATIC_NAME_DATA_KEY, data.get(STATIC_NAME_ALT_DATA_KEY)), False)
+    return False
+
+
 def _is_manual_name_locked(context) -> bool:
     """Check whether the context's name was manually set and should not be
     overwritten by the automatic renamer."""
     getter = getattr(context, "get_data", None)
     if callable(getter):
-        return bool(getter(MANUAL_LOCK_DATA_KEY))
+        return _parse_bool(getter(MANUAL_LOCK_DATA_KEY), False)
     data = getattr(context, "data", None)
     if isinstance(data, dict):
         return _parse_bool(data.get(MANUAL_LOCK_DATA_KEY), False)
@@ -41,8 +72,9 @@ class RenameChat(Extension):
         if not self.agent:
             return
 
-        # Skip auto-rename when the chat name was manually set
-        if _is_manual_name_locked(self.agent.context):
+        # Skip auto-rename when the chat name was manually set or StaticName
+        # is enabled for this agent.
+        if _is_manual_name_locked(self.agent.context) or _is_static_name_locked(self.agent.context):
             return
 
         try:
