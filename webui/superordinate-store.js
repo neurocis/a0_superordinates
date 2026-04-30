@@ -1028,6 +1028,13 @@ const model = {
     if (this.isMoveLocked && this.isMoveLocked(childId)) {
       return;
     }
+    const newParentCtx = newParentId ? this._findContextByName_byId(newParentId) : null;
+    const newParentName = (newParentCtx?.name || '').toLowerCase();
+    const movingUnderClosedChats = !!newParentId && (
+      newParentName === 'closed chats' || this._isUnderClosedChats(newParentId)
+    );
+
+    let reparented = false;
     try {
       const res = await callJsonApi(
         "plugins/a0_superordinates/superordinate_reparent",
@@ -1035,10 +1042,25 @@ const model = {
       );
       if (res && !res.ok) {
         console.error("[Superordinates] reparent error:", res.error);
+      } else {
+        reparented = true;
       }
     } catch (e) {
       console.error("[Superordinates] reparent call failed:", e);
     }
+
+    // If a generic Move/Reparent places an Agent under Closed Chats, make the
+    // moved Agent and its moved subtree Msgs-Only (prompt-blocked). This mirrors
+    // the Close flow, but also covers drag/drop or other reparent operations.
+    if (reparented && movingUnderClosedChats) {
+      const movedIds = [childId, ...this._collectDescendants(childId)];
+      const nextBlocked = { ...this.msgMeBlockedNodes };
+      movedIds.forEach(id => { nextBlocked[id] = true; });
+      this.msgMeBlockedNodes = nextBlocked;
+      this._persistMsgMeBlocked();
+      this._applyMsgMeToInput();
+    }
+
     // Always refresh regardless of outcome
     await this.fetchMap();
   },
