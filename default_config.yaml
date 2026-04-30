@@ -16,3 +16,6 @@ allow_sibling_messaging: false
 # Seconds superordinate_message waits for the target reply before returning.
 # If the target is still processing after this, use superordinate_getresponse later.
 reply_wait_seconds: 5
+
+# Display name used when creating the special folder that receives closed chats/entities.
+closed_entities_folder_name: "Closed Entities"

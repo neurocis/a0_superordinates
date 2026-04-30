@@ -1,10 +1,10 @@
 """Retire (close) a persistent superordinate.
 
 Mirrors the JS `closeChat` UI behavior in superordinate-store.js:
-- If target is a normal chat: move it under the 'Closed Chats' folder
+- If target is a normal chat: move it under the configured closed-entities folder
   (creating that folder at root if missing).
-- If target is already under 'Closed Chats': permanently delete it.
-- If target IS the 'Closed Chats' folder itself: permanently delete it
+- If target is already under the configured closed-entities folder: permanently delete it.
+- If target IS the configured closed-entities folder itself: permanently delete it
   along with every descendant (recursive bottom-up kill).
 
 This is the programmatic equivalent of clicking the close (X) button
@@ -24,7 +24,43 @@ from helpers.state_monitor_integration import mark_dirty_all
 
 CHATS_DIR = "/a0/usr/chats"
 ROOT_ORDER_FILE = "/a0/usr/chats/_sup_root_order.dat"
-CLOSED_NAME = "Closed Chats"
+DEFAULT_CLOSED_NAME = "Closed Entities"
+LEGACY_CLOSED_NAME = "Closed Chats"
+
+
+def _get_closed_entities_folder_name(agent=None) -> str:
+    """Read the configured display name for the closed-entities folder."""
+    try:
+        from helpers import plugins
+        try:
+            config = plugins.get_plugin_config("a0_superordinates", agent=agent) or {}
+        except TypeError:
+            config = plugins.get_plugin_config("a0_superordinates") or {}
+    except Exception:
+        config = {}
+
+    if not isinstance(config, dict):
+        config = {}
+    name = str(config.get("closed_entities_folder_name") or DEFAULT_CLOSED_NAME).strip()
+    return name or DEFAULT_CLOSED_NAME
+
+
+def _closed_name_candidates(agent=None) -> list[str]:
+    """Configured name first, then migration/recovery fallbacks."""
+    candidates = [
+        _get_closed_entities_folder_name(agent),
+        DEFAULT_CLOSED_NAME,
+        LEGACY_CLOSED_NAME,
+    ]
+    result = []
+    seen = set()
+    for name in candidates:
+        clean = str(name or "").strip()
+        key = clean.lower()
+        if clean and key not in seen:
+            result.append(clean)
+            seen.add(key)
+    return result
 
 
 # ── disk / context helpers ────────────────────────────────────────────────
@@ -78,20 +114,43 @@ def _get_data_for_ctxid(ctxid: str) -> dict:
     return {}
 
 
-def _is_closed_name(name: str) -> bool:
-    return bool(name) and name.strip().lower() == CLOSED_NAME.lower()
+def _is_closed_name(name: str, agent=None) -> bool:
+    if not name:
+        return False
+    lower = name.strip().lower()
+    return any(lower == candidate.lower() for candidate in _closed_name_candidates(agent))
 
 
-def _find_closed_chats_id():
-    """Locate an existing 'Closed Chats' root context, or None."""
-    for cid in _all_context_ids():
-        if _is_closed_name(_get_name_for_ctxid(cid)):
+def _find_closed_chats_id(agent=None):
+    """Locate an existing closed-entities root context, or None.
+
+    This is name-based because the tool runs server-side and cannot read the
+    browser-local persisted ID used by the WebUI. It checks the configured name
+    first and keeps the legacy name as migration/recovery fallback.
+    """
+    ids = list(_all_context_ids())
+    try:
+        root_order = _load_root_order()
+    except Exception:
+        root_order = []
+    ordered_ids = [cid for cid in root_order if cid in ids]
+    ordered_ids.extend(cid for cid in ids if cid not in ordered_ids)
+
+    # Prefer root-level matches.
+    for cid in ordered_ids:
+        data = _get_data_for_ctxid(cid)
+        if not data.get("sup_parent") and _is_closed_name(_get_name_for_ctxid(cid), agent):
+            return cid
+
+    # Fallback to any match for legacy/migration recovery.
+    for cid in ordered_ids:
+        if _is_closed_name(_get_name_for_ctxid(cid), agent):
             return cid
     return None
 
 
-def _is_under_closed_chats(ctxid: str) -> bool:
-    """Walk up sup_parent chain; True if any ancestor is named 'Closed Chats'."""
+def _is_under_closed_chats(ctxid: str, agent=None) -> bool:
+    """Walk up sup_parent chain; True if any ancestor is the closed folder."""
     visited = set()
     cur = ctxid
     while cur:
@@ -100,7 +159,7 @@ def _is_under_closed_chats(ctxid: str) -> bool:
         if not parent or parent in visited:
             return False
         visited.add(parent)
-        if _is_closed_name(_get_name_for_ctxid(parent)):
+        if _is_closed_name(_get_name_for_ctxid(parent), agent):
             return True
         cur = parent
     return False
@@ -126,12 +185,13 @@ def _save_root_order(order):
 
 # ── create / detach / attach / kill ───────────────────────────────────────
 
-def _create_closed_chats() -> str:
-    """Create a 'Closed Chats' root context and return its ctxid."""
+def _create_closed_chats(agent=None) -> str:
+    """Create the configured closed-entities root context and return its ctxid."""
     from initialize import initialize_agent
     new_id = guids.generate_id()
     config = initialize_agent()
-    ctx = AgentContext(config=config, id=new_id, name=CLOSED_NAME)
+    folder_name = _get_closed_entities_folder_name(agent)
+    ctx = AgentContext(config=config, id=new_id, name=folder_name)
     # Lock the name so chat_rename plugin can't re-title it
     ctx.data["chat_rename_manual_lock"] = True
     save_tmp_chat(ctx)
@@ -263,9 +323,11 @@ class SuperordinateRetire(Tool):
             )
 
         target_name = _get_name_for_ctxid(ctxid) or ctxid
+        closed_folder_name = _get_closed_entities_folder_name(self.agent)
+        existing_closed_id = _find_closed_chats_id(self.agent)
 
-        # Case 1: target IS the 'Closed Chats' folder → kill folder + descendants
-        if _is_closed_name(target_name):
+        # Case 1: target IS the configured closed-entities folder → kill folder + descendants
+        if (existing_closed_id and ctxid == existing_closed_id) or (not existing_closed_id and _is_closed_name(target_name, self.agent)):
             descendants = _collect_descendants(ctxid)
             killed = 0
             for did in descendants:
@@ -278,14 +340,14 @@ class SuperordinateRetire(Tool):
                 _kill_chat(ctxid)
             except Exception:
                 pass
-            mark_dirty_all(reason="superordinate_retire.kill_closed_chats")
+            mark_dirty_all(reason="superordinate_retire.kill_closed_entities_folder")
             return Response(
-                message="Closed Chats folder and {} descendant chat(s) permanently removed.".format(killed),
+                message="{} and {} descendant chat(s) permanently removed.".format(closed_folder_name, killed),
                 break_loop=False,
             )
 
-        # Case 2: target already lives under 'Closed Chats' → permanent delete
-        if _is_under_closed_chats(ctxid):
+        # Case 2: target already lives under the configured closed-entities folder → permanent delete
+        if _is_under_closed_chats(ctxid, self.agent):
             _kill_chat(ctxid)
             mark_dirty_all(reason="superordinate_retire.kill")
             return Response(
@@ -294,7 +356,7 @@ class SuperordinateRetire(Tool):
                 additional={"superordinate_id": ctxid, "deleted": True},
             )
 
-        # Case 3: normal retire → move under 'Closed Chats'
+        # Case 3: normal retire → move under the configured closed-entities folder
         target_ctx = AgentContext.get(ctxid)
         if not target_ctx:
             # Force-load context from disk so we can mutate sup_parent
@@ -309,20 +371,20 @@ class SuperordinateRetire(Tool):
                 break_loop=False,
             )
 
-        closed_id = _find_closed_chats_id()
+        closed_id = existing_closed_id or _find_closed_chats_id(self.agent)
         if not closed_id:
             try:
-                closed_id = _create_closed_chats()
+                closed_id = _create_closed_chats(self.agent)
             except Exception as e:
                 return Response(
-                    message="Failed to create 'Closed Chats' folder: {}".format(e),
+                    message="Failed to create '{}': {}".format(closed_folder_name, e),
                     break_loop=False,
                 )
 
         closed_ctx = AgentContext.get(closed_id)
         if not closed_ctx:
             return Response(
-                message="'Closed Chats' folder could not be loaded (id={}).".format(closed_id),
+                message="the configured closed-entities folder could not be loaded (id={}).".format(closed_id),
                 break_loop=False,
             )
 
@@ -345,7 +407,7 @@ class SuperordinateRetire(Tool):
         mark_dirty_all(reason="superordinate_retire.move")
 
         return Response(
-            message="SuperOrdinate '{}' has been retired and moved under 'Closed Chats'.".format(target_name),
+            message="SuperOrdinate '{}' has been retired and moved under '{}'.".format(target_name, closed_folder_name),
             break_loop=False,
             additional={"superordinate_id": ctxid, "closed_chats_id": closed_id, "deleted": False},
         )

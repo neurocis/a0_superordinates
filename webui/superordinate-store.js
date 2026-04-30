@@ -7,6 +7,9 @@ const model = {
   expandedNodes: {},     // {ctxid: bool}
   pinnedNodes: {},       // {ctxid: bool} - pinned chats cannot be moved
   msgMeBlockedNodes: {},        // {ctxid: bool} - chats where user has explicitly BLOCKED prompt input (default: allowed)
+  closedEntitiesFolderName: 'Closed Entities',
+  _closedEntitiesConfigLoaded: false,
+  _closedEntitiesConfigPromise: null,
   _refreshInterval: null,
   // Status tracking state (independent of Chat Status Marklet)
   _prevRunning: {},
@@ -33,7 +36,8 @@ const model = {
   _resizeEndBound: null,   // bound mouseup handler ref
 
   init() {
-    // Store registered - fetch map immediately
+    // Store registered - fetch config/map immediately
+    this._closedEntitiesConfigPromise = this._loadConfig();
     this.fetchMap();
     
     // Block attachmentsStore from intercepting internal superordinate drags.
@@ -91,6 +95,49 @@ const model = {
     if (this._refreshInterval) {
       clearInterval(this._refreshInterval);
       this._refreshInterval = null;
+    }
+  },
+
+
+  _normalizeClosedEntitiesFolderName(value) {
+    const name = String(value || '').trim();
+    return name || 'Closed Entities';
+  },
+
+  async _loadConfig() {
+    try {
+      const response = await callJsonApi(
+        "plugins/a0_superordinates/superordinate_config",
+        {}
+      );
+      const configuredName = response?.closed_entities_folder_name
+        || response?.config?.closed_entities_folder_name
+        || 'Closed Entities';
+      this.closedEntitiesFolderName = this._normalizeClosedEntitiesFolderName(configuredName);
+      this._closedEntitiesConfigLoaded = true;
+    } catch (e) {
+      console.error("[Superordinates] Error fetching config:", e);
+      this.closedEntitiesFolderName = 'Closed Entities';
+      this._closedEntitiesConfigLoaded = true;
+    }
+  },
+
+  getClosedEntitiesFolderName() {
+    return this._normalizeClosedEntitiesFolderName(this.closedEntitiesFolderName);
+  },
+
+
+  async _ensureClosedEntitiesConfigLoaded() {
+    if (this._closedEntitiesConfigLoaded) return;
+    try {
+      if (this._closedEntitiesConfigPromise) {
+        await this._closedEntitiesConfigPromise;
+      } else {
+        this._closedEntitiesConfigPromise = this._loadConfig();
+        await this._closedEntitiesConfigPromise;
+      }
+    } catch (_e) {
+      // _loadConfig already applies the default fallback.
     }
   },
 
@@ -381,7 +428,7 @@ const model = {
 
   /**
    * Unified move-lock check: true if node is pinned OR root-locked
-   * (root-level Closed Chats).
+   * (root-level Closed Entities).
    */
   isMoveLocked(ctxid) {
     if (!ctxid) return false;
@@ -781,7 +828,7 @@ const model = {
 
   // ── Close Chat (soft-close → special closed folder) ─────────────
 
-  _CLOSED_CHATS_NAME: 'Closed Chats',
+  _CLOSED_CHATS_NAME: 'Closed Entities',
   _CLOSED_CHATS_STORAGE_KEY: 'sup_closedChatsId',
 
   /**
@@ -836,11 +883,20 @@ const model = {
       this._persistClosedChatsId(null);
     }
 
-    const lower = this._CLOSED_CHATS_NAME.toLowerCase();
+    const candidateNames = [
+      this.getClosedEntitiesFolderName(),
+      this._CLOSED_CHATS_NAME,
+      'Closed Chats', // legacy migration fallback only
+    ];
+    const lowers = [...new Set(candidateNames
+      .map(name => String(name || '').trim().toLowerCase())
+      .filter(Boolean))];
+
     // Prefer a root-level name match to avoid accidentally adopting a nested
-    // ordinary chat with the same display name.
-    const byRootName = contexts.find(c => (c.name || '').toLowerCase() === lower && !this.getParent(c.id)) || null;
-    const byAnyName = contexts.find(c => (c.name || '').toLowerCase() === lower) || null;
+    // ordinary chat with the same display name. Name lookup is migration/recovery
+    // only; once found, the ID is persisted and remains the stable identity.
+    const byRootName = contexts.find(c => lowers.includes((c.name || '').toLowerCase()) && !this.getParent(c.id)) || null;
+    const byAnyName = contexts.find(c => lowers.includes((c.name || '').toLowerCase())) || null;
     const found = byRootName || byAnyName || null;
     if (found) this._persistClosedChatsId(found.id);
     return found;
@@ -873,7 +929,7 @@ const model = {
   },
 
   /**
-   * Check if Closed Chats restrictions should apply for this context.
+   * Check if Closed Entities restrictions should apply for this context.
    * True for the special closed folder itself and all descendants.
    */
   isClosedChatsRestricted(ctxid) {
@@ -903,10 +959,12 @@ const model = {
    * Uses superordinate_create API so the name is set server-side immediately.
    */
   async _getOrCreateClosedChats() {
+    await this._ensureClosedEntitiesConfigLoaded();
+
     // Resolve by persisted ID first; display-name fallback is migration only.
     const existing = this._findClosedChatsContext();
     if (existing) {
-      // Closed Chats is Msgs-Only by default. The Keyboard toggle is hidden
+      // Closed Entities is Msgs-Only by default. The Keyboard toggle is hidden
       // for this special folder, but we still persist the blocked state so
       // selecting it cannot prompt that agent.
       this._persistClosedChatsId(existing.id);
@@ -920,10 +978,10 @@ const model = {
     let newId;
     try {
       const res = await callJsonApi('plugins/a0_superordinates/superordinate_create', {
-        name: this._CLOSED_CHATS_NAME,
+        name: this.getClosedEntitiesFolderName(),
       });
       if (!res || !res.ok || !res.ctxid) {
-        console.error('[Superordinates] Failed to create Closed Chats:', res);
+        console.error('[Superordinates] Failed to create Closed Entities:', res);
         return null;
       }
       newId = res.ctxid;
@@ -950,7 +1008,7 @@ const model = {
         child_id: newId, new_parent_id: '', position: -1,
       });
     } catch (e) {
-      console.error('[Superordinates] Failed to reparent Closed Chats:', e);
+      console.error('[Superordinates] Failed to reparent Closed Entities:', e);
     }
 
     // Refresh hierarchy to include new node
@@ -976,9 +1034,9 @@ const model = {
 
   /**
    * Close chat handler for Superordinates.
-   * - If this IS 'Closed Chats': kill all descendants recursively, then kill it.
-   * - If under 'Closed Chats': actually kill it.
-   * - Otherwise: move it under 'Closed Chats'.
+   * - If this IS 'Closed Entities': kill all descendants recursively, then kill it.
+   * - If under 'Closed Entities': actually kill it.
+   * - Otherwise: move it under 'Closed Entities'.
    */
   async closeChat(ctxid) {
     const chatsStore = Alpine.store('chats');
@@ -999,7 +1057,7 @@ const model = {
         }
       }
 
-      // Now kill the Closed Chats node itself
+      // Now kill the Closed Entities node itself
       await chatsStore.killChat(ctxid);
       return;
     }
@@ -1009,14 +1067,14 @@ const model = {
       return;
     }
 
-    // Move to 'Closed Chats'
+    // Move to 'Closed Entities'
     const closedChatsId = await this._getOrCreateClosedChats();
     if (!closedChatsId) {
-      console.error('[Superordinates] Could not get/create Closed Chats node');
+      console.error('[Superordinates] Could not get/create Closed Entities node');
       return;
     }
 
-    // Reparent the chat under 'Closed Chats' via direct API call
+    // Reparent the chat under 'Closed Entities' via direct API call
     let movedToClosedChats = false;
     try {
       const res = await callJsonApi(
@@ -1032,9 +1090,9 @@ const model = {
       console.error('[Superordinates] Reparent call failed:', e);
     }
 
-    // When a normal chat is moved into Closed Chats, make it and its moved
+    // When a normal chat is moved into Closed Entities, make it and its moved
     // subtree Msgs-Only (prompt-blocked) as part of the close operation.
-    // Chats already under Closed Chats are excluded because they return earlier
+    // Chats already under Closed Entities are excluded because they return earlier
     // and are killed rather than moved.
     if (movedToClosedChats) {
       const movedIds = [ctxid, ...this._collectDescendants(ctxid)];
@@ -1048,7 +1106,7 @@ const model = {
     // Refresh the map after reparenting
     await this.fetchMap();
 
-    // Auto-expand 'Closed Chats' so user sees where it went
+    // Auto-expand 'Closed Entities' so user sees where it went
     if (!this.isExpanded(closedChatsId)) {
       this.expandedNodes = { ...this.expandedNodes, [closedChatsId]: true };
       this._persistExpanded();
@@ -1066,7 +1124,7 @@ const model = {
    */
   async reparent(childId, newParentId, position) {
     if (!childId || childId === newParentId) return;
-    // Hard guard: move-locked nodes (pinned or root-level 'Closed Chats') cannot move
+    // Hard guard: move-locked nodes (pinned or root-level 'Closed Entities') cannot move
     if (this.isMoveLocked && this.isMoveLocked(childId)) {
       return;
     }
@@ -1087,7 +1145,7 @@ const model = {
       console.error("[Superordinates] reparent call failed:", e);
     }
 
-    // If a generic Move/Reparent places an Agent under Closed Chats, make the
+    // If a generic Move/Reparent places an Agent under Closed Entities, make the
     // moved Agent and its moved subtree Msgs-Only (prompt-blocked). This mirrors
     // the Close flow, but also covers drag/drop or other reparent operations.
     if (reparented && movingUnderClosedChats) {
@@ -1105,7 +1163,7 @@ const model = {
 
   /** Start dragging a node */
   dragStart(ctxid, event) {
-    // Block drag of move-locked nodes (pinned or root-level 'Closed Chats')
+    // Block drag of move-locked nodes (pinned or root-level 'Closed Entities')
     if (this.isMoveLocked && this.isMoveLocked(ctxid)) {
       try { event.preventDefault(); } catch (e) {}
       try { event.stopPropagation(); } catch (e) {}

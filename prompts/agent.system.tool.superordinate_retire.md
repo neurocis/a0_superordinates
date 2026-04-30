@@ -1,12 +1,12 @@
 ### superordinate_retire
-retire (close) a persistent superordinate. mirrors the UI close-chat behavior — moves the agent under the 'Closed Chats' folder.
+retire (close) a persistent superordinate. mirrors the UI close-chat behavior — moves the agent under the 'the configured closed-entities folder' folder.
 args: `name` or `superordinate_id`
 - `name`: the unique name of the superordinate (preferred — easier to reference)
 - `superordinate_id`: the context ID of the superordinate (alternative to name)
 behavior:
-- normal chat → moved under the 'Closed Chats' folder (created at root if missing)
-- already under 'Closed Chats' → permanently deleted
-- the 'Closed Chats' folder itself → folder and every descendant permanently deleted
+- normal chat → moved under the 'the configured closed-entities folder' folder (created at root if missing)
+- already under 'the configured closed-entities folder' → permanently deleted
+- the 'the configured closed-entities folder' folder itself → folder and every descendant permanently deleted
 example:
 ~~~json
 {

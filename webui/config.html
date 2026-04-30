@@ -59,6 +59,22 @@
                             x-model.number="config.reply_wait_seconds" />
                     </div>
                 </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Name of Closed Entities Folder</div>
+                        <div class="field-description">
+                            Display name used when creating the special folder that receives closed chats/entities.
+                            Existing folders keep their stable identity by ID; this value controls the name used
+                            when the folder must be created.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <input type="text"
+                            x-model="config.closed_entities_folder_name"
+                            placeholder="Closed Entities" />
+                    </div>
+                </div>
             </div>
         </template>
     </div>
