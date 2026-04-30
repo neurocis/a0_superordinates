@@ -532,11 +532,17 @@
 
           this.calendarOutputEl = output;
           output.classList.add("a0-agent-calendar-output-lifted");
-          output.dataset.a0CalendarOriginalPaddingBottom ??= output.style.paddingBottom || "";
-          output.dataset.a0CalendarOriginalMarginBottom ??= output.style.marginBottom || "";
+          if (!output.dataset.a0CalendarHasOriginals) {
+            output.dataset.a0CalendarHasOriginals = "1";
+            output.dataset.a0CalendarOriginalPaddingBottom = output.style.paddingBottom || "";
+            output.dataset.a0CalendarOriginalMarginBottom = output.style.marginBottom || "";
+            output.dataset.a0CalendarBasePaddingBottom = String(
+              Number.parseFloat(window.getComputedStyle(output).paddingBottom) || 0
+            );
+          }
 
-          const currentPadding = Number.parseFloat(window.getComputedStyle(output).paddingBottom) || 0;
-          output.style.paddingBottom = `${Math.round(currentPadding + lift)}px`;
+          const basePadding = Number.parseFloat(output.dataset.a0CalendarBasePaddingBottom || "0") || 0;
+          output.style.paddingBottom = `${Math.round(basePadding + lift)}px`;
           output.style.marginBottom = `${Math.round(lift * 0.35)}px`;
           if (typeof output.scrollTop === "number") output.scrollTop = output.scrollTop;
         } catch (_e) {}
@@ -549,8 +555,10 @@
           output.classList.remove("a0-agent-calendar-output-lifted");
           output.style.paddingBottom = output.dataset.a0CalendarOriginalPaddingBottom || "";
           output.style.marginBottom = output.dataset.a0CalendarOriginalMarginBottom || "";
+          delete output.dataset.a0CalendarHasOriginals;
           delete output.dataset.a0CalendarOriginalPaddingBottom;
           delete output.dataset.a0CalendarOriginalMarginBottom;
+          delete output.dataset.a0CalendarBasePaddingBottom;
           this.calendarOutputEl = null;
         } catch (_e) {}
       },
@@ -611,6 +619,7 @@
             anchor.style.removeProperty("--a0-calendar-tab-width");
             anchor.style.removeProperty("--a0-calendar-tab-left");
           }
+          this.clearOutputLift();
         } catch (_e) {}
       },
 
