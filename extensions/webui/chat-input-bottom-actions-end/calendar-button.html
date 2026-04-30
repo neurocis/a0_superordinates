@@ -17,13 +17,18 @@
   .a0-agent-calendar-tab-anchor > .text-button.a0-agent-calendar-toggle-open {
     opacity: 1;
     background-color: var(--color-background-hover);
-    border-radius: 4px 4px 0 0;
+    border-radius: 0 0 4px 4px;
   }
 
   .a0-agent-calendar-host-lifted {
     position: relative;
     z-index: 10002;
     overflow: visible !important;
+  }
+
+  .a0-agent-calendar-compose-lifted {
+    position: relative;
+    z-index: 10002;
     transform: translateY(calc(-1 * var(--a0-calendar-panel-lift, 18rem)));
     transition: transform 180ms ease;
     will-change: transform;
@@ -35,10 +40,10 @@
 
   .a0-agent-calendar-panel {
     position: absolute;
-    top: calc(100% - 1px);
+    top: auto;
     left: calc(-1 * var(--a0-calendar-tab-offset-left, 0px));
     right: auto;
-    bottom: auto;
+    bottom: calc(100% - 1px);
     z-index: 10001;
     width: var(--a0-calendar-panel-width, min(960px, calc(100vw - 2rem)));
     max-width: calc(100vw - 1rem);
@@ -47,18 +52,18 @@
     flex-direction: column;
     overflow: hidden;
     border: 1px solid var(--border-color, rgba(255,255,255,0.14));
-    border-radius: 0 0 0.85rem 0.85rem;
+    border-radius: 0.85rem 0.85rem 0 0;
     background: var(--background-primary, #151515);
     color: var(--text-primary, inherit);
     box-shadow: 0 18px 65px rgba(0, 0, 0, 0.42);
-    transform-origin: top center;
+    transform-origin: bottom center;
     will-change: transform, opacity;
   }
 
   .a0-agent-calendar-panel::before {
     content: "";
     position: absolute;
-    top: -1px;
+    bottom: -1px;
     left: var(--a0-calendar-tab-left, 0px);
     width: var(--a0-calendar-tab-width, 7rem);
     height: 1px;
@@ -431,6 +436,7 @@
       calendarTabWidth: "7rem",
       calendarHostEl: null,
       calendarOutputEl: null,
+      calendarLiftEls: [],
       placementCleanupTimer: null,
 
       calendarAnchor() {
@@ -445,46 +451,91 @@
         const anchor = this.calendarAnchor();
         if (!anchor) return null;
 
-        let compactFallback = anchor.parentElement;
-        let promptComposer = null;
-        let node = anchor.parentElement;
-        const minUsefulWidth = Math.min(520, Math.max(260, window.innerWidth * 0.38));
+        // Calendar lives in the bottom action row. Keep that row anchored at the
+        // bottom and use it only as the tab/panel anchor; do not lift it.
+        return anchor.closest?.(".chat-bottom-actions-bar") ||
+          anchor.closest?.(".text-buttons-row") ||
+          anchor.parentElement ||
+          anchor;
+      },
 
-        while (node && node !== document.body && node !== document.documentElement) {
-          const rect = node.getBoundingClientRect();
-          const buttonCount = node.querySelectorAll?.("button, .text-button")?.length || 0;
-          const hasPromptBox = !!node.querySelector?.(
-            'textarea, [contenteditable="true"], [role="textbox"], .ProseMirror, input[type="text"]'
-          );
+      calendarComposerLiftTargets(host) {
+        const targets = [];
+        const add = (el) => {
+          if (!el || targets.includes(el)) return;
+          if (host && (el === host || host.contains(el))) return;
+          if (el.closest?.(".chat-bottom-actions-bar") || el.classList?.contains("chat-bottom-actions-bar")) return;
+          targets.push(el);
+        };
 
-          // Prefer the input/composer wrapper so the prompt box and its surrounding
-          // controls move together with the Calendar tab.
-          if (
-            hasPromptBox &&
-            buttonCount >= 2 &&
-            rect.width >= minUsefulWidth &&
-            rect.height >= 60 &&
-            rect.height <= 420 &&
-            rect.bottom > (window.innerHeight * 0.45)
-          ) {
-            promptComposer = node;
+        try {
+          // Model/preset/status strip above the prompt input.
+          add(document.getElementById("progress-bar-box"));
+
+          // Prompt box and surrounding controls. Prefer the immediate useful
+          // component wrapper, falling back to the input container if needed.
+          const input = document.getElementById("chat-input");
+          let node = input;
+          while (node && node !== document.body && node !== document.documentElement) {
+            const rect = node.getBoundingClientRect?.();
+            if (
+              rect &&
+              rect.width >= 260 &&
+              rect.height >= 24 &&
+              rect.height <= 260 &&
+              node.querySelector?.("#chat-input") &&
+              !node.querySelector?.(".chat-bottom-actions-bar")
+            ) {
+              add(node);
+              break;
+            }
+            node = node.parentElement;
+          }
+          if (!targets.some((el) => el.contains?.(input))) add(input?.closest?.("#chat-input-container") || input);
+
+          // Other input-section children above the bottom action row, such as
+          // queue/attachment previews, should move with the prompt area too.
+          const inputSection = document.getElementById("input-section");
+          if (inputSection) {
+            for (const child of Array.from(inputSection.children || [])) {
+              if (!child || child === host || host?.contains?.(child)) continue;
+              if (child.matches?.("template, style, script")) continue;
+              if (child.querySelector?.(".chat-bottom-actions-bar") || child.classList?.contains("chat-bottom-actions-bar")) continue;
+              const rect = child.getBoundingClientRect?.();
+              if (rect && rect.width >= 120 && rect.height >= 8 && rect.bottom > window.innerHeight * 0.35) add(child);
+            }
+          }
+        } catch (_e) {}
+
+        return targets;
+      },
+
+      liftComposerElements(host, lift) {
+        try {
+          const targets = this.calendarComposerLiftTargets(host);
+          for (const previous of this.calendarLiftEls || []) {
+            if (!targets.includes(previous)) {
+              previous.classList.remove("a0-agent-calendar-compose-lifted");
+              previous.style.removeProperty("--a0-calendar-panel-lift");
+            }
           }
 
-          // Fallback for unusual DOM layouts: keep a compact action-row ancestor.
-          if (rect.width >= minUsefulWidth && rect.height >= 20 && rect.height <= 180 && buttonCount >= 2) {
-            compactFallback = node;
-          } else if (
-            rect.width > (compactFallback?.getBoundingClientRect?.().width || 0) &&
-            rect.width < window.innerWidth - 8 &&
-            rect.height <= 220
-          ) {
-            compactFallback = node;
+          this.calendarLiftEls = targets;
+          for (const el of targets) {
+            el.style.setProperty("--a0-calendar-panel-lift", `${lift}px`);
+            el.classList.add("a0-agent-calendar-compose-lifted");
           }
+        } catch (_e) {}
+      },
 
-          node = node.parentElement;
-        }
-
-        return promptComposer || compactFallback || anchor.parentElement || anchor;
+      clearComposerLift() {
+        try {
+          for (const el of this.calendarLiftEls || []) {
+            el.classList.remove("a0-agent-calendar-compose-lifted");
+            el.style.removeProperty("--a0-calendar-panel-lift");
+          }
+          this.calendarLiftEls = [];
+        } catch (_e) {}
       },
 
       calendarOutputHost(host) {
@@ -645,8 +696,8 @@
           anchor.style.setProperty("--a0-calendar-tab-width", `${Math.ceil(buttonRect.width)}px`);
           anchor.style.setProperty("--a0-calendar-tab-left", `${offsetLeft}px`);
 
-          host.style.setProperty("--a0-calendar-panel-lift", `${lift}px`);
           host.classList.add("a0-agent-calendar-host-lifted");
+          this.liftComposerElements(host, lift);
           this.liftOutputHost(host, lift);
         } catch (_e) {}
       },
@@ -666,6 +717,7 @@
             anchor.style.removeProperty("--a0-calendar-tab-width");
             anchor.style.removeProperty("--a0-calendar-tab-left");
           }
+          this.clearComposerLift();
           this.clearOutputLift();
         } catch (_e) {}
       },
