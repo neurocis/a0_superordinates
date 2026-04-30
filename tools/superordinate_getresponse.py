@@ -153,6 +153,36 @@ def _truthy(v) -> bool:
     return False
 
 
+def _has_arg(kwargs: dict, key: str) -> bool:
+    """Return True when caller explicitly supplied a meaningful argument."""
+    if key not in kwargs:
+        return False
+    value = kwargs.get(key)
+    return value is not None and value != ""
+
+
+def _default_with_prompts_for_count(count: int) -> bool:
+    """Default prompt inclusion based on count semantics.
+
+    count = -1: last response only, no prompt by default.
+    count =  0: all prompt+response cycles by default.
+    count < -1: last abs(count) prompt+response cycles by default.
+    count >  0: last N responses only by default.
+    """
+    return count == 0 or count < -1
+
+
+def _effective_paired_count(count: int) -> int:
+    """Translate negative multi-count shorthand for paired mode.
+
+    `count=-3` means "last 3 prompt+response cycles". Existing count
+    semantics remain unchanged for `-1`, `0`, and positive values.
+    """
+    if count < -1:
+        return abs(count)
+    return count
+
+
 class SuperordinateGetresponse(Tool):
 
     async def execute(self, **kwargs):
@@ -166,8 +196,14 @@ class SuperordinateGetresponse(Tool):
         except (ValueError, TypeError):
             count = -1
 
-        # 3rd parameter: with_prompts
-        with_prompts = _truthy(kwargs.get("with_prompts", False))
+        # 3rd parameter: with_prompts. If omitted, include prompts by default
+        # for all entries (`count=0`) and negative multi-count shorthand
+        # (`count < -1`, e.g. -3 means last 3 prompt+response cycles).
+        # Keep `count=-1` as response-only by default.
+        if _has_arg(kwargs, "with_prompts"):
+            with_prompts = _truthy(kwargs.get("with_prompts"))
+        else:
+            with_prompts = _default_with_prompts_for_count(count)
 
         # Resolve name to ctxid if name provided
         if name and not superordinate_id:
@@ -192,7 +228,8 @@ class SuperordinateGetresponse(Tool):
 
         # ── paired prompt+response cycles ────────────────────────────
         if with_prompts:
-            cycles = _read_paired_cycles(superordinate_id, count)
+            paired_count = _effective_paired_count(count)
+            cycles = _read_paired_cycles(superordinate_id, paired_count)
             if not cycles:
                 chat_file = os.path.join("/a0/usr/chats", superordinate_id, "chat.json")
                 if not os.path.isfile(chat_file):
