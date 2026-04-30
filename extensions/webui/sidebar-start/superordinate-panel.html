@@ -64,7 +64,7 @@
                 <button class="btn-icon-action chat-list-action-btn sup-onboard-btn" title="Onboard" aria-label="Onboard" x-show="!$store.superordinates.isOnboardBlocked(node.id)" @click.stop="$store.superordinates.onboardChild(node.id)">
                   <span class="material-symbols-outlined">person_add</span>
                 </button>
-                <button class="btn-icon-action chat-list-action-btn" title="Close chat" @click.stop="$confirmClick($event, () => $store.superordinates.closeChat(node.id))">
+                <button class="btn-icon-action chat-list-action-btn" title="Close" aria-label="Close" @click.stop="$confirmClick($event, () => $store.superordinates.closeChat(node.id))">
                   <span class="material-symbols-outlined">close</span>
                 </button>
               </div>
