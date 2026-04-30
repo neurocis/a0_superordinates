@@ -153,6 +153,7 @@ const model = {
       if (response && response.root_order) {
         this.rootOrder = response.root_order;
       }
+      this._cancelStaticNameRenameIfNeeded();
     } catch (e) {
       console.error("[Superordinates] Error fetching map:", e);
     }
@@ -193,11 +194,33 @@ const model = {
   // Hidden per-agent rename lock. Defaults false.
   isStaticName(ctxid) {
     const entry = this.hierarchyMap[ctxid] || {};
-    return this._parseBool(entry.StaticName ?? entry.static_name, false);
+    if (this._parseBool(entry.StaticName ?? entry.static_name, false)) return true;
+
+    // Fallback to the live chats context if available. This makes the UI guard
+    // resilient while the hierarchy map is still refreshing or if a future chats
+    // payload exposes context data directly.
+    const contexts = Alpine.store('chats')?.contexts;
+    if (Array.isArray(contexts)) {
+      const ctx = contexts.find(c => c?.id === ctxid);
+      const data = ctx?.data || ctx?.ctx?.data || {};
+      if (this._parseBool(ctx?.StaticName ?? ctx?.static_name, false)) return true;
+      if (this._parseBool(data.StaticName ?? data.static_name, false)) return true;
+    }
+
+    return false;
   },
 
   canRename(ctxid) {
     return !this.isStaticName(ctxid);
+  },
+
+  _cancelStaticNameRenameIfNeeded() {
+    if (this.renamingId && !this.canRename(this.renamingId)) {
+      this.renamingId = null;
+      this.renamingValue = '';
+      this._lastNameClick = null;
+      if (this._nameClickTimer) { clearTimeout(this._nameClickTimer); this._nameClickTimer = null; }
+    }
   },
 
   // Is this node expanded?
@@ -356,7 +379,12 @@ const model = {
   },
 
   startRename(id, currentName) {
-    if (!this.canRename(id)) return;
+    if (!this.canRename(id)) {
+      if (this.renamingId === id) this.cancelRename();
+      this._lastNameClick = null;
+      if (this._nameClickTimer) { clearTimeout(this._nameClickTimer); this._nameClickTimer = null; }
+      return;
+    }
     this.renamingId = id;
     this.renamingValue = currentName || '';
     // Focus the input on next tick

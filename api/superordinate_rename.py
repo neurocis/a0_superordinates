@@ -1,5 +1,8 @@
 """Rename a superordinate chat context."""
 
+import json
+import os
+
 from helpers.api import ApiHandler
 from flask import Request, Response
 from agent import AgentContext
@@ -22,6 +25,27 @@ def _parse_bool(value, default: bool = False) -> bool:
             return False
     return default
 
+def _is_static_name_locked(ctx) -> bool:
+    data = getattr(ctx, "data", {}) or {}
+    if _parse_bool(data.get("StaticName", data.get("static_name")), False):
+        return True
+
+    # Defensive disk fallback: if the process has an older in-memory context
+    # without plugin metadata, still honor StaticName persisted in chat.json.
+    ctxid = getattr(ctx, "id", None)
+    if ctxid:
+        chat_file = os.path.join("/a0/usr/chats", ctxid, "chat.json")
+        try:
+            with open(chat_file, "r") as f:
+                raw = json.load(f)
+            disk_data = (raw.get("data") or {}) if isinstance(raw, dict) else {}
+            if _parse_bool(disk_data.get("StaticName", disk_data.get("static_name")), False):
+                return True
+        except (OSError, json.JSONDecodeError, KeyError):
+            pass
+
+    return False
+
 
 class SuperordinateRename(ApiHandler):
 
@@ -38,7 +62,7 @@ class SuperordinateRename(ApiHandler):
         if not ctx:
             return {"ok": False, "error": f"Context {ctxid} not found"}
 
-        if _parse_bool(ctx.data.get("StaticName", ctx.data.get("static_name")), False):
+        if _is_static_name_locked(ctx):
             return {"ok": False, "error": "This agent has StaticName enabled and cannot be renamed"}
 
         old_name = ctx.name or ""

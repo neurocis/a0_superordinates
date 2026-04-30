@@ -62,11 +62,16 @@ class SuperordinateMap(ApiHandler):
         except Exception:
             pass  # AgentContext.all() may not exist in all versions
 
-        # 1b. Disk fallback for contexts not currently loaded in memory
+        # 1b. Disk metadata merge/fallback.
+        # In-memory contexts are generally the freshest source for hierarchy
+        # movement, but they can be missing metadata added by plugin upgrades
+        # (for example StaticName on an already-loaded Closed Entities folder).
+        # Merge disk keys underneath memory keys so memory still wins when both
+        # sources define a value, while disk-only metadata remains visible.
         if os.path.isdir(chats_dir):
             for d in os.listdir(chats_dir):
-                if d.startswith("_") or d in seen_ids:
-                    continue  # Skip metadata files/dirs and already-loaded contexts
+                if d.startswith("_"):
+                    continue  # Skip metadata files/dirs
                 chat_file = os.path.join(chats_dir, d, "chat.json")
                 if not os.path.isfile(chat_file):
                     continue
@@ -75,7 +80,19 @@ class SuperordinateMap(ApiHandler):
                         data = json.load(f)
                     if not isinstance(data, dict):
                         continue  # Skip malformed chat files
-                    all_ctx_data[d] = data.get("data", {})
+                    disk_data = data.get("data", {}) or {}
+                    if d in all_ctx_data:
+                        mem_data = all_ctx_data.get(d, {}) or {}
+                        merged = {**disk_data, **mem_data}
+                        # StaticName is a lock flag; if either source says true,
+                        # preserve true so stale in-memory false/missing metadata
+                        # cannot reopen rename mode.
+                        if _parse_bool(disk_data.get("StaticName", disk_data.get("static_name")), False) or _parse_bool(mem_data.get("StaticName", mem_data.get("static_name")), False):
+                            merged["StaticName"] = True
+                            merged["static_name"] = True
+                        all_ctx_data[d] = merged
+                    else:
+                        all_ctx_data[d] = disk_data
                 except (json.JSONDecodeError, OSError, KeyError):
                     continue
 

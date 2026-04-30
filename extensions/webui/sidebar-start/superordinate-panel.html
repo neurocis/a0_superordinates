@@ -4,7 +4,7 @@
 </head>
 <body>
   <div x-data="{ _flatTree: [] }" x-move-after="#chats-section"
-    x-effect="_flatTree = $store.superordinates?.getFlatTree($store.chats?.contexts) || []"
+    x-effect="_flatTree = $store.superordinates?.getFlatTree($store.chats?.contexts) || []; $store.superordinates?._cancelStaticNameRenameIfNeeded()"
     class="superordinate-section">
     <template x-if="$store.superordinates && $store.chats">
       <div class="superordinate-inner">
@@ -43,15 +43,15 @@
                       :style="node.project?.color ? { backgroundColor: node.project.color } : { border: '1px solid var(--color-border)' }"></span>
                   </template>
                   <!-- Name: show span or inline rename input -->
-                  <template x-if="$store.superordinates.renamingId !== node.id">
+                  <template x-if="$store.superordinates.renamingId !== node.id || !$store.superordinates.canRename(node.id)">
                     <span class="chat-name sup-name-clickable"
-                      :class="{ 'sup-static-name': node._staticName }"
-                      :title="node._staticName ? 'StaticName enabled: renaming disabled' : ''"
+                      :class="{ 'sup-static-name': !$store.superordinates.canRename(node.id) }"
+                      :title="!$store.superordinates.canRename(node.id) ? 'StaticName enabled: renaming disabled' : ''"
                       x-text="node.name ? node.name : 'Chat #' + node.no"
-                      @click.stop="node._staticName ? $store.chats.selectChat(node.id) : $store.superordinates.handleNameClick(node.id, node.name || ('Chat #' + node.no), $event)"
-                      @dblclick.stop="node._staticName ? $store.chats.selectChat(node.id) : $store.superordinates.handleNameDblClick(node.id, $event)"></span>
+                      @click.stop="$store.superordinates.canRename(node.id) ? $store.superordinates.handleNameClick(node.id, node.name || ('Chat #' + node.no), $event) : $store.chats.selectChat(node.id)"
+                      @dblclick.stop="$store.superordinates.canRename(node.id) ? $store.superordinates.handleNameDblClick(node.id, $event) : $store.chats.selectChat(node.id)"></span>
                   </template>
-                  <template x-if="$store.superordinates.renamingId === node.id && !node._staticName">
+                  <template x-if="$store.superordinates.renamingId === node.id && $store.superordinates.canRename(node.id)">
                     <input type="text" class="sup-rename-input"
                       x-model="$store.superordinates.renamingValue"
                       @keydown.enter.stop="$store.superordinates.commitRename()"
