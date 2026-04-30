@@ -440,31 +440,46 @@
         const anchor = this.calendarAnchor();
         if (!anchor) return null;
 
-        let best = anchor.parentElement;
+        let compactFallback = anchor.parentElement;
+        let promptComposer = null;
         let node = anchor.parentElement;
         const minUsefulWidth = Math.min(520, Math.max(260, window.innerWidth * 0.38));
 
         while (node && node !== document.body && node !== document.documentElement) {
           const rect = node.getBoundingClientRect();
           const buttonCount = node.querySelectorAll?.("button, .text-button")?.length || 0;
+          const hasPromptBox = !!node.querySelector?.(
+            'textarea, [contenteditable="true"], [role="textbox"], .ProseMirror, input[type="text"]'
+          );
 
-          if (rect.width >= minUsefulWidth && rect.height >= 20 && rect.height <= 180 && buttonCount >= 2) {
-            best = node;
-            break;
+          // Prefer the input/composer wrapper so the prompt box and its surrounding
+          // controls move together with the Calendar tab.
+          if (
+            hasPromptBox &&
+            buttonCount >= 2 &&
+            rect.width >= minUsefulWidth &&
+            rect.height >= 60 &&
+            rect.height <= 420 &&
+            rect.bottom > (window.innerHeight * 0.45)
+          ) {
+            promptComposer = node;
           }
 
-          if (
-            rect.width > (best?.getBoundingClientRect?.().width || 0) &&
+          // Fallback for unusual DOM layouts: keep a compact action-row ancestor.
+          if (rect.width >= minUsefulWidth && rect.height >= 20 && rect.height <= 180 && buttonCount >= 2) {
+            compactFallback = node;
+          } else if (
+            rect.width > (compactFallback?.getBoundingClientRect?.().width || 0) &&
             rect.width < window.innerWidth - 8 &&
             rect.height <= 220
           ) {
-            best = node;
+            compactFallback = node;
           }
 
           node = node.parentElement;
         }
 
-        return best || anchor.parentElement || anchor;
+        return promptComposer || compactFallback || anchor.parentElement || anchor;
       },
 
       syncPanelPlacement() {
@@ -491,8 +506,8 @@
           const marginValue = getComputedStyle(anchor).getPropertyValue("--a0-calendar-panel-margin").trim();
           const margin = Number.parseFloat(marginValue) || 8;
 
-          const desiredHeight = Math.round(Math.min(460, Math.max(260, viewportHeight * 0.42)));
-          const lift = desiredHeight + Math.round(margin);
+          const desiredHeight = Math.round(Math.min(360, Math.max(220, viewportHeight * 0.32)));
+          const lift = desiredHeight + Math.round(margin * 0.5);
           const panelWidth = Math.max(280, Math.min(hostRect.width, window.innerWidth - (margin * 2)));
           const offsetLeft = Math.max(0, Math.round(buttonRect.left - hostRect.left));
 
