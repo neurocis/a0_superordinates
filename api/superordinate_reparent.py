@@ -223,6 +223,6 @@ class SuperordinateReparent(ApiHandler):
         return {
             "ctxid": child_ctx.id,
             "profile": child_ctx.data.get("sup_profile", "agent0"),
-            "name": child_ctx.name or f"Chat #{child_ctx.no}",
+            "name": child_ctx.data.get("sup_name") or child_ctx.name or f"Chat #{child_ctx.no}",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }

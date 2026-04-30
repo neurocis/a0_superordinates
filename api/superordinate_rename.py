@@ -23,39 +23,32 @@ class SuperordinateRename(ApiHandler):
 
         old_name = ctx.name or ""
 
+        # Refuse duplicate tool-facing names before mutating the context.
+        try:
+            from usr.plugins.a0_superordinates.helpers.name_registry import lookup_by_name
+            existing = lookup_by_name(new_name)
+            if existing and existing != ctxid:
+                return {"ok": False, "error": f"A SuperOrdinate named '{new_name}' already exists"}
+        except Exception:
+            pass  # Registry is best-effort; the sync helper will retry/log below.
+
         # Update the context name
         ctx.name = new_name
 
         # Ensure chat_rename doesn't override our name
         ctx.data["chat_rename_manual_lock"] = True
 
-        # Update the name registry if old name was registered
+        # Update canonical superordinate name, name registry, and the cached
+        # parent sup_children entry from one shared code path.
         try:
-            from usr.plugins.a0_superordinates.helpers.name_registry import (
-                lookup_by_ctxid,
-                unregister_name,
-                register_name,
-            )
-            registered_name = lookup_by_ctxid(ctxid)
-            if registered_name:
-                unregister_name(registered_name)
-                # Extract the base name (strip the profile suffix like " (developer)")
-                # The registry uses the base name, not the display name
-                register_name(new_name, ctxid)
-        except Exception:
-            pass  # Name registry is optional
-
-        # Also update the sup_children entry on the parent context
-        parent_ctxid = ctx.data.get("sup_parent", "")
-        if parent_ctxid:
-            parent_ctx = AgentContext.get(parent_ctxid)
-            if parent_ctx:
-                children = parent_ctx.data.get("sup_children", [])
-                for child in children:
-                    if child.get("ctxid") == ctxid:
-                        child["name"] = new_name
-                        break
-                save_tmp_chat(parent_ctx)
+            from usr.plugins.a0_superordinates.helpers.name_sync import sync_superordinate_name
+            sync_result = sync_superordinate_name(ctx, new_name, force=True)
+            if not sync_result.get("ok"):
+                ctx.name = old_name
+                return {"ok": False, "error": sync_result.get("error", "Failed to sync name registry")}
+        except Exception as e:
+            ctx.name = old_name
+            return {"ok": False, "error": f"Failed to sync superordinate name metadata: {e}"}
 
         # Persist the renamed context
         save_tmp_chat(ctx)

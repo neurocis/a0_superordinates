@@ -9,6 +9,7 @@ import os
 from helpers.extension import Extension
 from agent import Agent, LoopData
 from helpers.state_monitor_integration import mark_dirty_all
+from helpers.persist_chat import save_tmp_chat
 
 
 def _context_alive(ctxid: str) -> bool:
@@ -65,6 +66,23 @@ def _cleanup_parent(context) -> bool:
     return False
 
 
+def _reconcile_name_metadata(context) -> bool:
+    """Sync completed chat-name changes into superordinate metadata.
+
+    Returns True when the current context's persistent metadata changed.
+    Parent-entry and registry writes are handled by the sync helper.
+    """
+    try:
+        from usr.plugins.a0_superordinates.helpers.name_sync import reconcile_superordinate_name
+        result = reconcile_superordinate_name(context)
+        if not result.get("ok"):
+            return False
+        return bool(result.get("registry_changed") or result.get("parent_changed"))
+    except Exception:
+        return False
+
+
+
 def _cleanup_name_registry():
     """Remove name registry entries whose contexts no longer exist."""
     try:
@@ -92,9 +110,18 @@ class SuperordinateCleanup(Extension):
         if _cleanup_parent(context):
             dirty = True
 
+        # Sync completed chat-name changes into name registry and parent
+        # sup_children metadata before tools/UI read stale names.
+        if _reconcile_name_metadata(context):
+            dirty = True
+
         # Periodically clean the global name registry
         _cleanup_name_registry()
 
-        # Trigger UI refresh if anything changed
+        # Persist and trigger UI refresh if anything changed
         if dirty:
+            try:
+                save_tmp_chat(context)
+            except Exception:
+                pass
             mark_dirty_all(reason="superordinate_cleanup")

@@ -75,6 +75,11 @@ class RenameChat(Extension):
                 if len(new_name) > MAX_AUTO_CHAT_NAME_LENGTH:
                     new_name = new_name[:MAX_AUTO_CHAT_NAME_LENGTH] + "..."
                 self.agent.context.name = new_name
+                try:
+                    from usr.plugins.a0_superordinates.helpers.name_sync import sync_superordinate_name
+                    sync_superordinate_name(self.agent.context, new_name, force=False)
+                except Exception:
+                    pass  # non-critical; chat rename itself should still complete
                 persist_chat.save_tmp_chat(self.agent.context)
 
         except Exception:

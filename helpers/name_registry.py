@@ -47,6 +47,39 @@ def unregister_name(name: str) -> None:
     _save_registry(registry)
 
 
+def set_name_for_ctxid(ctxid: str, name: str) -> bool:
+    """Atomically set the canonical name for a context ID.
+
+    Removes any existing names pointing at ``ctxid`` and registers ``name``.
+    Returns False if ``name`` is already registered to a different context.
+    This is safer for rename flows than unregister/register because a failed
+    conflict check does not drop the old mapping first.
+    """
+    ctxid = (ctxid or "").strip()
+    name = (name or "").strip()
+    if not ctxid or not name:
+        return False
+
+    registry = _load_registry()
+    existing = registry.get(name)
+    if existing and existing != ctxid:
+        return False
+
+    changed = False
+    for old_name, old_ctxid in list(registry.items()):
+        if old_ctxid == ctxid and old_name != name:
+            del registry[old_name]
+            changed = True
+
+    if registry.get(name) != ctxid:
+        registry[name] = ctxid
+        changed = True
+
+    if changed:
+        _save_registry(registry)
+    return True
+
+
 def lookup_by_name(name: str) -> Optional[str]:
     """Get ctxid for a given name, or None."""
     registry = _load_registry()
