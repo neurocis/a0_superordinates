@@ -1,0 +1,453 @@
+<style>
+  .a0-agent-calendar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  .a0-agent-calendar-modal {
+    width: min(820px, 96vw);
+    max-height: min(760px, 92vh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.14));
+    border-radius: 0.85rem;
+    background: var(--background-primary, #151515);
+    color: var(--text-primary, inherit);
+    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.45);
+  }
+
+  .a0-agent-calendar-header,
+  .a0-agent-calendar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.12));
+  }
+
+  .a0-agent-calendar-footer {
+    border-top: 1px solid var(--border-color, rgba(255,255,255,0.12));
+    border-bottom: 0;
+  }
+
+  .a0-agent-calendar-body {
+    padding: 1rem;
+    overflow: auto;
+  }
+
+  .a0-agent-calendar-title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+  }
+
+  .a0-agent-calendar-muted {
+    opacity: 0.72;
+    font-size: 0.86rem;
+  }
+
+  .a0-agent-calendar-section {
+    margin-top: 1rem;
+  }
+
+  .a0-agent-calendar-section:first-child {
+    margin-top: 0;
+  }
+
+  .a0-agent-calendar-section h3 {
+    margin: 0 0 0.6rem;
+    font-size: 0.95rem;
+  }
+
+  .a0-agent-calendar-list {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .a0-agent-calendar-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.8rem;
+    align-items: center;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, currentColor 4%, transparent);
+  }
+
+  .a0-agent-calendar-row-main {
+    min-width: 0;
+  }
+
+  .a0-agent-calendar-row-name {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .a0-agent-calendar-row-meta {
+    margin-top: 0.2rem;
+    opacity: 0.68;
+    font-size: 0.78rem;
+    overflow-wrap: anywhere;
+  }
+
+  .a0-agent-calendar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+
+  .a0-agent-calendar-input-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.75fr) minmax(180px, 1.25fr) auto;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+  }
+
+  .a0-agent-calendar-input-row input {
+    min-width: 0;
+    padding: 0.48rem 0.55rem;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.16));
+    border-radius: 0.42rem;
+    background: var(--background-secondary, rgba(255,255,255,0.04));
+    color: inherit;
+  }
+
+  .a0-agent-calendar-small-button,
+  .a0-agent-calendar-close {
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.16));
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, currentColor 7%, transparent);
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .a0-agent-calendar-close {
+    padding: 0.3rem 0.5rem;
+  }
+
+  .a0-agent-calendar-small-button:hover,
+  .a0-agent-calendar-close:hover {
+    background: color-mix(in srgb, currentColor 13%, transparent);
+  }
+
+  .a0-agent-calendar-error {
+    margin: 0.75rem 0;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.5rem;
+    background: rgba(210, 64, 64, 0.18);
+    color: #ffb7b7;
+  }
+
+  @media (max-width: 680px) {
+    .a0-agent-calendar-input-row {
+      grid-template-columns: 1fr;
+    }
+
+    .a0-agent-calendar-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<button
+  type="button"
+  class="text-button"
+  title="Calendar"
+  @click.prevent.stop="$store.agentCalendar.openCalendar()"
+>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+    <line x1="16" y1="2" x2="16" y2="6"></line>
+    <line x1="8" y1="2" x2="8" y2="6"></line>
+    <line x1="3" y1="10" x2="21" y2="10"></line>
+    <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"></path>
+  </svg>
+  <p>Calendar</p>
+</button>
+
+<div
+  x-data
+  x-cloak
+  x-show="$store.agentCalendar && $store.agentCalendar.visible"
+  x-transition.opacity
+  class="a0-agent-calendar-backdrop"
+  @click.self="$store.agentCalendar.closeCalendar()"
+  @keydown.escape.window="$store.agentCalendar.closeCalendar()"
+>
+  <div class="a0-agent-calendar-modal" role="dialog" aria-modal="true" aria-label="Agent Calendar">
+    <div class="a0-agent-calendar-header">
+      <div>
+        <div class="a0-agent-calendar-title">
+          <i class="ti ti-calendar-event" aria-hidden="true"></i>
+          <span>Calendar</span>
+        </div>
+        <div class="a0-agent-calendar-muted">
+          ContextID: <code x-text="$store.agentCalendar.ctxid || 'none'"></code>
+        </div>
+      </div>
+      <button type="button" class="a0-agent-calendar-close" @click="$store.agentCalendar.closeCalendar()" title="Close">
+        <i class="ti ti-x" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="a0-agent-calendar-body">
+      <template x-if="$store.agentCalendar.loading">
+        <div class="a0-agent-calendar-muted">Loading calendar stack…</div>
+      </template>
+
+      <template x-if="$store.agentCalendar.error">
+        <div class="a0-agent-calendar-error" x-text="$store.agentCalendar.error"></div>
+      </template>
+
+      <template x-if="!$store.agentCalendar.loading">
+        <div>
+          <div class="a0-agent-calendar-muted">
+            Folder:
+            <code x-text="$store.agentCalendar.calendarDir || 'not loaded'"></code>
+          </div>
+
+          <div class="a0-agent-calendar-section">
+            <div class="a0-agent-calendar-actions">
+              <h3 style="margin-right:auto;">ICS files</h3>
+              <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.createLocalCalendar()">
+                <i class="ti ti-file-plus" aria-hidden="true"></i>
+                New .ics
+              </button>
+              <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.refresh()">
+                <i class="ti ti-refresh" aria-hidden="true"></i>
+                Refresh
+              </button>
+            </div>
+
+            <template x-if="$store.agentCalendar.files.length === 0">
+              <div class="a0-agent-calendar-muted">No local .ics files yet.</div>
+            </template>
+
+            <div class="a0-agent-calendar-list">
+              <template x-for="file in $store.agentCalendar.files" :key="file.relative_path">
+                <div class="a0-agent-calendar-row">
+                  <div class="a0-agent-calendar-row-main">
+                    <div class="a0-agent-calendar-row-name">
+                      <i class="ti ti-file-type-ics" aria-hidden="true"></i>
+                      <span x-text="file.name"></span>
+                    </div>
+                    <div class="a0-agent-calendar-row-meta">
+                      <span x-text="`${file.events || 0} events`"></span>
+                      · <span x-text="`${file.todos || 0} todos`"></span>
+                      · <span x-text="`${file.size || 0} bytes`"></span>
+                      · modified <span x-text="file.modified || 'unknown'"></span>
+                    </div>
+                  </div>
+                  <div class="a0-agent-calendar-muted">local</div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="a0-agent-calendar-section">
+            <h3>ICS subscription links</h3>
+
+            <template x-if="$store.agentCalendar.subscriptions.length === 0">
+              <div class="a0-agent-calendar-muted">No subscription links yet.</div>
+            </template>
+
+            <div class="a0-agent-calendar-list">
+              <template x-for="sub in $store.agentCalendar.subscriptions" :key="sub.id">
+                <div class="a0-agent-calendar-row">
+                  <div class="a0-agent-calendar-row-main">
+                    <div class="a0-agent-calendar-row-name">
+                      <i class="ti ti-link" aria-hidden="true"></i>
+                      <span x-text="sub.name || sub.url"></span>
+                    </div>
+                    <div class="a0-agent-calendar-row-meta" x-text="sub.url"></div>
+                  </div>
+                  <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.removeSubscription(sub.id)">
+                    Remove
+                  </button>
+                </div>
+              </template>
+            </div>
+
+            <div class="a0-agent-calendar-input-row">
+              <input type="text" placeholder="Name" x-model="$store.agentCalendar.newSubscriptionName">
+              <input type="url" placeholder="https://example.com/calendar.ics" x-model="$store.agentCalendar.newSubscriptionUrl" @keydown.enter="$store.agentCalendar.addSubscription()">
+              <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.addSubscription()">
+                Add subscription
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div class="a0-agent-calendar-footer">
+      <div class="a0-agent-calendar-muted">
+        Phase 1: per-context .ics files and subscription registry.
+      </div>
+      <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.closeCalendar()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { callJsonApi } from "/js/api.js";
+
+  function selectedContextId() {
+    try {
+      const chats = window.Alpine?.store?.("chats");
+      if (chats?.getSelectedChatId) return chats.getSelectedChatId() || "";
+      if (chats?.selectedChatId) return chats.selectedChatId || "";
+      if (chats?.selected) return chats.selected || "";
+    } catch (_e) {}
+    return "";
+  }
+
+  function registerAgentCalendarStore() {
+    if (!window.Alpine) return;
+    try {
+      if (window.Alpine.store("agentCalendar")) return;
+    } catch (_e) {}
+
+    window.Alpine.store("agentCalendar", {
+      visible: false,
+      loading: false,
+      error: "",
+      ctxid: "",
+      calendarDir: "",
+      files: [],
+      subscriptions: [],
+      newSubscriptionName: "",
+      newSubscriptionUrl: "",
+
+      async openCalendar() {
+        this.visible = true;
+        this.ctxid = selectedContextId();
+        await this.refresh();
+      },
+
+      closeCalendar() {
+        this.visible = false;
+      },
+
+      async refresh() {
+        this.error = "";
+        this.ctxid = this.ctxid || selectedContextId();
+        if (!this.ctxid) {
+          this.error = "No active context is selected.";
+          return;
+        }
+        this.loading = true;
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "list",
+            ctxid: this.ctxid,
+          });
+          this.applyResult(result);
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to load calendar stack", error);
+          this.error = String(error?.message || error || "Failed to load calendar stack");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      applyResult(result) {
+        if (!result || result.ok === false) {
+          this.error = result?.error || "Calendar API returned an error.";
+          return;
+        }
+        this.ctxid = result.ctxid || this.ctxid;
+        this.calendarDir = result.calendar_dir || "";
+        this.files = Array.isArray(result.files) ? result.files : [];
+        this.subscriptions = Array.isArray(result.subscriptions) ? result.subscriptions : [];
+        this.error = "";
+      },
+
+      async createLocalCalendar() {
+        const filename = window.prompt("Calendar filename", "local.ics");
+        if (!filename) return;
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "create_ics",
+            ctxid: this.ctxid || selectedContextId(),
+            filename,
+          });
+          this.applyResult(result);
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to create .ics file", error);
+          this.error = String(error?.message || error || "Failed to create .ics file");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async addSubscription() {
+        const url = String(this.newSubscriptionUrl || "").trim();
+        if (!url) {
+          this.error = "Enter an ICS subscription URL.";
+          return;
+        }
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "add_subscription",
+            ctxid: this.ctxid || selectedContextId(),
+            name: this.newSubscriptionName,
+            url,
+          });
+          this.applyResult(result);
+          if (!this.error) {
+            this.newSubscriptionName = "";
+            this.newSubscriptionUrl = "";
+          }
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to add subscription", error);
+          this.error = String(error?.message || error || "Failed to add subscription");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async removeSubscription(id) {
+        if (!id) return;
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "remove_subscription",
+            ctxid: this.ctxid || selectedContextId(),
+            subscription_id: id,
+          });
+          this.applyResult(result);
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to remove subscription", error);
+          this.error = String(error?.message || error || "Failed to remove subscription");
+        } finally {
+          this.loading = false;
+        }
+      },
+    });
+  }
+
+  if (window.Alpine) registerAgentCalendarStore();
+  document.addEventListener("alpine:init", registerAgentCalendarStore, { once: true });
+</script>
