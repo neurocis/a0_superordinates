@@ -582,6 +582,24 @@ const model = {
       console.error('[Superordinates] reparent under parent failed:', e);
     }
 
+    // Inherit the parent's active project (if any)
+    try {
+      const parentCtx = chatsStore.contexts?.find(c => c.id === parentId) || null;
+      const parentProjectName = parentCtx?.project?.name || null;
+      if (parentProjectName) {
+        const res = await callJsonApi('projects', {
+          action: 'activate',
+          context_id: newId,
+          name: parentProjectName,
+        });
+        if (res && res.ok === false) {
+          console.warn('[Superordinates] inherit project failed:', res);
+        }
+      }
+    } catch (e) {
+      console.error('[Superordinates] inherit project errored:', e);
+    }
+
     // Ensure parent is expanded so the new child is visible
     try {
       if (this.expandedNodes && typeof this.expandedNodes.add === 'function') {
