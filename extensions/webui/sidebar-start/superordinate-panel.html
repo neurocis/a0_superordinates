@@ -21,7 +21,7 @@
             <li :style="{ paddingLeft: (node._depth * 16) + 'px' }"
               class="tree-item"
               :class="$store.superordinates.getDropClass(node.id)"
-              :draggable="!$store.superordinates.isRootLocked(node.id)"
+              :draggable="!$store.superordinates.isMoveLocked(node.id)"
               @dragstart.stop="$store.superordinates.dragStart(node.id, $event)"
               @dragover.prevent.stop="$store.superordinates.dragOver(node.id, $event)"
               @dragleave="$store.superordinates.dragLeave(node.id, $event)"
@@ -61,6 +61,9 @@
                 <!-- Status indicators (independent of Chat Status Marklet) -->
                 <span class="sup-running-dot" x-show="node.running" title="Process running"></span>
                 <span class="sup-unseen-dot" x-show="!node.running && node._isUnseen" title="Process finished (unseen)"></span>
+                <button class="btn-icon-action chat-list-action-btn sup-pin-btn" :class="{ 'sup-pin-active': $store.superordinates.isPinned(node.id) }" :title="$store.superordinates.isPinned(node.id) ? 'Unpin' : 'Pin'" :aria-label="$store.superordinates.isPinned(node.id) ? 'Unpin' : 'Pin'" x-show="!$store.superordinates.isRootLocked(node.id)" @click.stop="$store.superordinates.togglePin(node.id)">
+                  <span class="material-symbols-outlined" x-text="$store.superordinates.isPinned(node.id) ? 'keep' : 'keep_off'"></span>
+                </button>
                 <button class="btn-icon-action chat-list-action-btn sup-onboard-btn" title="Onboard" aria-label="Onboard" x-show="!$store.superordinates.isOnboardBlocked(node.id)" @click.stop="$store.superordinates.onboardChild(node.id)">
                   <span class="material-symbols-outlined">person_add</span>
                 </button>
@@ -239,14 +242,32 @@
     padding: 2px;
   }
 
-  /* Far-right slot: Close button (the action btn that is NOT the onboard btn) */
-  .superordinate-tree .chat-container > .btn-icon-action.chat-list-action-btn:not(.sup-onboard-btn) {
+  /* Far-right slot: Close button (the action btn that is not pin/onboard) */
+  .superordinate-tree .chat-container > .btn-icon-action.chat-list-action-btn:not(.sup-onboard-btn):not(.sup-pin-btn) {
     right: 4px;
   }
 
-  /* Inner slot: Onboard button — sits immediately to the left of Close */
+  /* Middle slot: Onboard button — sits immediately to the left of Close */
   .superordinate-tree .chat-container > .sup-onboard-btn {
     right: 30px;
+  }
+
+  /* Inner slot: Pin button — sits immediately to the left of Onboard */
+  .superordinate-tree .chat-container > .sup-pin-btn {
+    right: 56px;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+  }
+
+  .superordinate-tree .chat-container:hover > .sup-pin-btn,
+  .superordinate-tree .chat-container.chat-selected > .sup-pin-btn,
+  .superordinate-tree .chat-container > .sup-pin-btn.sup-pin-active {
+    opacity: 1;
+  }
+
+  /* Active (pinned) state — accent color so it's visibly distinct */
+  .superordinate-tree .chat-container > .sup-pin-btn.sup-pin-active {
+    color: var(--color-accent, #4a9eff);
   }
 
   /* Soft fade behind the buttons so the chat name doesn't visually
@@ -257,7 +278,7 @@
     top: 0;
     bottom: 0;
     right: 0;
-    width: 70px;
+    width: 100px;
     background: linear-gradient(
       to right,
       transparent,

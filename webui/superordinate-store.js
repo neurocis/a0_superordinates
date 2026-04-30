@@ -5,6 +5,7 @@ const model = {
   hierarchyMap: {},       // {ctxid: {parent: str|null, children: [ctxid]}}
   rootOrder: [],          // [ctxid] - ordered list of root-level context IDs
   expandedNodes: {},     // {ctxid: bool}
+  pinnedNodes: {},       // {ctxid: bool} - pinned chats cannot be moved
   _refreshInterval: null,
   // Status tracking state (independent of Chat Status Marklet)
   _prevRunning: {},
@@ -45,6 +46,7 @@ const model = {
     this._attachTreeListeners();
     // Persistence
     this._restoreExpanded();
+    this._restorePinned();
     this._restoreUnseen();
     this._patchStatusTracking();
     // Sidebar resize handle — mount after DOM is ready
@@ -334,6 +336,56 @@ const model = {
     } catch (_e) { /* no-op */ }
   },
 
+  _PINNED_STORAGE_KEY: 'sup_pinnedNodes',
+
+  _persistPinned() {
+    try {
+      const ids = Object.keys(this.pinnedNodes).filter(k => this.pinnedNodes[k]);
+      localStorage.setItem(this._PINNED_STORAGE_KEY, JSON.stringify(ids));
+    } catch (_e) { /* no-op */ }
+  },
+
+  _restorePinned() {
+    try {
+      const raw = localStorage.getItem(this._PINNED_STORAGE_KEY);
+      if (raw) {
+        const ids = JSON.parse(raw);
+        if (Array.isArray(ids)) {
+          const map = {};
+          ids.forEach(id => { map[id] = true; });
+          this.pinnedNodes = map;
+        }
+      }
+    } catch (_e) { /* no-op */ }
+  },
+
+  /**
+   * Check if a node is pinned (manually locked from being moved).
+   */
+  isPinned(ctxid) {
+    return !!(ctxid && this.pinnedNodes[ctxid]);
+  },
+
+  /**
+   * Toggle pin state for a node. Pinned nodes cannot be moved/reparented.
+   */
+  togglePin(ctxid) {
+    if (!ctxid) return;
+    const next = !this.isPinned(ctxid);
+    this.pinnedNodes = { ...this.pinnedNodes, [ctxid]: next };
+    this._persistPinned();
+  },
+
+  /**
+   * Unified move-lock check: true if node is pinned OR root-locked
+   * (root-level Archived/Closed Chats).
+   */
+  isMoveLocked(ctxid) {
+    if (!ctxid) return false;
+    if (this.isPinned(ctxid)) return true;
+    if (this.isRootLocked && this.isRootLocked(ctxid)) return true;
+    return false;
+  },
   // ── Status tracking (independent of Chat Status Marklet) ────────
 
   _UNSEEN_STORAGE_KEY: 'sup_finishedUnseen',
@@ -837,7 +889,7 @@ const model = {
   async reparent(childId, newParentId, position) {
     if (!childId || childId === newParentId) return;
     // Hard guard: root-locked nodes (root-level 'Archived' / 'Closed Chats') cannot move
-    if (this.isRootLocked && this.isRootLocked(childId)) {
+    if (this.isMoveLocked && this.isMoveLocked(childId)) {
       return;
     }
     try {
@@ -858,7 +910,7 @@ const model = {
   /** Start dragging a node */
   dragStart(ctxid, event) {
     // Block drag of root-locked nodes ('Archived' / 'Closed Chats' at root)
-    if (this.isRootLocked && this.isRootLocked(ctxid)) {
+    if (this.isMoveLocked && this.isMoveLocked(ctxid)) {
       try { event.preventDefault(); } catch (e) {}
       try { event.stopPropagation(); } catch (e) {}
       if (event.dataTransfer) {
