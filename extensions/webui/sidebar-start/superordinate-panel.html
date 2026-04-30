@@ -45,6 +45,8 @@
                   <!-- Name: show span or inline rename input -->
                   <template x-if="$store.superordinates.renamingId !== node.id">
                     <span class="chat-name sup-name-clickable"
+                      :class="{ 'sup-static-name': node._staticName }"
+                      :title="node._staticName ? 'StaticName enabled: renaming disabled' : ''"
                       x-text="node.name ? node.name : 'Chat #' + node.no"
                       @click.stop="$store.superordinates.handleNameClick(node.id, node.name || ('Chat #' + node.no), $event)"
                       @dblclick.stop="$store.superordinates.handleNameDblClick(node.id, $event)"></span>
@@ -414,6 +416,10 @@
   .sup-name-clickable {
     cursor: pointer;
     user-select: none;
+  }
+
+  .sup-static-name {
+    cursor: default;
   }
 
   .sup-rename-input {

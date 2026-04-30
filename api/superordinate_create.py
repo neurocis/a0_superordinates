@@ -19,6 +19,23 @@ from helpers import guids
 log = logging.getLogger("a0.superordinates.create")
 
 
+def _parse_bool(value, default: bool = False) -> bool:
+    """Parse API boolean-ish values without making string 'false' truthy."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
+
+
 class SuperordinateCreate(ApiHandler):
 
     @classmethod
@@ -28,6 +45,7 @@ class SuperordinateCreate(ApiHandler):
     async def process(self, input: dict, request: Request) -> dict | Response:
         name = (input.get("name") or "").strip()
         parent_id = (input.get("parent_id") or "").strip() or None
+        static_name = _parse_bool(input.get("StaticName", input.get("static_name")), False)
         position = input.get("position", 0)
         if position is None:
             position = 0
@@ -39,6 +57,10 @@ class SuperordinateCreate(ApiHandler):
         new_ctx = self.use_context(new_ctxid)
         if not new_ctx:
             return {"ok": False, "error": "Failed to create context"}
+
+        # Hidden per-agent rename lock. Defaults false; when true, user/API
+        # rename attempts are refused by superordinate_rename.
+        new_ctx.data["StaticName"] = static_name
 
         # Set the name immediately
         if name:
@@ -62,6 +84,7 @@ class SuperordinateCreate(ApiHandler):
                 child_entry = {
                     "ctxid": new_ctxid,
                     "name": name,
+                    "StaticName": static_name,
                 }
 
                 children = parent_ctx.data.get("sup_children", [])
@@ -85,10 +108,11 @@ class SuperordinateCreate(ApiHandler):
         from helpers.state_monitor_integration import mark_dirty_all
         mark_dirty_all(reason="superordinate_create")
 
-        log.info(f"[CREATE] Created context '{new_ctxid}' with name='{name}', parent='{parent_id}'")
+        log.info(f"[CREATE] Created context '{new_ctxid}' with name='{name}', parent='{parent_id}', StaticName={static_name}")
 
         return {
             "ok": True,
             "ctxid": new_ctxid,
             "name": name,
+            "StaticName": static_name,
         }

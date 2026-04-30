@@ -178,6 +178,11 @@ const model = {
     return !!this.getParent(ctxid);
   },
 
+  // Hidden per-agent rename lock. Defaults false.
+  isStaticName(ctxid) {
+    return this.hierarchyMap[ctxid]?.StaticName === true || this.hierarchyMap[ctxid]?.static_name === true;
+  },
+
   // Is this node expanded?
   isExpanded(ctxid) {
     return this.expandedNodes[ctxid] === true;
@@ -245,6 +250,7 @@ const model = {
           _hasChildren: hasKids,
           _isExpanded: hasKids && this.isExpanded(node.id),
           _isUnseen: !!this._finishedUnseen[node.id],
+          _staticName: this.isStaticName(node.id),
         });
         // Add children if expanded
         if (hasKids && this.isExpanded(node.id)) {
@@ -283,6 +289,10 @@ const model = {
    */
   handleNameClick(id, currentName, event) {
     if (event) event.stopPropagation();
+    if (this.isStaticName(id)) {
+      Alpine.store('chats')?.selectChat(id);
+      return;
+    }
 
     // If already renaming a different node, commit that first
     if (this.renamingId && this.renamingId !== id) {
@@ -323,6 +333,7 @@ const model = {
   },
 
   startRename(id, currentName) {
+    if (this.isStaticName(id)) return;
     this.renamingId = id;
     this.renamingValue = currentName || '';
     // Focus the input on next tick
@@ -343,6 +354,7 @@ const model = {
     this.renamingId = null;
 
     if (!id || !newName) return;
+    if (this.isStaticName(id)) return;
 
     try {
       await callJsonApi('plugins/a0_superordinates/superordinate_rename', {

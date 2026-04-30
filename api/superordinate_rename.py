@@ -6,6 +6,23 @@ from agent import AgentContext
 from helpers.persist_chat import save_tmp_chat
 
 
+def _parse_bool(value, default: bool = False) -> bool:
+    """Parse persisted boolean-ish values without making string 'false' truthy."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
+
+
 class SuperordinateRename(ApiHandler):
 
     async def process(self, input: dict, request: Request) -> dict:
@@ -20,6 +37,9 @@ class SuperordinateRename(ApiHandler):
         ctx = AgentContext.get(ctxid)
         if not ctx:
             return {"ok": False, "error": f"Context {ctxid} not found"}
+
+        if _parse_bool(ctx.data.get("StaticName", ctx.data.get("static_name")), False):
+            return {"ok": False, "error": "This agent has StaticName enabled and cannot be renamed"}
 
         old_name = ctx.name or ""
 

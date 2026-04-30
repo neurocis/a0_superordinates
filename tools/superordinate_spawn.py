@@ -15,6 +15,23 @@ NAME_POOLS = {
 }
 
 
+def _parse_bool(value, default: bool = False) -> bool:
+    """Parse JSON/tool boolean-ish values without making string 'false' truthy."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
+
+
 def _generate_name(profile: str) -> str:
     """Auto-generate a human-friendly name starting with the same letter as the profile.
     Picks the first unused name from the pool, or appends a number if all taken."""
@@ -49,6 +66,7 @@ class SuperordinateSpawn(Tool):
         profile = requested_profile if requested_profile and requested_profile != "default" else inherited_profile
         name = kwargs.get("name", "")
         message = kwargs.get("message", "")
+        static_name = _parse_bool(kwargs.get("StaticName", kwargs.get("static_name")), False)
 
         # Auto-generate name if not provided
         if not name:
@@ -87,6 +105,10 @@ class SuperordinateSpawn(Tool):
         new_context.data["sup_parent"] = self.agent.context.id
         new_context.data["sup_profile"] = profile
         new_context.data["sup_name"] = name
+        new_context.data["StaticName"] = static_name
+        # Spawned superagents start with Promptable disabled / Msgs-Only.
+        # Keep this scoped to the spawn tool so other creation flows are unaffected.
+        new_context.data["sup_msgme_blocked"] = True
 
 
         # Inherit parent's LLM Profile (chat_model_override) so child uses same model
@@ -120,5 +142,5 @@ class SuperordinateSpawn(Tool):
                 name, new_ctxid, profile, name
             ),
             break_loop=False,
-            additional={"superordinate_id": new_ctxid, "profile": profile, "name": name},
+            additional={"superordinate_id": new_ctxid, "profile": profile, "name": name, "StaticName": static_name},
         )

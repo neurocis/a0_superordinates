@@ -15,6 +15,8 @@ from helpers.extension import Extension
 
 
 MANUAL_LOCK_DATA_KEY = "chat_rename_manual_lock"
+STATIC_NAME_DATA_KEY = "StaticName"
+STATIC_NAME_ALT_DATA_KEY = "static_name"
 MAX_AUTO_CHAT_NAME_LENGTH = 40
 
 
@@ -26,7 +28,7 @@ def _is_manual_name_locked(context) -> bool:
         return bool(getter(MANUAL_LOCK_DATA_KEY))
     data = getattr(context, "data", None)
     if isinstance(data, dict):
-        return bool(data.get(MANUAL_LOCK_DATA_KEY))
+        return _parse_bool(data.get(MANUAL_LOCK_DATA_KEY), False)
     return False
 
 

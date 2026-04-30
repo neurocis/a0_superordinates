@@ -1,9 +1,10 @@
 ### superordinate_spawn
 create a new persistent superordinate agent with its own visible chat context.
-args: `profile`, `message`, `name`
+args: `profile`, `message`, `name`, `StaticName`
 - `profile`: agent profile name (developer, researcher, hacker, agent0, default, or custom) — determines the agent's specialization
 - `message`: initial task message to send to the superordinate
 - `name`: optional unique display name for the superordinate chat — if omitted, a human-friendly name starting with the same first letter as the profile is auto-generated (e.g. developer → Devvy, researcher → Rex, hacker → Hack)
+- `StaticName`: optional hidden boolean, defaults to `false`; when `true`, the user cannot rename this agent through the Superordinates UI/API
 the superordinate runs independently in its own chat context.
 example with auto-name:
 ~~~json

@@ -21,6 +21,23 @@ from agent import AgentContext
 from helpers.api import ApiHandler, Request, Response
 
 
+def _parse_bool(value, default: bool = False) -> bool:
+    """Parse persisted boolean-ish values without making string 'false' truthy."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
+
+
 class SuperordinateMap(ApiHandler):
 
     @classmethod
@@ -135,11 +152,17 @@ class SuperordinateMap(ApiHandler):
         # Include any context that is either a parent or a child.
         hierarchy_map: dict[str, dict] = {}
 
+        def _static_name_for(ctxid: str) -> bool:
+            data = all_ctx_data.get(ctxid, {})
+            return _parse_bool(data.get("StaticName", data.get("static_name")), False)
+
         # Add all contexts that have a parent
         for ctxid, par_id in parent_of.items():
             hierarchy_map[ctxid] = {
                 "parent": par_id,
                 "children": children_of.get(ctxid, []),
+                "StaticName": _static_name_for(ctxid),
+                "static_name": _static_name_for(ctxid),
             }
 
         # Add all contexts that have children (even if they have no parent)
@@ -148,11 +171,27 @@ class SuperordinateMap(ApiHandler):
                 hierarchy_map[ctxid] = {
                     "parent": parent_of.get(ctxid),
                     "children": kids,
+                    "StaticName": _static_name_for(ctxid),
+                    "static_name": _static_name_for(ctxid),
                 }
             # If already added (context is both parent and child), ensure
             # children list is set from our derived data
             else:
                 hierarchy_map[ctxid]["children"] = kids
+                hierarchy_map[ctxid]["StaticName"] = _static_name_for(ctxid)
+                hierarchy_map[ctxid]["static_name"] = _static_name_for(ctxid)
+
+
+        # Add standalone/root contexts too so per-agent metadata such as
+        # StaticName is available even before a node has hierarchy edges.
+        for ctxid in all_ctx_data:
+            if ctxid not in hierarchy_map:
+                hierarchy_map[ctxid] = {
+                    "parent": parent_of.get(ctxid),
+                    "children": children_of.get(ctxid, []),
+                    "StaticName": _static_name_for(ctxid),
+                    "static_name": _static_name_for(ctxid),
+                }
 
         # Include name registry for name-based lookups
         from usr.plugins.a0_superordinates.helpers.name_registry import get_all_names
