@@ -64,6 +64,9 @@
                 <button class="btn-icon-action chat-list-action-btn sup-pin-btn" :class="{ 'sup-pin-active': $store.superordinates.isPinned(node.id) }" :title="$store.superordinates.isPinned(node.id) ? 'Unpin' : 'Pin'" :aria-label="$store.superordinates.isPinned(node.id) ? 'Unpin' : 'Pin'" x-show="!$store.superordinates.isRootLocked(node.id)" @click.stop="$store.superordinates.togglePin(node.id)">
                   <span class="material-symbols-outlined" x-text="$store.superordinates.isPinned(node.id) ? 'keep' : 'keep_off'"></span>
                 </button>
+                <button class="btn-icon-action chat-list-action-btn sup-msgme-btn" :class="{ 'sup-msgme-active': $store.superordinates.isMsgMeEnabled(node.id) }" :title="$store.superordinates.isMsgMeEnabled(node.id) ? 'MsgMe (enabled)' : 'MsgMe (disabled)'" :aria-label="$store.superordinates.isMsgMeEnabled(node.id) ? 'MsgMe enabled' : 'MsgMe disabled'" @click.stop="$store.superordinates.toggleMsgMe(node.id)">
+                  <span class="material-symbols-outlined">keyboard</span>
+                </button>
                 <button class="btn-icon-action chat-list-action-btn sup-onboard-btn" title="Onboard" aria-label="Onboard" x-show="!$store.superordinates.isOnboardBlocked(node.id)" @click.stop="$store.superordinates.onboardChild(node.id)">
                   <span class="material-symbols-outlined">person_add</span>
                 </button>
@@ -242,19 +245,37 @@
     padding: 2px;
   }
 
-  /* Far-right slot: Close button (the action btn that is not pin/onboard) */
-  .superordinate-tree .chat-container > .btn-icon-action.chat-list-action-btn:not(.sup-onboard-btn):not(.sup-pin-btn) {
+  /* Far-right slot: Close button (the action btn that is not pin/onboard/msgme) */
+  .superordinate-tree .chat-container > .btn-icon-action.chat-list-action-btn:not(.sup-onboard-btn):not(.sup-pin-btn):not(.sup-msgme-btn) {
     right: 4px;
   }
 
-  /* Middle slot: Onboard button — sits immediately to the left of Close */
+  /* Onboard button — left of Close */
   .superordinate-tree .chat-container > .sup-onboard-btn {
     right: 30px;
   }
 
-  /* Inner slot: Pin button — sits immediately to the left of Onboard */
-  .superordinate-tree .chat-container > .sup-pin-btn {
+  /* MsgMe button — left of Onboard */
+  .superordinate-tree .chat-container > .sup-msgme-btn {
     right: 56px;
+    opacity: 0.55;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+
+  .superordinate-tree .chat-container:hover > .sup-msgme-btn,
+  .superordinate-tree .chat-container.chat-selected > .sup-msgme-btn,
+  .superordinate-tree .chat-container > .sup-msgme-btn.sup-msgme-active {
+    opacity: 1;
+  }
+
+  /* Active (MsgMe enabled) — red so it's visibly distinct */
+  .superordinate-tree .chat-container > .sup-msgme-btn.sup-msgme-active {
+    color: #e63946;
+  }
+
+  /* Pin button — left of MsgMe */
+  .superordinate-tree .chat-container > .sup-pin-btn {
+    right: 82px;
     opacity: 0.55;
     transition: opacity 0.15s ease;
   }
@@ -270,6 +291,12 @@
     color: var(--color-accent, #4a9eff);
   }
 
+  /* Disabled prompt input visual cue when MsgMe is OFF for selected chat */
+  body.sup-msgme-disabled #chat-input {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   /* Soft fade behind the buttons so the chat name doesn't visually
      collide with the icons when both occupy the same horizontal band. */
   .superordinate-tree .chat-container::after {
@@ -278,7 +305,7 @@
     top: 0;
     bottom: 0;
     right: 0;
-    width: 100px;
+    width: 130px;
     background: linear-gradient(
       to right,
       transparent,

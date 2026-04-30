@@ -6,6 +6,7 @@ const model = {
   rootOrder: [],          // [ctxid] - ordered list of root-level context IDs
   expandedNodes: {},     // {ctxid: bool}
   pinnedNodes: {},       // {ctxid: bool} - pinned chats cannot be moved
+  msgMeNodes: {},        // {ctxid: bool} - chats where user has explicitly enabled prompt input
   _refreshInterval: null,
   // Status tracking state (independent of Chat Status Marklet)
   _prevRunning: {},
@@ -47,6 +48,8 @@ const model = {
     // Persistence
     this._restoreExpanded();
     this._restorePinned();
+    this._restoreMsgMe();
+    this._setupMsgMeWatcher();
     this._restoreUnseen();
     this._patchStatusTracking();
     // Sidebar resize handle — mount after DOM is ready
@@ -385,6 +388,111 @@ const model = {
     if (this.isPinned(ctxid)) return true;
     if (this.isRootLocked && this.isRootLocked(ctxid)) return true;
     return false;
+  },
+
+  // ── MsgMe (per-chat input enable) ──────────────────────────────
+
+  _MSGME_STORAGE_KEY: 'sup_msgMeNodes',
+
+  _persistMsgMe() {
+    try {
+      const ids = Object.keys(this.msgMeNodes).filter(k => this.msgMeNodes[k]);
+      localStorage.setItem(this._MSGME_STORAGE_KEY, JSON.stringify(ids));
+    } catch (_e) { /* no-op */ }
+  },
+
+  _restoreMsgMe() {
+    try {
+      const raw = localStorage.getItem(this._MSGME_STORAGE_KEY);
+      if (raw) {
+        const ids = JSON.parse(raw);
+        if (Array.isArray(ids)) {
+          const map = {};
+          ids.forEach(id => { map[id] = true; });
+          this.msgMeNodes = map;
+        }
+      }
+    } catch (_e) { /* no-op */ }
+  },
+
+  /**
+   * Returns true if MsgMe is enabled for the given context.
+   * Default (no entry) is FALSE — input is disabled by default.
+   */
+  isMsgMeEnabled(ctxid) {
+    return !!(ctxid && this.msgMeNodes[ctxid]);
+  },
+
+  /**
+   * Toggle MsgMe state for a chat. When OFF, prompt input is disabled
+   * for that chat while it is the selected context.
+   */
+  toggleMsgMe(ctxid) {
+    if (!ctxid) return;
+    const next = !this.isMsgMeEnabled(ctxid);
+    this.msgMeNodes = { ...this.msgMeNodes, [ctxid]: next };
+    this._persistMsgMe();
+    this._applyMsgMeToInput();
+  },
+
+  /**
+   * Apply current MsgMe state to the chat input textarea by enabling
+   * or disabling it based on the selected context. Also toggles a CSS
+   * class on the body so styling can react if desired.
+   */
+  _applyMsgMeToInput() {
+    try {
+      const chatsStore = Alpine.store('chats');
+      const selected = chatsStore?.selected || null;
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.querySelector('#send-button, [data-role="send-button"], button.send-button');
+      const enabled = !selected || this.isMsgMeEnabled(selected);
+      if (input) {
+        input.disabled = !enabled;
+        input.setAttribute('data-msgme-enabled', enabled ? '1' : '0');
+        if (!enabled) {
+          input.setAttribute('placeholder', 'MsgMe is OFF — enable from the chat row to send messages');
+        } else {
+          input.removeAttribute('placeholder');
+        }
+      }
+      if (sendBtn) {
+        sendBtn.disabled = !enabled;
+      }
+      document.body.classList.toggle('sup-msgme-disabled', !enabled);
+    } catch (_e) { /* no-op */ }
+  },
+
+  /**
+   * Set up a polling/observer to keep the input disabled state in sync
+   * with the currently selected context and any toggles.
+   */
+  _setupMsgMeWatcher() {
+    try {
+      // Initial apply once DOM has the input
+      const tryApply = () => {
+        if (document.getElementById('chat-input')) {
+          this._applyMsgMeToInput();
+          return true;
+        }
+        return false;
+      };
+      if (!tryApply()) {
+        const t = setInterval(() => { if (tryApply()) clearInterval(t); }, 250);
+      }
+      // Re-apply on chat selection change via lightweight polling against the
+      // chats store. Cheap, robust, and avoids depending on Alpine internals.
+      let lastSelected = null;
+      setInterval(() => {
+        try {
+          const sel = Alpine.store('chats')?.selected || null;
+          if (sel !== lastSelected) {
+            lastSelected = sel;
+            this._applyMsgMeToInput();
+          }
+        } catch (_e) { /* no-op */ }
+      }, 300);
+    } catch (_e) { /* no-op */ }
   },
   // ── Status tracking (independent of Chat Status Marklet) ────────
 
