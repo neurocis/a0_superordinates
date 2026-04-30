@@ -10,7 +10,8 @@ args: `superordinate_id` or `name`, `message`
 - `message`: the message to send
 use `name` when you know the target's name, or `superordinate_id` for the raw context ID.
 the response payload includes a `relationship` field (`descendant`, `ancestor`, or `sibling`) so the caller knows which way the message went.
-if ancestor or sibling messaging is disabled in the `a0_superordinates` settings, attempts to message those relationship types are rejected with a clear settings-disabled response.
+if sibling messaging is disabled in the `a0_superordinates` settings, sibling attempts are rejected with a clear settings-disabled response.
+if parent/ancestor messaging is disabled, arbitrary upward messages are rejected, but a direct child may still notify its immediate parent with exactly `Superordinate {ContextID} has a message for you.` so the parent knows to check in later.
 example (messaging a child/descendant):
 ~~~json
 {
@@ -23,7 +24,7 @@ example (messaging a child/descendant):
   }
 }
 ~~~
-example (replying upward to a parent/ancestor):
+example (replying upward to a parent/ancestor, when parent/ancestor messaging is enabled):
 ~~~json
 {
   "thoughts": ["I am a child superordinate reporting completion to my parent."],
@@ -32,6 +33,18 @@ example (replying upward to a parent/ancestor):
   "tool_args": {
     "superordinate_id": "1ofcTily",
     "message": "Task complete. Result: ..."
+  }
+}
+~~~
+example (fallback parent notification when parent/ancestor messaging is disabled):
+~~~json
+{
+  "thoughts": ["Parent messaging is disabled, so I can only notify my immediate parent that I have a message."],
+  "headline": "Notifying parent of pending message",
+  "tool_name": "superordinate_message",
+  "tool_args": {
+    "superordinate_id": "1ofcTily",
+    "message": "Superordinate CURRENT_CONTEXT_ID has a message for you."
   }
 }
 ~~~

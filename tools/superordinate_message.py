@@ -111,25 +111,67 @@ def _setting_enabled(config: dict, key: str, default: bool = True) -> bool:
     return bool(value)
 
 
-def _relationship_allowed(relationship: str, agent) -> tuple[bool, str]:
+def _direct_parent_id(ctx) -> str:
+    """Return the immediate parent ctxid for a context, or an empty string."""
+    if not ctx:
+        return ""
+    return ctx.data.get("sup_parent") or ""
+
+
+def _parent_notification_message(ctxid: str) -> str:
+    """Exact lightweight notification allowed when parent messaging is disabled."""
+    return f"Superordinate {ctxid} has a message for you."
+
+
+def _is_parent_notification_bypass(relationship: str, agent, target_ctx, message: str) -> bool:
+    """Allow one exact direct-parent notification when full parent messaging is disabled.
+
+    This preserves monologue-completion signalling without allowing arbitrary
+    upward data transfer while `allow_parent_messaging` is false.
+    """
+    caller_ctx = getattr(agent, "context", None)
+    caller_id = getattr(caller_ctx, "id", "") or ""
+    target_id = getattr(target_ctx, "id", "") or ""
+
+    if relationship != "ancestor":
+        return False
+    if not caller_id or not target_id:
+        return False
+    if target_id != _direct_parent_id(caller_ctx):
+        return False
+    return (message or "").strip() == _parent_notification_message(caller_id)
+
+
+def _relationship_allowed(relationship: str, agent, target_ctx=None, message: str = "") -> tuple[bool, str, bool]:
     """Return whether the classified relationship is enabled by settings.
+
+    Returns ``(allowed, denial_reason, parent_notification_bypass)``.
 
     Descendant messaging is the original/core behavior and remains always
     enabled. Ancestor and sibling messaging are optional features exposed in
-    the plugin settings UI.
+    the plugin settings UI. When parent messaging is disabled, direct children
+    may still send exactly ``Superordinate {ContextID} has a message for you.``
+    to their immediate parent as a completion notification.
     """
     if relationship == "descendant":
-        return True, ""
+        return True, "", False
 
     config = _get_config(agent)
 
     if relationship == "ancestor" and not _setting_enabled(config, "allow_parent_messaging", True):
-        return False, "Parent / ancestor messaging is disabled in the a0_superordinates settings."
+        if _is_parent_notification_bypass(relationship, agent, target_ctx, message):
+            return True, "", True
+        return False, (
+            "Parent / ancestor messaging is disabled in the a0_superordinates settings. "
+            "Only the exact direct-parent notification "
+            f"'{_parent_notification_message(getattr(agent.context, 'id', '') if getattr(agent, 'context', None) else '')}' "
+            "is allowed."
+        ), False
 
     if relationship == "sibling" and not _setting_enabled(config, "allow_sibling_messaging", True):
-        return False, "Sibling messaging is disabled in the a0_superordinates settings."
+        return False, "Sibling messaging is disabled in the a0_superordinates settings.", False
 
-    return True, ""
+    return True, "", False
 
 
 class SuperordinateMessage(Tool):
@@ -181,7 +223,12 @@ class SuperordinateMessage(Tool):
                 break_loop=False,
             )
 
-        relationship_allowed, relationship_denial = _relationship_allowed(relationship, self.agent)
+        relationship_allowed, relationship_denial, parent_notification_bypass = _relationship_allowed(
+            relationship,
+            self.agent,
+            target_context,
+            message,
+        )
         if not relationship_allowed:
             return Response(
                 message=(
@@ -191,17 +238,24 @@ class SuperordinateMessage(Tool):
             )
 
         # Append a callback instruction so the target sends its results back to
-        # the calling agent/context when done.
+        # the calling agent/context when done. For the special parent-disabled
+        # notification bypass, do not append anything: the parent must receive
+        # exactly "Superordinate {ContextID} has a message for you.".
         caller_ctxid = self.agent.context.id
         caller_name = self.agent.context.name or f"Chat {caller_ctxid[:6]}"
-        callback_instruction = (
-            "\n\n[Instruction from framework]\n"
-            "When you finish this task, send your result back to the calling agent "
-            f"using superordinate_message with superordinate_id='{caller_ctxid}' and include your "
-            "final result in that message. "
-            f"The calling agent/context is: {caller_name} (relationship to you: "
-            f"{'parent/ancestor' if relationship == 'descendant' else ('child/descendant' if relationship == 'ancestor' else 'sibling')})."
-        )
+        if parent_notification_bypass:
+            callback_instruction = ""
+        else:
+            callback_instruction = (
+                "\n\n[Instruction from framework]\n"
+                "When you finish this task, send your result back to the calling agent "
+                f"using superordinate_message with superordinate_id='{caller_ctxid}' and include your "
+                "final result in that message. If that call is rejected because parent/ancestor "
+                "messaging is disabled, notify only your immediate parent instead with exactly this "
+                f"message and no additional details: '{_parent_notification_message(target_context.id)}'. "
+                f"The calling agent/context is: {caller_name} (relationship to you: "
+                f"{'parent/ancestor' if relationship == 'descendant' else ('child/descendant' if relationship == 'ancestor' else 'sibling')})."
+            )
         forwarded_message = (message or "") + callback_instruction
 
         # communicate() handles both cases:
@@ -236,5 +290,6 @@ class SuperordinateMessage(Tool):
             additional={
                 "superordinate_id": superordinate_id,
                 "relationship": relationship,
+                "parent_notification_bypass": parent_notification_bypass,
             },
         )
