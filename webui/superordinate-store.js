@@ -425,6 +425,10 @@ const model = {
     this._persistUnseen();
   },
 
+  clearUnseen(contextId) {
+    this._clearUnseen(contextId);
+  },
+
   _clearUnseen(contextId) {
     if (!contextId || !this._finishedUnseen[contextId]) return;
     const updated = { ...this._finishedUnseen };
