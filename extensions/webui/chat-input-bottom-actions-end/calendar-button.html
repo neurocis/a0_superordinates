@@ -30,7 +30,7 @@
   }
 
   .a0-agent-calendar-output-lifted {
-    transition: padding-bottom 180ms ease, margin-bottom 180ms ease;
+    transition: height 180ms ease, max-height 180ms ease, padding-bottom 180ms ease, margin-bottom 180ms ease;
   }
 
   .a0-agent-calendar-panel {
@@ -489,11 +489,17 @@
 
       calendarOutputHost(host) {
         try {
+          // The WebUI's actual monologue/message viewport is #chat-history.
+          // Prefer it explicitly so we do not accidentally pad a generic wrapper
+          // while the real scroll pane remains hidden behind the model/status strip.
+          const history = document.getElementById("chat-history");
+          if (history) return history;
+
           const hostRect = host?.getBoundingClientRect?.();
           if (!hostRect) return null;
 
           const candidates = Array.from(document.querySelectorAll(
-            '[data-message-id], [data-role="messages"], .messages, .message-list, .chat-messages, .monologue, main, section, div'
+            '[data-role="messages"], .messages, .message-list, .chat-messages, .monologue, main, section'
           ));
           let best = null;
           let bestScore = -Infinity;
@@ -507,10 +513,9 @@
 
             const style = window.getComputedStyle(el);
             const canScroll = /(auto|scroll)/.test(`${style.overflowY} ${style.overflow}`) || el.scrollHeight > el.clientHeight + 24;
-            const textDensity = (el.innerText || "").length;
             const verticalCloseness = Math.max(0, 420 - Math.abs(hostRect.top - rect.bottom));
             const widthOverlap = Math.min(rect.right, hostRect.right) - Math.max(rect.left, hostRect.left);
-            const score = (canScroll ? 1000 : 0) + verticalCloseness + Math.max(0, widthOverlap) + Math.min(textDensity, 500) - Math.abs(rect.width - hostRect.width) * 0.15;
+            const score = (canScroll ? 1000 : 0) + verticalCloseness + Math.max(0, widthOverlap) - Math.abs(rect.width - hostRect.width) * 0.15;
 
             if (score > bestScore) {
               bestScore = score;
@@ -524,6 +529,28 @@
         }
       },
 
+      calendarLowerChromeTop(host) {
+        try {
+          const hostRect = host?.getBoundingClientRect?.();
+          const inputSection = document.getElementById("input-section");
+          const progressBox = document.getElementById("progress-bar-box");
+          const candidates = [progressBox, inputSection, host].filter(Boolean);
+          let top = Number.POSITIVE_INFINITY;
+
+          for (const el of candidates) {
+            const rect = el.getBoundingClientRect();
+            if (!rect || rect.height <= 0) continue;
+            if (rect.bottom < 0) continue;
+            top = Math.min(top, rect.top);
+          }
+
+          if (Number.isFinite(top)) return Math.round(top);
+          return Math.round(hostRect?.top || 0);
+        } catch (_e) {
+          return 0;
+        }
+      },
+
       liftOutputHost(host, lift) {
         try {
           const output = this.calendarOutputHost(host);
@@ -533,17 +560,32 @@
           this.calendarOutputEl = output;
           output.classList.add("a0-agent-calendar-output-lifted");
           if (!output.dataset.a0CalendarHasOriginals) {
+            const computed = window.getComputedStyle(output);
             output.dataset.a0CalendarHasOriginals = "1";
+            output.dataset.a0CalendarOriginalHeight = output.style.height || "";
+            output.dataset.a0CalendarOriginalMaxHeight = output.style.maxHeight || "";
             output.dataset.a0CalendarOriginalPaddingBottom = output.style.paddingBottom || "";
             output.dataset.a0CalendarOriginalMarginBottom = output.style.marginBottom || "";
-            output.dataset.a0CalendarBasePaddingBottom = String(
-              Number.parseFloat(window.getComputedStyle(output).paddingBottom) || 0
-            );
+            output.dataset.a0CalendarBasePaddingBottom = String(Number.parseFloat(computed.paddingBottom) || 0);
+            output.dataset.a0CalendarBaseHeight = String(output.getBoundingClientRect().height || output.clientHeight || 0);
           }
 
+          const rect = output.getBoundingClientRect();
+          const lowerTop = this.calendarLowerChromeTop(host);
+          const gap = 2;
+          const desiredBottom = Math.max(0, lowerTop - lift - gap);
+          const targetHeightFromGeometry = Math.max(140, Math.round(desiredBottom - rect.top));
+          const baseHeight = Number.parseFloat(output.dataset.a0CalendarBaseHeight || "0") || rect.height || output.clientHeight || targetHeightFromGeometry;
+          const targetHeight = Math.min(Math.round(baseHeight), targetHeightFromGeometry);
           const basePadding = Number.parseFloat(output.dataset.a0CalendarBasePaddingBottom || "0") || 0;
-          output.style.paddingBottom = `${Math.round(basePadding + lift)}px`;
-          output.style.marginBottom = `${Math.round(lift * 0.35)}px`;
+
+          // Shrink the actual scroll viewport so its bottom edge sits above the
+          // lifted Agent/model strip. Padding alone leaves the viewport behind
+          // that strip, which is what caused the monologue to be obscured.
+          output.style.height = `${targetHeight}px`;
+          output.style.maxHeight = `${targetHeight}px`;
+          output.style.paddingBottom = `${Math.round(basePadding + Math.max(0, lift * 0.25))}px`;
+          output.style.marginBottom = "0px";
           if (typeof output.scrollTop === "number") output.scrollTop = output.scrollTop;
         } catch (_e) {}
       },
@@ -553,12 +595,17 @@
           if (!this.calendarOutputEl) return;
           const output = this.calendarOutputEl;
           output.classList.remove("a0-agent-calendar-output-lifted");
+          output.style.height = output.dataset.a0CalendarOriginalHeight || "";
+          output.style.maxHeight = output.dataset.a0CalendarOriginalMaxHeight || "";
           output.style.paddingBottom = output.dataset.a0CalendarOriginalPaddingBottom || "";
           output.style.marginBottom = output.dataset.a0CalendarOriginalMarginBottom || "";
           delete output.dataset.a0CalendarHasOriginals;
+          delete output.dataset.a0CalendarOriginalHeight;
+          delete output.dataset.a0CalendarOriginalMaxHeight;
           delete output.dataset.a0CalendarOriginalPaddingBottom;
           delete output.dataset.a0CalendarOriginalMarginBottom;
           delete output.dataset.a0CalendarBasePaddingBottom;
+          delete output.dataset.a0CalendarBaseHeight;
           this.calendarOutputEl = null;
         } catch (_e) {}
       },
