@@ -34,8 +34,8 @@ class SuperordinateList(Tool):
 
     async def execute(self, **kwargs):
         config = _get_config(self.agent)
-        show_parents = _setting_enabled(config, "allow_parent_messaging", True)
-        show_siblings = _setting_enabled(config, "allow_sibling_messaging", True)
+        show_parents = _setting_enabled(config, "allow_parent_messaging", False)
+        show_siblings = _setting_enabled(config, "allow_sibling_messaging", False)
 
         sections = []
         alive_count = 0

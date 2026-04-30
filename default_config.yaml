@@ -5,7 +5,10 @@
 # remains enabled because it is the original/core behavior of the tool.
 
 # Allow a child superordinate to message upward to its parent/grandparent/etc.
-allow_parent_messaging: true
+# Default is false for security. Direct children may still send the exact
+# lightweight parent notification: "{ContextID} has a message for you."
+allow_parent_messaging: false
 
 # Allow superordinates sharing the same immediate parent to message each other.
-allow_sibling_messaging: true
+# Default is false for security.
+allow_sibling_messaging: false

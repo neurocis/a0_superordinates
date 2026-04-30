@@ -158,7 +158,7 @@ def _relationship_allowed(relationship: str, agent, target_ctx=None, message: st
 
     config = _get_config(agent)
 
-    if relationship == "ancestor" and not _setting_enabled(config, "allow_parent_messaging", True):
+    if relationship == "ancestor" and not _setting_enabled(config, "allow_parent_messaging", False):
         if _is_parent_notification_bypass(relationship, agent, target_ctx, message):
             return True, "", True
         return False, (
@@ -168,7 +168,7 @@ def _relationship_allowed(relationship: str, agent, target_ctx=None, message: st
             "is allowed."
         ), False
 
-    if relationship == "sibling" and not _setting_enabled(config, "allow_sibling_messaging", True):
+    if relationship == "sibling" and not _setting_enabled(config, "allow_sibling_messaging", False):
         return False, "Sibling messaging is disabled in the a0_superordinates settings.", False
 
     return True, "", False
