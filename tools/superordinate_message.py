@@ -120,7 +120,7 @@ def _direct_parent_id(ctx) -> str:
 
 def _parent_notification_message(ctxid: str) -> str:
     """Exact lightweight notification allowed when parent messaging is disabled."""
-    return f"Superordinate {ctxid} has a message for you."
+    return f"{ctxid} has a message for you."
 
 
 def _is_parent_notification_bypass(relationship: str, agent, target_ctx, message: str) -> bool:
@@ -150,7 +150,7 @@ def _relationship_allowed(relationship: str, agent, target_ctx=None, message: st
     Descendant messaging is the original/core behavior and remains always
     enabled. Ancestor and sibling messaging are optional features exposed in
     the plugin settings UI. When parent messaging is disabled, direct children
-    may still send exactly ``Superordinate {ContextID} has a message for you.``
+    may still send exactly ``{ContextID} has a message for you.``
     to their immediate parent as a completion notification.
     """
     if relationship == "descendant":
@@ -240,7 +240,7 @@ class SuperordinateMessage(Tool):
         # Append a callback instruction so the target sends its results back to
         # the calling agent/context when done. For the special parent-disabled
         # notification bypass, do not append anything: the parent must receive
-        # exactly "Superordinate {ContextID} has a message for you.".
+        # exactly "{ContextID} has a message for you.".
         caller_ctxid = self.agent.context.id
         caller_name = self.agent.context.name or f"Chat {caller_ctxid[:6]}"
         if parent_notification_bypass:

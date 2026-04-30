@@ -11,7 +11,7 @@ args: `superordinate_id` or `name`, `message`
 use `name` when you know the target's name, or `superordinate_id` for the raw context ID.
 the response payload includes a `relationship` field (`descendant`, `ancestor`, or `sibling`) so the caller knows which way the message went.
 if sibling messaging is disabled in the `a0_superordinates` settings, sibling attempts are rejected with a clear settings-disabled response.
-if parent/ancestor messaging is disabled, arbitrary upward messages are rejected, but a direct child may still notify its immediate parent with exactly `Superordinate {ContextID} has a message for you.` so the parent knows to check in later.
+if parent/ancestor messaging is disabled, arbitrary upward messages are rejected, but a direct child may still notify its immediate parent with exactly `{ContextID} has a message for you.` so the parent knows to check in later.
 example (messaging a child/descendant):
 ~~~json
 {
@@ -44,7 +44,7 @@ example (fallback parent notification when parent/ancestor messaging is disabled
   "tool_name": "superordinate_message",
   "tool_args": {
     "superordinate_id": "1ofcTily",
-    "message": "Superordinate CURRENT_CONTEXT_ID has a message for you."
+    "message": "CURRENT_CONTEXT_ID has a message for you."
   }
 }
 ~~~
