@@ -381,7 +381,7 @@ const model = {
 
   /**
    * Unified move-lock check: true if node is pinned OR root-locked
-   * (root-level Archived/Closed Chats).
+   * (root-level Closed Chats).
    */
   isMoveLocked(ctxid) {
     if (!ctxid) return false;
@@ -816,11 +816,11 @@ const model = {
   /**
    * Check if Onboard should be hidden for this context.
    * Returns true if the context itself or any ancestor is named
-   * 'Archived' or 'Closed Chats' (case-insensitive).
+   * 'Closed Chats' (case-insensitive).
    */
   isOnboardBlocked(ctxid) {
     if (!ctxid) return false;
-    const blocked = new Set(['archived', 'closed chats']);
+    const blocked = new Set(['closed chats']);
     let current = ctxid;
     const visited = new Set();
     while (current && !visited.has(current)) {
@@ -837,15 +837,15 @@ const model = {
   /**
    * Check if this context is a root-level locked node.
    * Returns true only when the context has NO parent AND is named
-   * 'Archived' or 'Closed Chats' (case-insensitive).
-   * Used to prevent moving these special folders out of root.
+   * 'Closed Chats' (case-insensitive).
+   * Used to prevent moving this special folder out of root.
    */
   isRootLocked(ctxid) {
     if (!ctxid) return false;
     if (this.getParent(ctxid)) return false;
     const ctx = this._findContextByName_byId(ctxid);
     const nm = (ctx?.name || '').toLowerCase();
-    return nm === 'archived' || nm === 'closed chats';
+    return nm === 'closed chats';
   },
   /**
    * Find a context by ID from the chats store.
@@ -996,7 +996,7 @@ const model = {
    */
   async reparent(childId, newParentId, position) {
     if (!childId || childId === newParentId) return;
-    // Hard guard: root-locked nodes (root-level 'Archived' / 'Closed Chats') cannot move
+    // Hard guard: move-locked nodes (pinned or root-level 'Closed Chats') cannot move
     if (this.isMoveLocked && this.isMoveLocked(childId)) {
       return;
     }
@@ -1017,7 +1017,7 @@ const model = {
 
   /** Start dragging a node */
   dragStart(ctxid, event) {
-    // Block drag of root-locked nodes ('Archived' / 'Closed Chats' at root)
+    // Block drag of move-locked nodes (pinned or root-level 'Closed Chats')
     if (this.isMoveLocked && this.isMoveLocked(ctxid)) {
       try { event.preventDefault(); } catch (e) {}
       try { event.stopPropagation(); } catch (e) {}
