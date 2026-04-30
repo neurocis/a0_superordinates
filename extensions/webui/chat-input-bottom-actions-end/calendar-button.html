@@ -3,6 +3,7 @@
     position: relative;
     display: inline-flex;
     align-items: stretch;
+    --a0-calendar-panel-margin: clamp(0.5rem, 1.5vw, 1.25rem);
   }
 
   .a0-agent-calendar-tab-anchor > .text-button {
@@ -17,27 +18,31 @@
   }
 
   .a0-agent-calendar-panel {
-    position: absolute;
-    top: calc(100% + 1px);
-    left: 0;
+    position: fixed;
+    left: var(--a0-calendar-panel-margin);
+    right: var(--a0-calendar-panel-margin);
+    bottom: var(--a0-calendar-panel-margin);
     z-index: 10001;
-    width: min(820px, calc(100vw - 2rem));
-    max-height: min(720px, calc(100vh - 9rem));
+    width: auto;
+    max-width: none;
+    max-height: min(720px, calc(100vh - 7rem));
     display: flex;
     flex-direction: column;
     overflow: hidden;
     border: 1px solid var(--border-color, rgba(255,255,255,0.14));
-    border-radius: 0 0.85rem 0.85rem 0.85rem;
+    border-radius: 0.85rem;
     background: var(--background-primary, #151515);
     color: var(--text-primary, inherit);
     box-shadow: 0 18px 65px rgba(0, 0, 0, 0.42);
+    transform-origin: bottom center;
+    will-change: transform, opacity;
   }
 
   .a0-agent-calendar-panel::before {
     content: "";
     position: absolute;
     top: -1px;
-    left: 0;
+    left: var(--a0-calendar-tab-left, 0px);
     width: var(--a0-calendar-tab-width, 7rem);
     height: 1px;
     background: var(--background-primary, #151515);
@@ -142,11 +147,26 @@
     color: #ffb7b7;
   }
 
+  .a0-agent-calendar-slide-enter-active,
+  .a0-agent-calendar-slide-leave-active {
+    transition: transform 180ms ease, opacity 180ms ease;
+  }
+
+  .a0-agent-calendar-slide-enter-from,
+  .a0-agent-calendar-slide-leave-to {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+
+  .a0-agent-calendar-slide-enter-to,
+  .a0-agent-calendar-slide-leave-from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
   @media (max-width: 920px) {
-    .a0-agent-calendar-panel {
-      left: 50%;
-      transform: translateX(-50%);
-      border-radius: 0.85rem;
+    .a0-agent-calendar-tab-anchor {
+      --a0-calendar-panel-margin: 0.5rem;
     }
 
     .a0-agent-calendar-panel::before {
@@ -186,7 +206,12 @@
 <div
   x-cloak
   x-show="$store.agentCalendar && $store.agentCalendar.visible"
-  x-transition.origin.top.left
+  x-transition:enter="a0-agent-calendar-slide-enter-active"
+  x-transition:enter-start="a0-agent-calendar-slide-enter-from"
+  x-transition:enter-end="a0-agent-calendar-slide-enter-to"
+  x-transition:leave="a0-agent-calendar-slide-leave-active"
+  x-transition:leave-start="a0-agent-calendar-slide-leave-from"
+  x-transition:leave-end="a0-agent-calendar-slide-leave-to"
   class="a0-agent-calendar-panel"
   role="dialog"
   aria-label="Agent Calendar"
@@ -316,9 +341,17 @@
         try {
           const button = document.querySelector(".a0-agent-calendar-tab-anchor > .text-button");
           if (button) {
-            this.calendarTabWidth = `${Math.ceil(button.getBoundingClientRect().width)}px`;
+            const rect = button.getBoundingClientRect();
             const anchor = button.closest(".a0-agent-calendar-tab-anchor");
-            if (anchor) anchor.style.setProperty("--a0-calendar-tab-width", this.calendarTabWidth);
+            const marginValue = getComputedStyle(anchor || document.documentElement)
+              .getPropertyValue("--a0-calendar-panel-margin")
+              .trim();
+            const margin = Number.parseFloat(marginValue) || 0;
+            this.calendarTabWidth = `${Math.ceil(rect.width)}px`;
+            if (anchor) {
+              anchor.style.setProperty("--a0-calendar-tab-width", this.calendarTabWidth);
+              anchor.style.setProperty("--a0-calendar-tab-left", `${Math.max(0, Math.round(rect.left - margin))}px`);
+            }
           }
         } catch (_e) {}
       },
