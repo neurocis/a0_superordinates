@@ -864,7 +864,15 @@ const model = {
   async _getOrCreateClosedChats() {
     // Check if 'Closed Chats' already exists
     const existing = this._findContextByName('Closed Chats');
-    if (existing) return existing.id;
+    if (existing) {
+      // Closed Chats is Msgs-Only by default. The Keyboard toggle is hidden
+      // for this special folder, but we still persist the blocked state so
+      // selecting it cannot prompt that agent.
+      this.msgMeBlockedNodes = { ...this.msgMeBlockedNodes, [existing.id]: true };
+      this._persistMsgMeBlocked();
+      this._applyMsgMeToInput();
+      return existing.id;
+    }
 
     // Create 'Closed Chats' with name pre-set on server
     let newId;
@@ -877,6 +885,10 @@ const model = {
         return null;
       }
       newId = res.ctxid;
+      // Closed Chats is created as Msgs-Only. The Keyboard toggle is hidden
+      // for this special folder, but the hidden state remains toggled/blocked.
+      this.msgMeBlockedNodes = { ...this.msgMeBlockedNodes, [newId]: true };
+      this._persistMsgMeBlocked();
     } catch (e) {
       console.error('[Superordinates] superordinate_create failed:', e);
       return null;
