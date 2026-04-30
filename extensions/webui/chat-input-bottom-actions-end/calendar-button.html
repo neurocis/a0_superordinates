@@ -42,35 +42,10 @@
     height: 1px;
     background: var(--background-primary, #151515);
   }
-
-  .a0-agent-calendar-header,
-  .a0-agent-calendar-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.9rem 1rem;
-    border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.12));
-  }
-
-  .a0-agent-calendar-footer {
-    border-top: 1px solid var(--border-color, rgba(255,255,255,0.12));
-    border-bottom: 0;
-  }
-
   .a0-agent-calendar-body {
-    padding: 1rem;
+    padding: 0.85rem 1rem 1rem;
     overflow: auto;
   }
-
-  .a0-agent-calendar-title {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    font-weight: 700;
-    font-size: 1.05rem;
-  }
-
   .a0-agent-calendar-muted {
     opacity: 0.72;
     font-size: 0.86rem;
@@ -147,8 +122,7 @@
     color: inherit;
   }
 
-  .a0-agent-calendar-small-button,
-  .a0-agent-calendar-close {
+  .a0-agent-calendar-small-button {
     padding: 0.45rem 0.65rem;
     border: 1px solid var(--border-color, rgba(255,255,255,0.16));
     border-radius: 0.45rem;
@@ -156,13 +130,7 @@
     color: inherit;
     cursor: pointer;
   }
-
-  .a0-agent-calendar-close {
-    padding: 0.3rem 0.5rem;
-  }
-
-  .a0-agent-calendar-small-button:hover,
-  .a0-agent-calendar-close:hover {
+  .a0-agent-calendar-small-button:hover {
     background: color-mix(in srgb, currentColor 13%, transparent);
   }
 
@@ -224,21 +192,6 @@
   aria-label="Agent Calendar"
   @click.stop
 >
-    <div class="a0-agent-calendar-header">
-      <div>
-        <div class="a0-agent-calendar-title">
-          <i class="ti ti-calendar-event" aria-hidden="true"></i>
-          <span>Calendar</span>
-        </div>
-        <div class="a0-agent-calendar-muted">
-          ContextID: <code x-text="$store.agentCalendar.ctxid || 'none'"></code>
-        </div>
-      </div>
-      <button type="button" class="a0-agent-calendar-close" @click="$store.agentCalendar.closeCalendar()" title="Close">
-        <i class="ti ti-x" aria-hidden="true"></i>
-      </button>
-    </div>
-
     <div class="a0-agent-calendar-body">
       <template x-if="$store.agentCalendar.loading">
         <div class="a0-agent-calendar-muted">Loading calendar stack…</div>
@@ -250,11 +203,6 @@
 
       <template x-if="!$store.agentCalendar.loading">
         <div>
-          <div class="a0-agent-calendar-muted">
-            Folder:
-            <code x-text="$store.agentCalendar.calendarDir || 'not loaded'"></code>
-          </div>
-
           <div class="a0-agent-calendar-section">
             <div class="a0-agent-calendar-actions">
               <h3 style="margin-right:auto;">ICS files</h3>
@@ -329,12 +277,6 @@
       </template>
     </div>
 
-    <div class="a0-agent-calendar-footer">
-      <div class="a0-agent-calendar-muted">
-        Phase 1: per-context .ics files and subscription registry.
-      </div>
-      <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.closeCalendar()">Close</button>
-    </div>
 </div>
 </span>
 
