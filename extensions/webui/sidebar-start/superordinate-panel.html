@@ -21,7 +21,7 @@
             <li :style="{ paddingLeft: (node._depth * 16) + 'px' }"
               class="tree-item"
               :class="$store.superordinates.getDropClass(node.id)"
-              draggable="true"
+              :draggable="!$store.superordinates.isRootLocked(node.id)"
               @dragstart.stop="$store.superordinates.dragStart(node.id, $event)"
               @dragover.prevent.stop="$store.superordinates.dragOver(node.id, $event)"
               @dragleave="$store.superordinates.dragLeave(node.id, $event)"

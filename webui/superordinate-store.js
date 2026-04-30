@@ -673,6 +673,20 @@ const model = {
     }
     return false;
   },
+
+  /**
+   * Check if this context is a root-level locked node.
+   * Returns true only when the context has NO parent AND is named
+   * 'Archived' or 'Closed Chats' (case-insensitive).
+   * Used to prevent moving these special folders out of root.
+   */
+  isRootLocked(ctxid) {
+    if (!ctxid) return false;
+    if (this.getParent(ctxid)) return false;
+    const ctx = this._findContextByName_byId(ctxid);
+    const nm = (ctx?.name || '').toLowerCase();
+    return nm === 'archived' || nm === 'closed chats';
+  },
   /**
    * Find a context by ID from the chats store.
    */
@@ -822,6 +836,10 @@ const model = {
    */
   async reparent(childId, newParentId, position) {
     if (!childId || childId === newParentId) return;
+    // Hard guard: root-locked nodes (root-level 'Archived' / 'Closed Chats') cannot move
+    if (this.isRootLocked && this.isRootLocked(childId)) {
+      return;
+    }
     try {
       const res = await callJsonApi(
         "plugins/a0_superordinates/superordinate_reparent",
@@ -839,6 +857,15 @@ const model = {
 
   /** Start dragging a node */
   dragStart(ctxid, event) {
+    // Block drag of root-locked nodes ('Archived' / 'Closed Chats' at root)
+    if (this.isRootLocked && this.isRootLocked(ctxid)) {
+      try { event.preventDefault(); } catch (e) {}
+      try { event.stopPropagation(); } catch (e) {}
+      if (event.dataTransfer) {
+        try { event.dataTransfer.effectAllowed = 'none'; } catch (e) {}
+      }
+      return false;
+    }
     // Set global flag BEFORE any other drag events fire
     window._superordinateDragging = true;
     this.dragChildId = ctxid;
