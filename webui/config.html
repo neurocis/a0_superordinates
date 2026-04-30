@@ -45,6 +45,20 @@
                         </label>
                     </div>
                 </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Reply wait seconds</div>
+                        <div class="field-description">
+                            Number of seconds <code>superordinate_message</code> waits for the target
+                            context to reply before returning a timeout/check-later response.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <input type="number" min="1" max="3600"
+                            x-model.number="config.reply_wait_seconds" />
+                    </div>
+                </div>
             </div>
         </template>
     </div>

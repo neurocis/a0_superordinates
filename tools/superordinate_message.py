@@ -111,6 +111,20 @@ def _setting_enabled(config: dict, key: str, default: bool = True) -> bool:
     return bool(value)
 
 
+def _reply_wait_seconds(config: dict, default: int = 10) -> int:
+    """Return configured superordinate_message reply wait seconds.
+
+    Falls back to 10 seconds and clamps to a sane positive range so broken or
+    missing config cannot create an infinite wait or immediate zero-timeout.
+    """
+    value = config.get("reply_wait_seconds", default)
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError):
+        seconds = default
+    return max(1, min(seconds, 3600))
+
+
 def _direct_parent_id(ctx) -> str:
     """Return the immediate parent ctxid for a context, or an empty string."""
     if not ctx:
@@ -265,18 +279,19 @@ class SuperordinateMessage(Tool):
 
         target_label = target_context.name or superordinate_id
 
-        # Wait for the result with a short timeout so we don't block the monologue
+        # Wait for the result with a configurable timeout so we don't block the monologue.
+        reply_wait_seconds = _reply_wait_seconds(_get_config(self.agent))
         try:
-            result = await task.result(timeout=20)
+            result = await task.result(timeout=reply_wait_seconds)
         except Exception as e:
             err = str(e).lower()
             if "timeout" in err or "timed out" in err:
                 return Response(
                     message=(
-                        "Target '{}' ({}) is still processing (timed out after 20s). "
+                        "Target '{}' ({}) is still processing (timed out after {}s). "
                         "Continue with your current task and check back later using "
                         "superordinate_lastresponse(name='{}')."
-                    ).format(target_label, relationship, name or superordinate_id),
+                    ).format(target_label, relationship, reply_wait_seconds, name or superordinate_id),
                     break_loop=False,
                 )
             return Response(
