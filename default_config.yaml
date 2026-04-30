@@ -1,0 +1,11 @@
+# A0 Superordinates default configuration
+#
+# These settings control which non-descendant relationships may be messaged
+# through superordinate_message. Descendant messaging (children/grandchildren)
+# remains enabled because it is the original/core behavior of the tool.
+
+# Allow a child superordinate to message upward to its parent/grandparent/etc.
+allow_parent_messaging: true
+
+# Allow superordinates sharing the same immediate parent to message each other.
+allow_sibling_messaging: true

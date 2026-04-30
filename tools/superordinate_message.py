@@ -91,6 +91,47 @@ def _classify_relationship(target_ctx, self_ctx) -> str:
     return ""
 
 
+def _get_config(agent) -> dict:
+    """Read a0_superordinates config, falling back safely to defaults."""
+    try:
+        from helpers import plugins
+        config = plugins.get_plugin_config("a0_superordinates", agent=agent) or {}
+        return config if isinstance(config, dict) else {}
+    except Exception:
+        return {}
+
+
+def _setting_enabled(config: dict, key: str, default: bool = True) -> bool:
+    """Return boolean config value with permissive string handling."""
+    value = config.get(key, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on", "enabled"}
+    return bool(value)
+
+
+def _relationship_allowed(relationship: str, agent) -> tuple[bool, str]:
+    """Return whether the classified relationship is enabled by settings.
+
+    Descendant messaging is the original/core behavior and remains always
+    enabled. Ancestor and sibling messaging are optional features exposed in
+    the plugin settings UI.
+    """
+    if relationship == "descendant":
+        return True, ""
+
+    config = _get_config(agent)
+
+    if relationship == "ancestor" and not _setting_enabled(config, "allow_parent_messaging", True):
+        return False, "Parent / ancestor messaging is disabled in the a0_superordinates settings."
+
+    if relationship == "sibling" and not _setting_enabled(config, "allow_sibling_messaging", True):
+        return False, "Sibling messaging is disabled in the a0_superordinates settings."
+
+    return True, ""
+
+
 class SuperordinateMessage(Tool):
 
     async def execute(self, **kwargs):
@@ -137,6 +178,15 @@ class SuperordinateMessage(Tool):
                     "Context '{}' is not related to this context. Allowed targets are descendants, "
                     "ancestors (parent, grandparent, ...), or siblings sharing the same parent."
                 ).format(superordinate_id),
+                break_loop=False,
+            )
+
+        relationship_allowed, relationship_denial = _relationship_allowed(relationship, self.agent)
+        if not relationship_allowed:
+            return Response(
+                message=(
+                    "Cannot send superordinate_message to {} '{}': {}"
+                ).format(relationship, target_context.name or superordinate_id, relationship_denial),
                 break_loop=False,
             )
 

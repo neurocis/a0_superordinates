@@ -1,0 +1,52 @@
+<html>
+<head>
+    <title>A0 Superordinates Settings</title>
+</head>
+<body>
+    <div x-data>
+        <template x-if="config">
+            <div>
+                <div class="section-title">A0 Superordinates</div>
+                <div class="section-description">
+                    Configure relationship permissions for <code>superordinate_message</code>.
+                    Messaging descendants (children and grandchildren) remains enabled as the core behavior.
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Allow Parent / Ancestor Messaging</div>
+                        <div class="field-description">
+                            When enabled, a superordinate can send <code>superordinate_message</code>
+                            upward to its parent, grandparent, or another ancestor context.
+                            Disable this to prevent child agents from messaging upward.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.allow_parent_messaging" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Allow Sibling Messaging</div>
+                        <div class="field-description">
+                            When enabled, superordinates with the same immediate parent may send
+                            <code>superordinate_message</code> to each other. Disable this to restrict
+                            peer-to-peer coordination between sibling agents.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.allow_sibling_messaging" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+</body>
+</html>
