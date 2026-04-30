@@ -61,6 +61,9 @@
                 <!-- Status indicators (independent of Chat Status Marklet) -->
                 <span class="sup-running-dot" x-show="node.running" title="Process running"></span>
                 <span class="sup-unseen-dot" x-show="!node.running && node._isUnseen" title="Process finished (unseen)"></span>
+                <button class="btn-icon-action chat-list-action-btn sup-onboard-btn" title="Onboard new SuperOrdinate under this context" aria-label="Onboard" @click.stop="$store.superordinates.onboardChild(node.id)">
+                  <span class="material-symbols-outlined">person_add</span>
+                </button>
                 <button class="btn-icon-action chat-list-action-btn" title="Close chat" @click.stop="$confirmClick($event, () => $store.superordinates.closeChat(node.id))">
                   <span class="material-symbols-outlined">close</span>
                 </button>

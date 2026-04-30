@@ -541,6 +541,65 @@ const model = {
     }
   },
 
+  /**
+   * Onboard a new SuperOrdinate as a child of the given parent context.
+   * Creates the new chat with a pre-set short name and reparents it under `parentId`
+   * at position 0, then refreshes the hierarchy and selects the new chat.
+   */
+  async onboardChild(parentId) {
+    const chatsStore = Alpine.store('chats');
+    if (!chatsStore) return;
+    if (!parentId) {
+      console.warn('[Superordinates] onboardChild called without parentId');
+      return;
+    }
+
+    // Pre-pick the name
+    const name = this._pickUnusedName();
+
+    // Create the context with the name pre-set on the server
+    let newId;
+    try {
+      const res = await callJsonApi('plugins/a0_superordinates/superordinate_create', {
+        name: name,
+      });
+      if (!res || !res.ok || !res.ctxid) {
+        console.error('[Superordinates] superordinate_create failed:', res);
+        return;
+      }
+      newId = res.ctxid;
+    } catch (e) {
+      console.error('[Superordinates] superordinate_create call failed:', e);
+      return;
+    }
+
+    // Reparent under the scoped parent context at position 0
+    try {
+      await callJsonApi('plugins/a0_superordinates/superordinate_reparent', {
+        child_id: newId, new_parent_id: parentId, position: 0,
+      });
+    } catch (e) {
+      console.error('[Superordinates] reparent under parent failed:', e);
+    }
+
+    // Ensure parent is expanded so the new child is visible
+    try {
+      if (this.expandedNodes && typeof this.expandedNodes.add === 'function') {
+        this.expandedNodes.add(parentId);
+      } else if (this._expandedSet && typeof this._expandedSet.add === 'function') {
+        this._expandedSet.add(parentId);
+      }
+    } catch (e) {
+      // ignore — expansion is a UX nicety
+    }
+
+    // Refresh hierarchy and select the new chat
+    await this.fetchMap();
+    if (chatsStore.selectChat) {
+      await chatsStore.selectChat(newId);
+    }
+  },
+
 
   // ── Close Chat (soft-close → 'Closed Chats' folder) ────────────
 
