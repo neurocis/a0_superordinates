@@ -47,6 +47,7 @@
     z-index: 10001;
     width: var(--a0-calendar-panel-width, min(960px, calc(100vw - 2rem)));
     max-width: calc(100vw - 1rem);
+    height: var(--a0-calendar-panel-height, auto);
     max-height: var(--a0-calendar-panel-max-height, min(420px, 42vh));
     display: flex;
     flex-direction: column;
@@ -691,6 +692,7 @@
           const offsetLeft = Math.max(0, Math.round(buttonRect.left - hostRect.left));
 
           anchor.style.setProperty("--a0-calendar-panel-width", `${Math.round(panelWidth)}px`);
+          anchor.style.setProperty("--a0-calendar-panel-height", `${desiredHeight}px`);
           anchor.style.setProperty("--a0-calendar-panel-max-height", `${desiredHeight}px`);
           anchor.style.setProperty("--a0-calendar-tab-offset-left", `${offsetLeft}px`);
           anchor.style.setProperty("--a0-calendar-tab-width", `${Math.ceil(buttonRect.width)}px`);
@@ -712,6 +714,7 @@
           }
           if (anchor) {
             anchor.style.removeProperty("--a0-calendar-panel-width");
+            anchor.style.removeProperty("--a0-calendar-panel-height");
             anchor.style.removeProperty("--a0-calendar-panel-max-height");
             anchor.style.removeProperty("--a0-calendar-tab-offset-left");
             anchor.style.removeProperty("--a0-calendar-tab-width");
