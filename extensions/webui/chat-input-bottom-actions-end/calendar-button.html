@@ -29,6 +29,10 @@
     will-change: transform;
   }
 
+  .a0-agent-calendar-output-lifted {
+    transition: padding-bottom 180ms ease, margin-bottom 180ms ease;
+  }
+
   .a0-agent-calendar-panel {
     position: absolute;
     top: calc(100% - 1px);
@@ -426,6 +430,7 @@
       newSubscriptionUrl: "",
       calendarTabWidth: "7rem",
       calendarHostEl: null,
+      calendarOutputEl: null,
       placementCleanupTimer: null,
 
       calendarAnchor() {
@@ -482,6 +487,74 @@
         return promptComposer || compactFallback || anchor.parentElement || anchor;
       },
 
+      calendarOutputHost(host) {
+        try {
+          const hostRect = host?.getBoundingClientRect?.();
+          if (!hostRect) return null;
+
+          const candidates = Array.from(document.querySelectorAll(
+            '[data-message-id], [data-role="messages"], .messages, .message-list, .chat-messages, .monologue, main, section, div'
+          ));
+          let best = null;
+          let bestScore = -Infinity;
+
+          for (const el of candidates) {
+            if (!el || el === host || host.contains(el) || el.contains(host)) continue;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 260 || rect.height < 160) continue;
+            if (rect.bottom > hostRect.top + 24) continue;
+            if (rect.right < hostRect.left + 80 || rect.left > hostRect.right - 80) continue;
+
+            const style = window.getComputedStyle(el);
+            const canScroll = /(auto|scroll)/.test(`${style.overflowY} ${style.overflow}`) || el.scrollHeight > el.clientHeight + 24;
+            const textDensity = (el.innerText || "").length;
+            const verticalCloseness = Math.max(0, 420 - Math.abs(hostRect.top - rect.bottom));
+            const widthOverlap = Math.min(rect.right, hostRect.right) - Math.max(rect.left, hostRect.left);
+            const score = (canScroll ? 1000 : 0) + verticalCloseness + Math.max(0, widthOverlap) + Math.min(textDensity, 500) - Math.abs(rect.width - hostRect.width) * 0.15;
+
+            if (score > bestScore) {
+              bestScore = score;
+              best = el;
+            }
+          }
+
+          return best;
+        } catch (_e) {
+          return null;
+        }
+      },
+
+      liftOutputHost(host, lift) {
+        try {
+          const output = this.calendarOutputHost(host);
+          if (this.calendarOutputEl && this.calendarOutputEl !== output) this.clearOutputLift();
+          if (!output) return;
+
+          this.calendarOutputEl = output;
+          output.classList.add("a0-agent-calendar-output-lifted");
+          output.dataset.a0CalendarOriginalPaddingBottom ??= output.style.paddingBottom || "";
+          output.dataset.a0CalendarOriginalMarginBottom ??= output.style.marginBottom || "";
+
+          const currentPadding = Number.parseFloat(window.getComputedStyle(output).paddingBottom) || 0;
+          output.style.paddingBottom = `${Math.round(currentPadding + lift)}px`;
+          output.style.marginBottom = `${Math.round(lift * 0.35)}px`;
+          if (typeof output.scrollTop === "number") output.scrollTop = output.scrollTop;
+        } catch (_e) {}
+      },
+
+      clearOutputLift() {
+        try {
+          if (!this.calendarOutputEl) return;
+          const output = this.calendarOutputEl;
+          output.classList.remove("a0-agent-calendar-output-lifted");
+          output.style.paddingBottom = output.dataset.a0CalendarOriginalPaddingBottom || "";
+          output.style.marginBottom = output.dataset.a0CalendarOriginalMarginBottom || "";
+          delete output.dataset.a0CalendarOriginalPaddingBottom;
+          delete output.dataset.a0CalendarOriginalMarginBottom;
+          this.calendarOutputEl = null;
+        } catch (_e) {}
+      },
+
       syncPanelPlacement() {
         try {
           if (this.placementCleanupTimer) {
@@ -506,7 +579,7 @@
           const marginValue = getComputedStyle(anchor).getPropertyValue("--a0-calendar-panel-margin").trim();
           const margin = Number.parseFloat(marginValue) || 8;
 
-          const desiredHeight = Math.round(Math.min(360, Math.max(220, viewportHeight * 0.32)));
+          const desiredHeight = Math.round(Math.min(220, Math.max(140, viewportHeight * 0.18)));
           const lift = desiredHeight + Math.round(margin * 0.5);
           const panelWidth = Math.max(280, Math.min(hostRect.width, window.innerWidth - (margin * 2)));
           const offsetLeft = Math.max(0, Math.round(buttonRect.left - hostRect.left));
@@ -519,6 +592,7 @@
 
           host.style.setProperty("--a0-calendar-panel-lift", `${lift}px`);
           host.classList.add("a0-agent-calendar-host-lifted");
+          this.liftOutputHost(host, lift);
         } catch (_e) {}
       },
 
