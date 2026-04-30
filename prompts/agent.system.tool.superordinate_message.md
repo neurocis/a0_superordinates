@@ -12,7 +12,7 @@ use `name` when you know the target's name, or `superordinate_id` for the raw co
 the response payload includes a `relationship` field (`descendant`, `ancestor`, or `sibling`) so the caller knows which way the message went.
 the tool waits up to the configured `reply_wait_seconds` value for a reply before returning a check-later timeout response; the default is 10 seconds.
 if sibling messaging is disabled in the `a0_superordinates` settings, sibling attempts are rejected with a clear settings-disabled response.
-if parent/ancestor messaging is disabled, arbitrary upward messages are rejected, but a direct child may still notify its immediate parent with exactly `{ContextID} has a message for you.` so the parent knows to check in later.
+if parent/ancestor messaging is disabled, direct-child messages to the immediate parent use notification fallback: the parent receives only `{ContextID} has a message for you.`, while the full message/conclusion is returned locally in the sender context instead of being sent upward. Non-parent ancestors are rejected.
 example (messaging a child/descendant):
 ~~~json
 {
@@ -37,15 +37,15 @@ example (replying upward to a parent/ancestor, when parent/ancestor messaging is
   }
 }
 ~~~
-example (fallback parent notification when parent/ancestor messaging is disabled):
+example (finishing upward when parent/ancestor messaging is disabled):
 ~~~json
 {
-  "thoughts": ["Parent messaging is disabled, so I can only notify my immediate parent that I have a message."],
-  "headline": "Notifying parent of pending message",
+  "thoughts": ["Parent messaging is disabled, but I should still pass my real conclusion to the tool. The tool will notify my parent and return my conclusion locally."],
+  "headline": "Completing with parent notification fallback",
   "tool_name": "superordinate_message",
   "tool_args": {
     "superordinate_id": "1ofcTily",
-    "message": "CURRENT_CONTEXT_ID has a message for you."
+    "message": "Task complete. Result: ..."
   }
 }
 ~~~

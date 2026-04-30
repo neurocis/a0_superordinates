@@ -137,11 +137,13 @@ def _parent_notification_message(ctxid: str) -> str:
     return f"{ctxid} has a message for you."
 
 
-def _is_parent_notification_bypass(relationship: str, agent, target_ctx, message: str) -> bool:
-    """Allow one exact direct-parent notification when full parent messaging is disabled.
+def _is_direct_parent_fallback(relationship: str, agent, target_ctx) -> bool:
+    """True when disabled parent messaging should become notify-parent/local-output.
 
-    This preserves monologue-completion signalling without allowing arbitrary
-    upward data transfer while `allow_parent_messaging` is false.
+    When `allow_parent_messaging` is false, a child may still *attempt* to send
+    its real monologue conclusion to its immediate parent. The full message is
+    not sent upward; `execute()` sends only a lightweight notification to the
+    parent and returns the full message locally to the sender's context.
     """
     caller_ctx = getattr(agent, "context", None)
     caller_id = getattr(caller_ctx, "id", "") or ""
@@ -151,21 +153,20 @@ def _is_parent_notification_bypass(relationship: str, agent, target_ctx, message
         return False
     if not caller_id or not target_id:
         return False
-    if target_id != _direct_parent_id(caller_ctx):
-        return False
-    return (message or "").strip() == _parent_notification_message(caller_id)
+    return target_id == _direct_parent_id(caller_ctx)
 
 
 def _relationship_allowed(relationship: str, agent, target_ctx=None, message: str = "") -> tuple[bool, str, bool]:
     """Return whether the classified relationship is enabled by settings.
 
-    Returns ``(allowed, denial_reason, parent_notification_bypass)``.
+    Returns ``(allowed, denial_reason, parent_notification_fallback)``.
 
     Descendant messaging is the original/core behavior and remains always
     enabled. Ancestor and sibling messaging are optional features exposed in
-    the plugin settings UI. When parent messaging is disabled, direct children
-    may still send exactly ``{ContextID} has a message for you.``
-    to their immediate parent as a completion notification.
+    the plugin settings UI. When parent messaging is disabled, direct-child to
+    immediate-parent sends are allowed only as a fallback: the parent receives
+    ``{ContextID} has a message for you.`` and the caller's full message is
+    returned locally to the sender context instead of being sent upward.
     """
     if relationship == "descendant":
         return True, "", False
@@ -173,13 +174,12 @@ def _relationship_allowed(relationship: str, agent, target_ctx=None, message: st
     config = _get_config(agent)
 
     if relationship == "ancestor" and not _setting_enabled(config, "allow_parent_messaging", False):
-        if _is_parent_notification_bypass(relationship, agent, target_ctx, message):
+        if _is_direct_parent_fallback(relationship, agent, target_ctx):
             return True, "", True
         return False, (
             "Parent / ancestor messaging is disabled in the a0_superordinates settings. "
-            "Only the exact direct-parent notification "
-            f"'{_parent_notification_message(getattr(agent.context, 'id', '') if getattr(agent, 'context', None) else '')}' "
-            "is allowed."
+            "Only immediate-parent notification fallback is allowed; the full message "
+            "will not be sent upward."
         ), False
 
     if relationship == "sibling" and not _setting_enabled(config, "allow_sibling_messaging", False):
@@ -237,7 +237,7 @@ class SuperordinateMessage(Tool):
                 break_loop=False,
             )
 
-        relationship_allowed, relationship_denial, parent_notification_bypass = _relationship_allowed(
+        relationship_allowed, relationship_denial, parent_notification_fallback = _relationship_allowed(
             relationship,
             self.agent,
             target_context,
@@ -251,33 +251,52 @@ class SuperordinateMessage(Tool):
                 break_loop=False,
             )
 
-        # Append a callback instruction so the target sends its results back to
-        # the calling agent/context when done. For the special parent-disabled
-        # notification bypass, do not append anything: the parent must receive
-        # exactly "{ContextID} has a message for you.".
         caller_ctxid = self.agent.context.id
         caller_name = self.agent.context.name or f"Chat {caller_ctxid[:6]}"
-        if parent_notification_bypass:
-            callback_instruction = ""
-        else:
-            callback_instruction = (
-                "\n\n[Instruction from framework]\n"
-                "When you finish this task, send your result back to the calling agent "
-                f"using superordinate_message with superordinate_id='{caller_ctxid}' and include your "
-                "final result in that message. If that call is rejected because parent/ancestor "
-                "messaging is disabled, notify only your immediate parent instead with exactly this "
-                f"message and no additional details: '{_parent_notification_message(target_context.id)}'. "
-                f"The calling agent/context is: {caller_name} (relationship to you: "
-                f"{'parent/ancestor' if relationship == 'descendant' else ('child/descendant' if relationship == 'ancestor' else 'sibling')})."
+        target_label = target_context.name or superordinate_id
+
+        # Parent messaging disabled fallback: never send the caller's full
+        # monologue conclusion upward. Notify the immediate parent only, then
+        # return the full message locally so it is output in the sender context.
+        if parent_notification_fallback:
+            notification = _parent_notification_message(caller_ctxid)
+            target_context.communicate(UserMessage(message=notification))
+            local_message = message or ""
+            return Response(
+                message=(
+                    "Parent / ancestor messaging is disabled, so your full message was not sent upward. "
+                    "Sent this notification to parent '{}': {}\n\n"
+                    "Monologue conclusion for this context:\n{}"
+                ).format(target_label, notification, local_message),
+                break_loop=False,
+                additional={
+                    "superordinate_id": superordinate_id,
+                    "relationship": relationship,
+                    "parent_notification_fallback": True,
+                    "notification_sent": notification,
+                    "full_message_sent_to_parent": False,
+                },
             )
+
+        # Append a callback instruction so the target sends its results back to
+        # the calling agent/context when done.
+        callback_instruction = (
+            "\n\n[Instruction from framework]\n"
+            "When you finish this task, send your result back to the calling agent "
+            f"using superordinate_message with superordinate_id='{caller_ctxid}' and include your "
+            "final result in that message. If parent/ancestor messaging is disabled, "
+            "superordinate_message will send only a lightweight notification to your immediate "
+            "parent and return your full result locally in your own context; do not replace "
+            "your final result with the notification text. "
+            f"The calling agent/context is: {caller_name} (relationship to you: "
+            f"{'parent/ancestor' if relationship == 'descendant' else ('child/descendant' if relationship == 'ancestor' else 'sibling')})."
+        )
         forwarded_message = (message or "") + callback_instruction
 
         # communicate() handles both cases:
         # - If target is idle: starts a new task and returns it
         # - If target is running: sets intervention message on the running agent
         task = target_context.communicate(UserMessage(message=forwarded_message))
-
-        target_label = target_context.name or superordinate_id
 
         # Wait for the result with a configurable timeout so we don't block the monologue.
         reply_wait_seconds = _reply_wait_seconds(_get_config(self.agent))
@@ -305,6 +324,6 @@ class SuperordinateMessage(Tool):
             additional={
                 "superordinate_id": superordinate_id,
                 "relationship": relationship,
-                "parent_notification_bypass": parent_notification_bypass,
+                "parent_notification_fallback": parent_notification_fallback,
             },
         )
