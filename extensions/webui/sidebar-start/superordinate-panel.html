@@ -221,6 +221,58 @@
     outline-offset: -1px;
     border-radius: 4px;
   }
+  /* ── Per-row action buttons overlay on right edge ────────── */
+  /* Buttons are absolutely positioned so they sit on top of the
+     chat name instead of stealing layout space. When hidden via
+     x-show / isOnboardBlocked, the underlying name fills the space. */
+  .superordinate-tree .chat-container {
+    position: relative;
+  }
+
+  .superordinate-tree .chat-container > .btn-icon-action.chat-list-action-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    background: var(--color-panel, var(--color-bg, transparent));
+    border-radius: 4px;
+    padding: 2px;
+  }
+
+  /* Far-right slot: Close button (the action btn that is NOT the onboard btn) */
+  .superordinate-tree .chat-container > .btn-icon-action.chat-list-action-btn:not(.sup-onboard-btn) {
+    right: 4px;
+  }
+
+  /* Inner slot: Onboard button — sits immediately to the left of Close */
+  .superordinate-tree .chat-container > .sup-onboard-btn {
+    right: 30px;
+  }
+
+  /* Soft fade behind the buttons so the chat name doesn't visually
+     collide with the icons when both occupy the same horizontal band. */
+  .superordinate-tree .chat-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 70px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--color-panel, var(--color-bg, rgba(0,0,0,0.0))) 70%
+    );
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .superordinate-tree .chat-container:hover::after,
+  .superordinate-tree .chat-container.chat-selected::after {
+    opacity: 1;
+  }
 
   .tree-toggle-indicator {
     cursor: pointer;
