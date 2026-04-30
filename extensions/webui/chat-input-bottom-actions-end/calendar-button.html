@@ -634,21 +634,8 @@
           const marginValue = getComputedStyle(anchor).getPropertyValue("--a0-calendar-panel-margin").trim();
           const margin = Number.parseFloat(marginValue) || 8;
 
-          const baseHeight = Math.round(Math.min(220, Math.max(140, viewportHeight * 0.18)));
-          const viewportBottomGap = Math.max(2, Math.round(margin * 0.35));
-          const minimumLift = baseHeight + Math.round(margin * 0.5);
-          const fillLift = Math.max(
-            minimumLift,
-            Math.round(buttonRect.bottom - viewportBottomGap)
-          );
-          const lift = Math.min(
-            Math.max(minimumLift, fillLift),
-            Math.max(minimumLift, viewportHeight - Math.round(margin * 2))
-          );
-          const desiredHeight = Math.max(
-            baseHeight,
-            Math.round(lift - Math.max(0, buttonRect.bottom - viewportHeight) - viewportBottomGap)
-          );
+          const desiredHeight = Math.round(Math.min(220, Math.max(140, viewportHeight * 0.18)));
+          const lift = desiredHeight + Math.round(margin * 0.5);
           const panelWidth = Math.max(280, Math.min(hostRect.width, window.innerWidth - (margin * 2)));
           const offsetLeft = Math.max(0, Math.round(buttonRect.left - hostRect.left));
 
