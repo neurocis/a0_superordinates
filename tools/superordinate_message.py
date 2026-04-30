@@ -50,10 +50,7 @@ class SuperordinateMessage(Tool):
         caller_ctxid = self.agent.context.id
         caller_name = self.agent.context.name or f"Chat {caller_ctxid[:6]}"
         callback_instruction = (
-            "
-
-[Instruction from framework]
-"
+            "\n\n[Instruction from framework]\n"
             "When you finish this task, send your result back to the calling agent "
             f"using superordinate_message with superordinate_id='{caller_ctxid}' and include your "
             "final result in that message. "
