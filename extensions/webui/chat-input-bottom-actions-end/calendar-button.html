@@ -364,6 +364,40 @@
     return "";
   }
 
+  function selectedContextDisplayName() {
+    try {
+      const chats = window.Alpine?.store?.("chats");
+      const selectedId = selectedContextId();
+      const candidates = [];
+
+      if (chats?.getSelectedChat) candidates.push(chats.getSelectedChat());
+      if (chats?.selectedChat) candidates.push(chats.selectedChat);
+      if (chats?.currentChat) candidates.push(chats.currentChat);
+      if (chats?.activeChat) candidates.push(chats.activeChat);
+
+      const collections = [chats?.chats, chats?.items, chats?.list, chats?.contexts];
+      for (const collection of collections) {
+        if (Array.isArray(collection)) {
+          candidates.push(collection.find((chat) => {
+            const id = chat?.id || chat?.ctxid || chat?.context_id || chat?.contextId;
+            return selectedId && id === selectedId;
+          }));
+        } else if (collection && typeof collection === "object") {
+          candidates.push(collection[selectedId]);
+        }
+      }
+
+      for (const chat of candidates) {
+        if (!chat || typeof chat !== "object") continue;
+        for (const key of ["static_name", "staticName", "name", "title", "agent_name", "agentName", "label"]) {
+          const value = chat[key];
+          if (typeof value === "string" && value.trim() && value.trim() !== selectedId) return value.trim();
+        }
+      }
+    } catch (_e) {}
+    return "";
+  }
+
   function registerAgentCalendarStore() {
     if (!window.Alpine) return;
     try {
@@ -404,7 +438,9 @@
       },
 
       agentDisplayName() {
-        return String(this.agentName || "").trim() || String(this.ctxid || "").trim() || "Agent";
+        const name = String(this.agentName || "").trim();
+        const ctxid = String(this.ctxid || "").trim();
+        return name && name !== ctxid ? name : "Agent";
       },
 
       async toggleCalendar() {
@@ -420,6 +456,8 @@
         const nextCtxid = selectedContextId();
         if (nextCtxid !== this.ctxid) this.agentName = "";
         this.ctxid = nextCtxid;
+        const selectedName = selectedContextDisplayName();
+        if (selectedName && selectedName !== this.ctxid) this.agentName = selectedName;
         await this.refresh();
       },
 
@@ -455,7 +493,8 @@
           return;
         }
         this.ctxid = result.ctxid || this.ctxid;
-        this.agentName = result.agent_name || this.agentName || "";
+        const resultAgentName = String(result.agent_name || "").trim();
+        if (resultAgentName && resultAgentName !== this.ctxid) this.agentName = resultAgentName;
         this.calendarDir = result.calendar_dir || "";
         this.files = Array.isArray(result.files) ? result.files : [];
         this.subscriptions = Array.isArray(result.subscriptions) ? result.subscriptions : [];
