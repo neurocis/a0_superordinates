@@ -163,13 +163,20 @@
       grid-template-columns: 1fr;
     }
   }
+
+
+  .a0-agent-calendar-toggle-open {
+    position: relative;
+    z-index: 10001;
+  }
 </style>
 
 <button
   type="button"
   class="text-button"
+  :class="$store.agentCalendar?.visible ? 'a0-agent-calendar-toggle-open' : ''"
   title="Calendar"
-  @click.prevent.stop="$store.agentCalendar.openCalendar()"
+  @click.prevent.stop="$store.agentCalendar.toggleCalendar()"
 >
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -335,6 +342,14 @@
       newSubscriptionName: "",
       newSubscriptionUrl: "",
 
+
+      async toggleCalendar() {
+        if (this.visible) {
+          this.closeCalendar();
+          return;
+        }
+        await this.openCalendar();
+      },
       async openCalendar() {
         this.visible = true;
         this.ctxid = selectedContextId();
