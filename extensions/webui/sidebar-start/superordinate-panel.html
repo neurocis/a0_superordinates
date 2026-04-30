@@ -48,10 +48,10 @@
                       :class="{ 'sup-static-name': node._staticName }"
                       :title="node._staticName ? 'StaticName enabled: renaming disabled' : ''"
                       x-text="node.name ? node.name : 'Chat #' + node.no"
-                      @click.stop="$store.superordinates.handleNameClick(node.id, node.name || ('Chat #' + node.no), $event)"
-                      @dblclick.stop="$store.superordinates.handleNameDblClick(node.id, $event)"></span>
+                      @click.stop="node._staticName ? $store.chats.selectChat(node.id) : $store.superordinates.handleNameClick(node.id, node.name || ('Chat #' + node.no), $event)"
+                      @dblclick.stop="node._staticName ? $store.chats.selectChat(node.id) : $store.superordinates.handleNameDblClick(node.id, $event)"></span>
                   </template>
-                  <template x-if="$store.superordinates.renamingId === node.id">
+                  <template x-if="$store.superordinates.renamingId === node.id && !node._staticName">
                     <input type="text" class="sup-rename-input"
                       x-model="$store.superordinates.renamingValue"
                       @keydown.enter.stop="$store.superordinates.commitRename()"

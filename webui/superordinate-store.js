@@ -178,9 +178,26 @@ const model = {
     return !!this.getParent(ctxid);
   },
 
+  _parseBool(value, defaultValue = false) {
+    if (value === undefined || value === null) return defaultValue;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const lowered = value.trim().toLowerCase();
+      if (['1', 'true', 'yes', 'y', 'on'].includes(lowered)) return true;
+      if (['0', 'false', 'no', 'n', 'off', ''].includes(lowered)) return false;
+    }
+    return defaultValue;
+  },
+
   // Hidden per-agent rename lock. Defaults false.
   isStaticName(ctxid) {
-    return this.hierarchyMap[ctxid]?.StaticName === true || this.hierarchyMap[ctxid]?.static_name === true;
+    const entry = this.hierarchyMap[ctxid] || {};
+    return this._parseBool(entry.StaticName ?? entry.static_name, false);
+  },
+
+  canRename(ctxid) {
+    return !this.isStaticName(ctxid);
   },
 
   // Is this node expanded?
@@ -289,7 +306,9 @@ const model = {
    */
   handleNameClick(id, currentName, event) {
     if (event) event.stopPropagation();
-    if (this.isStaticName(id)) {
+    if (!this.canRename(id)) {
+      this._lastNameClick = null;
+      if (this._nameClickTimer) { clearTimeout(this._nameClickTimer); this._nameClickTimer = null; }
       Alpine.store('chats')?.selectChat(id);
       return;
     }
@@ -328,12 +347,16 @@ const model = {
     // Cancel pending rename detection
     this._lastNameClick = null;
     if (this._nameClickTimer) { clearTimeout(this._nameClickTimer); this._nameClickTimer = null; }
+    if (!this.canRename(id)) {
+      Alpine.store('chats')?.selectChat(id);
+      return;
+    }
     // Toggle expand/collapse
     this.toggleExpand(id);
   },
 
   startRename(id, currentName) {
-    if (this.isStaticName(id)) return;
+    if (!this.canRename(id)) return;
     this.renamingId = id;
     this.renamingValue = currentName || '';
     // Focus the input on next tick
@@ -354,7 +377,7 @@ const model = {
     this.renamingId = null;
 
     if (!id || !newName) return;
-    if (this.isStaticName(id)) return;
+    if (!this.canRename(id)) return;
 
     try {
       await callJsonApi('plugins/a0_superordinates/superordinate_rename', {
