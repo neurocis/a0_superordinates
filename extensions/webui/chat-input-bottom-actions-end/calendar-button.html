@@ -319,6 +319,13 @@
     margin-bottom: 0.6rem;
   }
 
+  .a0-agent-calendar-caldav-title-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
   .a0-agent-calendar-caldav-title {
     display: inline-flex;
     align-items: center;
@@ -550,12 +557,21 @@
 
           <div class="a0-agent-calendar-section">
             <div class="a0-agent-calendar-caldav-header-row">
-              <div class="a0-agent-calendar-caldav-title">
-                <span class="a0-agent-calendar-caldav-status"
-                      :class="$store.agentCalendar.caldavStatusClass()"
-                      :title="$store.agentCalendar.caldavStatusTitle()"
-                      x-text="$store.agentCalendar.caldavStatusGlyph()"></span>
-                <h3 class="a0-agent-calendar-section-header">CalDAV Account</h3>
+              <div class="a0-agent-calendar-caldav-title-wrap">
+                <div class="a0-agent-calendar-caldav-title">
+                  <span class="a0-agent-calendar-caldav-status"
+                        :class="$store.agentCalendar.caldavStatusClass()"
+                        :title="$store.agentCalendar.caldavStatusTitle()"
+                        x-text="$store.agentCalendar.caldavStatusGlyph()"></span>
+                  <h3 class="a0-agent-calendar-section-header">CalDAV Account</h3>
+                </div>
+                <button type="button"
+                        class="a0-agent-calendar-small-button"
+                        :disabled="$store.agentCalendar.loading || !$store.agentCalendar.caldavAccount || !$store.agentCalendar.caldavAccount.selected_collection_url"
+                        title="Sync local ICS files with the selected CalDAV collection by latest modified date"
+                        @click="$store.agentCalendar.syncCaldavIcsFiles()">
+                  Sync ICS Files
+                </button>
               </div>
               <div class="a0-agent-calendar-caldav-web-row">
                 <button type="button"
@@ -1773,6 +1789,45 @@
       cancelEditCaldavAccount() {
         this.newCaldav = this._emptyCaldavForm();
         this.editingCaldavAccount = false;
+      },
+
+      async syncCaldavIcsFiles() {
+        if (!this.caldavAccount) {
+          this.error = "Configure a CalDAV account before syncing ICS files.";
+          return;
+        }
+        if (!this.caldavAccount.selected_collection_url) {
+          this.error = "Select a CalDAV collection before syncing ICS files.";
+          return;
+        }
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "sync_caldav_ics_files",
+            ctxid: this.ctxid || selectedContextId(),
+          });
+          this.applyResult(result);
+          const sync = result?.sync || {};
+          if (sync.ok === false || result?.ok === false) {
+            this.error = result?.error || (Array.isArray(sync.errors) ? sync.errors.join("; ") : "CalDAV/ICS sync failed.");
+          } else {
+            this.error = "";
+          }
+          if (this.selectedSource === "caldav" && this.selectedCaldavAccountId) {
+            await this.refreshCaldavEvents();
+          }
+          if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to sync CalDAV and local ICS files", error);
+          if (this.caldavAccount) {
+            this.caldavAccount = { ...this.caldavAccount, status: "error" };
+            this.caldavAccounts = [this.caldavAccount];
+          }
+          this.error = String(error?.message || error || "Failed to sync CalDAV and local ICS files");
+        } finally {
+          this.loading = false;
+        }
       },
 
       async addCaldavAccount() {

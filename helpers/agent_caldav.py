@@ -25,7 +25,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 import uuid
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -500,7 +504,7 @@ def get_caldav_event(ctxid: str, account_id: str | None = None, href: str = "") 
     if not clean_href:
         raise ValueError("href is required")
     cal_obj = _calendar_object(account)
-    ev = cal_obj.event_by_url(clean_href)
+    ev = _caldav_object_by_href(cal_obj, clean_href)
     return {
         "ok": True,
         "href": str(getattr(ev, "url", "") or clean_href),
@@ -523,6 +527,341 @@ def _wrap_in_vcalendar(component_block: str) -> str:
     )
 
 
+def _parse_ics_modified_datetime(value: str) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    if raw.endswith("Z"):
+        raw = raw[:-1]
+    for fmt in ("%Y%m%dT%H%M%S", "%Y%m%dT%H%M", "%Y%m%d"):
+        try:
+            parsed = datetime.strptime(raw[: len(datetime.now().strftime(fmt))], fmt)
+            return parsed.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+    return None
+
+
+def _component_modified_datetime(lines: list[str]) -> datetime | None:
+    cal = _calendar_helpers()
+    # LAST-MODIFIED is the closest iCalendar equivalent to the requested sync key.
+    # DTSTAMP and CREATED are fallbacks for imported components that lack it.
+    for prop in ("LAST-MODIFIED", "DTSTAMP", "CREATED"):
+        found = cal.property_from_event_lines(lines, prop)
+        if found:
+            parsed = _parse_ics_modified_datetime(found[1])
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def _remote_object_modified_datetime(ev, component_lines: list[str]) -> datetime | None:
+    for attr in ("last_modified", "lastmodified", "modified", "created"):
+        value = getattr(ev, attr, None)
+        if not value:
+            continue
+        if isinstance(value, datetime):
+            return value.astimezone(timezone.utc) if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        if isinstance(value, str):
+            parsed = _parse_ics_modified_datetime(value)
+            if parsed is not None:
+                return parsed
+            try:
+                parsed_mail = parsedate_to_datetime(value)
+                return parsed_mail.astimezone(timezone.utc) if parsed_mail.tzinfo else parsed_mail.replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
+    return _component_modified_datetime(component_lines)
+
+
+def _component_from_ics_text(text: str) -> dict[str, Any] | None:
+    cal = _calendar_helpers()
+    normalized = cal.normalize_ics_content(text)
+    coerced, dropped = cal.enforce_single_component_text(normalized)
+    if dropped:
+        normalized = coerced
+    _skeleton, components = cal.split_calendar_component_blocks(normalized)
+    if not components:
+        return None
+    kind, uid, lines = components[0]
+    summary_prop = cal.property_from_event_lines(lines, "SUMMARY")
+    summary = cal.unescape_ics_text(summary_prop[1]) if summary_prop else ""
+    modified = _component_modified_datetime(lines)
+    return {
+        "kind": kind,
+        "uid": str(uid or "").strip(),
+        "summary": summary,
+        "lines": lines,
+        "ics": normalized,
+        "modified": modified,
+    }
+
+
+def _filename_for_component(uid: str, summary: str = "") -> str:
+    cal = _calendar_helpers()
+    label = re.sub(r"[^A-Za-z0-9_. -]+", "_", str(summary or "")).strip(" ._")
+    if len(label) > 48:
+        label = label[:48].strip(" ._")
+    suffix = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(uid or uuid.uuid4().hex)).strip("._-")[:40]
+    base = f"{label}-{suffix}" if label and suffix else (suffix or "caldav-item")
+    return cal.sanitize_calendar_filename(base)
+
+
+def _unique_local_sync_path(calendar_dir: Path, preferred_name: str, existing_path: Path | None = None) -> Path:
+    cal = _calendar_helpers()
+    safe = cal.sanitize_calendar_filename(preferred_name)
+    stem = Path(safe).stem
+    suffix = Path(safe).suffix or ".ics"
+    candidate = calendar_dir / safe
+    if existing_path is not None and candidate.resolve() == existing_path.resolve():
+        return candidate
+    if not candidate.exists():
+        return candidate
+    for idx in range(2, 1000):
+        candidate = calendar_dir / cal.sanitize_calendar_filename(f"{stem}-{idx}{suffix}")
+        if existing_path is not None and candidate.resolve() == existing_path.resolve():
+            return candidate
+        if not candidate.exists():
+            return candidate
+    raise ValueError("could not allocate local ICS filename for synced CalDAV item")
+
+
+def _write_local_ics(path: Path, text: str, modified: datetime | None = None) -> None:
+    cal = _calendar_helpers()
+    final_text, dropped = cal.enforce_single_component_text(cal.normalize_ics_content(text))
+    if dropped:
+        raise ValueError("synced CalDAV object contains multiple top-level components")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(path.parent), delete=False) as tmp:
+        tmp.write(final_text)
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(path)
+    if modified is not None:
+        ts = modified.timestamp()
+        os.utime(path, (ts, ts))
+
+
+def _local_sync_items(ctxid: str) -> dict[str, dict[str, Any]]:
+    cal = _calendar_helpers()
+    calendar_dir = cal.context_calendar_dir(ctxid, create=True)
+    out: dict[str, dict[str, Any]] = {}
+    for path in cal.local_ics_file_paths(ctxid):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+            component = _component_from_ics_text(text)
+            if not component or not component.get("uid"):
+                continue
+            stat = path.stat()
+            modified = datetime.fromtimestamp(stat.st_mtime, timezone.utc)
+            uid = str(component["uid"])
+            existing = out.get(uid)
+            if existing and existing.get("modified") and existing["modified"] >= modified:
+                continue
+            out[uid] = {
+                "uid": uid,
+                "kind": component["kind"],
+                "summary": component.get("summary") or "",
+                "path": path,
+                "filename": path.name,
+                "ics": cal.normalize_ics_content(text),
+                "modified": modified,
+            }
+        except Exception as exc:
+            log.warning("caldav sync: skipping local ICS %s: %s", path, exc)
+            continue
+    return out
+
+
+def _remote_sync_items(cal_obj) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    objects: list[Any] = []
+    try:
+        objects.extend(list(cal_obj.events()))
+    except Exception as exc:
+        log.warning("caldav sync: event listing failed: %s", exc)
+    try:
+        objects.extend(list(cal_obj.todos(include_completed=True)))
+    except Exception as exc:
+        log.warning("caldav sync: todo listing failed: %s", exc)
+    for ev in objects:
+        try:
+            text = str(getattr(ev, "data", "") or "")
+            component = _component_from_ics_text(text)
+            if not component or not component.get("uid"):
+                continue
+            modified = _remote_object_modified_datetime(ev, component["lines"]) or datetime.fromtimestamp(0, timezone.utc)
+            uid = str(component["uid"])
+            existing = out.get(uid)
+            if existing and existing.get("modified") and existing["modified"] >= modified:
+                continue
+            out[uid] = {
+                "uid": uid,
+                "kind": component["kind"],
+                "summary": component.get("summary") or "",
+                "href": str(getattr(ev, "url", "") or ""),
+                "etag": str(getattr(ev, "etag", "") or ""),
+                "ics": component["ics"],
+                "modified": modified,
+            }
+        except Exception as exc:
+            log.warning("caldav sync: skipping remote object: %s", exc)
+            continue
+    return out
+
+
+def sync_caldav_ics_files(ctxid: str, account_id: str | None = None) -> dict[str, Any]:
+    """Bidirectionally sync selected CalDAV collection and local one-component ICS files.
+
+    Components are matched by UID.  When a UID exists on both sides, the side with
+    the later modified timestamp wins: local file mtime for local ICS files and
+    CalDAV object LAST-MODIFIED/DTSTAMP/CREATED (or object metadata when exposed)
+    for remote objects.  Missing local items are downloaded; missing remote items
+    are uploaded.
+    """
+    cal = _calendar_helpers()
+    clean_ctxid = cal.validate_context_id(ctxid)
+    registry, account = _find_account(clean_ctxid, account_id)
+    actions: list[dict[str, Any]] = []
+    errors: list[str] = []
+    uploaded = downloaded = skipped = 0
+    calendar_dir = cal.context_calendar_dir(clean_ctxid, create=True)
+
+    try:
+        cal_obj = _calendar_object(account)
+        local_items = _local_sync_items(clean_ctxid)
+        remote_items = _remote_sync_items(cal_obj)
+        all_uids = sorted(set(local_items) | set(remote_items))
+
+        for uid in all_uids:
+            local = local_items.get(uid)
+            remote = remote_items.get(uid)
+            try:
+                if local and remote:
+                    local_modified = local["modified"]
+                    remote_modified = remote["modified"]
+                    delta = local_modified.timestamp() - remote_modified.timestamp()
+                    if abs(delta) <= 1:
+                        skipped += 1
+                        actions.append({"uid": uid, "action": "skipped", "reason": "same modified date"})
+                        continue
+                    if delta > 0:
+                        result = upsert_caldav_event(clean_ctxid, str(account.get("id") or ""), {"ics": local["ics"]}, href=remote.get("href") or "")
+                        uploaded += 1
+                        actions.append({
+                            "uid": uid,
+                            "action": "uploaded",
+                            "filename": local["filename"],
+                            "href": result.get("href") or remote.get("href") or "",
+                            "local_modified": local_modified.isoformat().replace("+00:00", "Z"),
+                            "remote_modified": remote_modified.isoformat().replace("+00:00", "Z"),
+                        })
+                    else:
+                        _write_local_ics(local["path"], remote["ics"], remote_modified)
+                        downloaded += 1
+                        actions.append({
+                            "uid": uid,
+                            "action": "downloaded",
+                            "filename": local["filename"],
+                            "href": remote.get("href") or "",
+                            "local_modified": local_modified.isoformat().replace("+00:00", "Z"),
+                            "remote_modified": remote_modified.isoformat().replace("+00:00", "Z"),
+                        })
+                    continue
+
+                if local and not remote:
+                    result = upsert_caldav_event(clean_ctxid, str(account.get("id") or ""), {"ics": local["ics"]}, href="")
+                    uploaded += 1
+                    actions.append({
+                        "uid": uid,
+                        "action": "uploaded",
+                        "filename": local["filename"],
+                        "href": result.get("href") or "",
+                        "reason": "missing on CalDAV",
+                    })
+                    continue
+
+                if remote and not local:
+                    filename = _filename_for_component(uid, remote.get("summary") or "")
+                    path = _unique_local_sync_path(calendar_dir, filename)
+                    _write_local_ics(path, remote["ics"], remote["modified"])
+                    downloaded += 1
+                    actions.append({
+                        "uid": uid,
+                        "action": "downloaded",
+                        "filename": path.name,
+                        "href": remote.get("href") or "",
+                        "reason": "missing locally",
+                    })
+                    continue
+            except Exception as exc:
+                errors.append(f"{uid}: {exc}")
+                actions.append({"uid": uid, "action": "error", "error": str(exc)})
+
+        account["status"] = "ok" if not errors else "error"
+        account["last_error"] = "; ".join(errors)[:1000]
+        account["last_verified"] = cal.iso_now()
+        _save_with_indicator(clean_ctxid, registry)
+        payload = cal.list_calendar_stack(clean_ctxid)
+        payload["ok"] = not errors
+        payload["sync"] = {
+            "ok": not errors,
+            "uploaded": uploaded,
+            "downloaded": downloaded,
+            "skipped": skipped,
+            "errors": errors,
+            "actions": actions,
+        }
+        if errors:
+            payload["error"] = "; ".join(errors)
+        return payload
+    except Exception as exc:
+        account["status"] = "error"
+        account["last_error"] = str(exc)
+        save_caldav_registry(clean_ctxid, registry)
+        payload = cal.list_calendar_stack(clean_ctxid)
+        payload["ok"] = False
+        payload["error"] = str(exc)
+        payload["sync"] = {
+            "ok": False,
+            "uploaded": uploaded,
+            "downloaded": downloaded,
+            "skipped": skipped,
+            "errors": [str(exc)],
+            "actions": actions,
+        }
+        return payload
+
+
+def _caldav_object_by_href(cal_obj, href: str, kind: str = ""):
+    """Return a CalDAV object by URL using event/todo-capable library methods.
+
+    The caldav package exposes event_by_url() broadly; some versions/providers
+    also expose todo_by_url(), object_by_url(), or calendar_object_by_url().
+    Try the component-specific method first, then fall back defensively.
+    """
+    clean_href = str(href or "").strip()
+    if not clean_href:
+        raise ValueError("href is required")
+    normalized_kind = str(kind or "").upper()
+    if normalized_kind == "VTODO":
+        method_names = ["todo_by_url", "event_by_url", "object_by_url", "calendar_object_by_url"]
+    else:
+        method_names = ["event_by_url", "todo_by_url", "object_by_url", "calendar_object_by_url"]
+    last_error: Exception | None = None
+    for method_name in method_names:
+        method = getattr(cal_obj, method_name, None)
+        if not callable(method):
+            continue
+        try:
+            return method(clean_href)
+        except Exception as exc:
+            last_error = exc
+            continue
+    if last_error is not None:
+        raise last_error
+    raise AttributeError("CalDAV calendar object does not support URL lookup")
+
+
 def _build_ics_from_payload(payload: dict[str, Any]) -> str:
     cal = _calendar_helpers()
     raw = str(payload.get("ics") or "").strip()
@@ -532,10 +871,10 @@ def _build_ics_from_payload(payload: dict[str, Any]) -> str:
     event = payload.get("event") if isinstance(payload.get("event"), dict) else None
     todo = payload.get("todo") if isinstance(payload.get("todo"), dict) else None
     if event:
-        block, _uid = cal.build_vevent(event, existing_lines=None)
+        _uid, block = cal.build_vevent(event, existing_lines=None)
         return _wrap_in_vcalendar(block)
     if todo:
-        block, _uid = cal.build_vtodo(todo, existing_lines=None)
+        _uid, block = cal.build_vtodo(todo, existing_lines=None)
         return _wrap_in_vcalendar(block)
     raise ValueError("upsert payload must include one of: ics, event, todo")
 
@@ -551,11 +890,13 @@ def upsert_caldav_event(
     _registry, account = _find_account(ctxid, account_id)
     payload = payload or {}
     ics_text = _build_ics_from_payload(payload)
+    component = _component_from_ics_text(ics_text) or {}
+    component_kind = str(component.get("kind") or "VEVENT").upper()
     cal_obj = _calendar_object(account)
     clean_href = str(href or "").strip()
     if clean_href:
         try:
-            existing = cal_obj.event_by_url(clean_href)
+            existing = _caldav_object_by_href(cal_obj, clean_href, component_kind)
             existing.data = ics_text
             existing.save()
             return {
@@ -566,7 +907,10 @@ def upsert_caldav_event(
             }
         except Exception as exc:
             log.warning("caldav: update via href failed (%s); falling back to create", exc)
-    ev = cal_obj.save_event(ics_text)
+    if component_kind == "VTODO" and callable(getattr(cal_obj, "save_todo", None)):
+        ev = cal_obj.save_todo(ics_text)
+    else:
+        ev = cal_obj.save_event(ics_text)
     return {
         "ok": True,
         "href": str(getattr(ev, "url", "") or ""),
@@ -583,6 +927,6 @@ def delete_caldav_event(ctxid: str, account_id: str | None = None, href: str = "
     if not clean_href:
         raise ValueError("href is required")
     cal_obj = _calendar_object(account)
-    ev = cal_obj.event_by_url(clean_href)
+    ev = _caldav_object_by_href(cal_obj, clean_href)
     ev.delete()
     return {"ok": True, "href": clean_href}

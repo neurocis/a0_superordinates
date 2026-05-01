@@ -76,6 +76,7 @@ from usr.plugins.a0_superordinates.helpers.agent_caldav import (
     list_caldav_events,
     remove_caldav_account,
     select_caldav_collection,
+    sync_caldav_ics_files,
     test_caldav_account,
     upsert_caldav_event,
 )
@@ -226,6 +227,12 @@ class AgentCalendar(ApiHandler):
                 payload = list_calendar_stack(ctxid)
                 payload["selected"] = selected
                 return payload
+
+            if action == "sync_caldav_ics_files":
+                return sync_caldav_ics_files(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
+                )
 
             # ----- CalDAV event CRUD -----
             if action == "list_caldav_events":
