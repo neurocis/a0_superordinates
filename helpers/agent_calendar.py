@@ -340,15 +340,23 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     stat = path.stat()
     components = count_ics_components(path)
     summary = ""
-    event_uid = ""
+    component_uid = ""
     is_recurring = False
+    component_kind = ""
     try:
         text = path.read_text(encoding="utf-8", errors="ignore")
         events = list_ics_events_from_text(text)
+        todos = list_ics_todos_from_text(text)
+        head: dict[str, Any] | None = None
         if events:
             head = events[0] or {}
+            component_kind = "event"
+        elif todos:
+            head = todos[0] or {}
+            component_kind = "todo"
+        if head is not None:
             summary = str(head.get("summary") or "").strip()
-            event_uid = str(head.get("uid") or "").strip()
+            component_uid = str(head.get("uid") or "").strip()
             is_recurring = bool(head.get("is_recurring"))
     except Exception:
         pass
@@ -358,8 +366,13 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
         "relative_path": path.relative_to(base_dir).as_posix(),
         "size": stat.st_size,
         "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat().replace("+00:00", "Z"),
-        "event_summary": summary,
-        "event_uid": event_uid,
+        "component_kind": component_kind,
+        "summary": summary,
+        "uid": component_uid,
+        "event_summary": summary if component_kind == "event" else "",
+        "event_uid": component_uid if component_kind == "event" else "",
+        "todo_summary": summary if component_kind == "todo" else "",
+        "todo_uid": component_uid if component_kind == "todo" else "",
         "is_recurring": is_recurring,
         **components,
     }
@@ -515,14 +528,20 @@ def read_calendar_file(ctxid: str, filename: str) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8", errors="replace")
     has_calendar = persist_calendar_indicator(ctxid)
     events = list_ics_events_from_text(text)
+    todos = list_ics_todos_from_text(text)
     event = events[0] if events else None
+    todo = todos[0] if todos else None
+    component_kind = "event" if event else ("todo" if todo else "")
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "file": file_info(path, calendar_dir),
         "content": text,
         "events": events,
+        "todos": todos,
         "event": event,
+        "todo": todo,
+        "component_kind": component_kind,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }
@@ -531,15 +550,11 @@ def read_calendar_file(ctxid: str, filename: str) -> dict[str, Any]:
 def save_calendar_file(ctxid: str, filename: str, content: str) -> dict[str, Any]:
     path, calendar_dir = calendar_file_path(ctxid, filename)
     text = normalize_ics_content(content)
-    # Enforce single-VEVENT-per-file model.
-    coerced, dropped = enforce_single_vevent_text(text)
+    coerced, dropped = enforce_single_component_text(text)
     if dropped:
-        # Be strict about raw editor content so the user does not silently lose
-        # extra events on save.  upsert/create paths already produce single-VEVENT
-        # output and never trip this guard.
         raise ValueError(
-            "this calendar file may contain at most one VEVENT; "
-            f"found {dropped + 1} events. Split them into separate .ics files."
+            "this calendar file may contain at most one VEVENT or VTODO; "
+            f"found {dropped + 1} components. Split them into separate .ics files."
         )
     final_text = coerced
     with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
@@ -548,14 +563,20 @@ def save_calendar_file(ctxid: str, filename: str, content: str) -> dict[str, Any
     tmp_path.replace(path)
     has_calendar = persist_calendar_indicator(ctxid)
     events = list_ics_events_from_text(final_text)
+    todos = list_ics_todos_from_text(final_text)
     event = events[0] if events else None
+    todo = todos[0] if todos else None
+    component_kind = "event" if event else ("todo" if todo else "")
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "file": file_info(path, calendar_dir),
         "content": final_text,
         "events": events,
+        "todos": todos,
         "event": event,
+        "todo": todo,
+        "component_kind": component_kind,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }
@@ -1004,6 +1025,235 @@ def build_vevent(event: dict[str, Any], existing_lines: list[str] | None = None)
         folded.extend(fold_ics_line(line))
     return uid, "\r\n".join(folded)
 
+def parse_todo_status(value: str) -> str:
+    clean = str(value or "").strip().upper()
+    valid = {"NEEDS-ACTION", "IN-PROCESS", "COMPLETED", "CANCELLED"}
+    if clean in valid:
+        return clean
+    return ""
+
+
+def list_ics_todos_from_text(text: str) -> list[dict[str, Any]]:
+    """Parse VTODO components from raw ICS text into UI-friendly dicts."""
+    lines = unfold_ics_lines(text)
+    todos: list[dict[str, Any]] = []
+    current: list[str] | None = None
+    for line in lines:
+        upper = line.upper()
+        if upper == "BEGIN:VTODO":
+            current = [line]
+            continue
+        if current is not None:
+            current.append(line)
+            if upper == "END:VTODO":
+                tlines = current
+                current = None
+                uid = property_from_event_lines(tlines, "UID")
+                summary = property_from_event_lines(tlines, "SUMMARY")
+                description = property_from_event_lines(tlines, "DESCRIPTION")
+                location = property_from_event_lines(tlines, "LOCATION")
+                dtstart = property_from_event_lines(tlines, "DTSTART")
+                due = property_from_event_lines(tlines, "DUE")
+                status = property_from_event_lines(tlines, "STATUS")
+                priority = property_from_event_lines(tlines, "PRIORITY")
+                percent = property_from_event_lines(tlines, "PERCENT-COMPLETE")
+                completed = property_from_event_lines(tlines, "COMPLETED")
+                start = parse_ics_datetime_for_ui(dtstart[1], dtstart[0]) if dtstart else {"date": "", "time": "", "all_day": False, "raw": ""}
+                due_p = parse_ics_datetime_for_ui(due[1], due[0]) if due else {"date": "", "time": "", "all_day": False, "raw": ""}
+                recurrence = recurrence_payload_from_event_lines(tlines)
+                todos.append({
+                    "uid": uid[1] if uid else "",
+                    "summary": unescape_ics_text(summary[1]) if summary else "(No title)",
+                    "description": unescape_ics_text(description[1]) if description else "",
+                    "location": unescape_ics_text(location[1]) if location else "",
+                    "start_date": start.get("date", ""),
+                    "start_time": start.get("time", ""),
+                    "due_date": due_p.get("date", ""),
+                    "due_time": due_p.get("time", ""),
+                    "all_day": bool(due_p.get("all_day") or start.get("all_day")),
+                    "dtstart": start.get("raw", ""),
+                    "due": due_p.get("raw", ""),
+                    "status": parse_todo_status(status[1]) if status else "",
+                    "priority": str(priority[1]).strip() if priority else "",
+                    "percent_complete": str(percent[1]).strip() if percent else "",
+                    "completed": completed[1] if completed else "",
+                    **recurrence,
+                })
+    return todos
+
+
+_EDITABLE_TODO_PROPERTIES = {
+    "UID",
+    "DTSTAMP",
+    "DTSTART",
+    "DUE",
+    "SUMMARY",
+    "LOCATION",
+    "DESCRIPTION",
+    "STATUS",
+    "PRIORITY",
+    "PERCENT-COMPLETE",
+    "COMPLETED",
+    "RRULE",
+    "RDATE",
+    "EXDATE",
+}
+
+
+def preserved_top_level_todo_lines(existing_lines: list[str] | None) -> list[str]:
+    if not existing_lines:
+        return []
+    preserved: list[str] = []
+    nested_depth = 0
+    for line in existing_lines:
+        upper = line.upper()
+        if upper in {"BEGIN:VTODO", "END:VTODO"}:
+            continue
+        name, _params, value = split_content_line(line)
+        if nested_depth > 0:
+            preserved.append(line)
+            if name == "BEGIN":
+                nested_depth += 1
+            elif name == "END":
+                nested_depth = max(0, nested_depth - 1)
+            continue
+        if name == "BEGIN" and value.upper() != "VTODO":
+            preserved.append(line)
+            nested_depth = 1
+            continue
+        if name in _EDITABLE_TODO_PROPERTIES:
+            continue
+        preserved.append(line)
+    return preserved
+
+
+def build_vtodo(todo: dict[str, Any], existing_lines: list[str] | None = None) -> tuple[str, str]:
+    uid = str(todo.get("uid") or "").strip() or uuid.uuid4().hex
+    summary = str(todo.get("summary") or "").strip() or "Untitled Todo"
+    description = str(todo.get("description") or "")
+    location = str(todo.get("location") or "")
+    all_day = bool(todo.get("all_day"))
+
+    lines = [
+        "BEGIN:VTODO",
+        f"UID:{uid}",
+        f"DTSTAMP:{ics_timestamp()}",
+    ]
+
+    start_date = str(todo.get("start_date") or "").strip()
+    if start_date:
+        start_time = str(todo.get("start_time") or "").strip() or "00:00"
+        sp, sv = format_ics_datetime(start_date, start_time, all_day)
+        lines.append(f"DTSTART{sp}:{sv}")
+
+    due_date = str(todo.get("due_date") or "").strip()
+    if due_date:
+        due_time = str(todo.get("due_time") or "").strip() or "00:00"
+        dp, dv = format_ics_datetime(due_date, due_time, all_day)
+        lines.append(f"DUE{dp}:{dv}")
+
+    lines.append(f"SUMMARY:{escape_ics_text(summary)}")
+    if location.strip():
+        lines.append(f"LOCATION:{escape_ics_text(location)}")
+    if description.strip():
+        lines.append(f"DESCRIPTION:{escape_ics_text(description)}")
+
+    status = parse_todo_status(str(todo.get("status") or ""))
+    if status:
+        lines.append(f"STATUS:{status}")
+
+    priority = str(todo.get("priority") or "").strip()
+    if priority:
+        try:
+            pi = int(priority)
+            if 0 <= pi <= 9:
+                lines.append(f"PRIORITY:{pi}")
+            else:
+                raise ValueError
+        except ValueError as exc:
+            raise ValueError("priority must be an integer between 0 and 9") from exc
+
+    percent = str(todo.get("percent_complete") or "").strip()
+    if percent:
+        try:
+            pc = int(percent)
+            if 0 <= pc <= 100:
+                lines.append(f"PERCENT-COMPLETE:{pc}")
+            else:
+                raise ValueError
+        except ValueError as exc:
+            raise ValueError("percent_complete must be an integer between 0 and 100") from exc
+
+    if existing_lines is not None and not event_has_recurrence_controls(todo):
+        rrule_values = property_values_from_event_lines(existing_lines, "RRULE")
+        rrule = rrule_values[0] if rrule_values else ""
+        rdate_lines = property_lines_from_event_lines(existing_lines, "RDATE")
+        exdate_lines = property_lines_from_event_lines(existing_lines, "EXDATE")
+    else:
+        rrule = build_rrule_from_event(todo)
+        rdate_lines = normalize_recurrence_property_lines(str(todo.get("rdate") or ""), "RDATE")
+        exdate_lines = normalize_recurrence_property_lines(str(todo.get("exdate") or ""), "EXDATE")
+    if rrule:
+        lines.append(f"RRULE:{rrule}")
+    lines.extend(rdate_lines)
+    lines.extend(exdate_lines)
+
+    lines.extend(preserved_top_level_todo_lines(existing_lines))
+    lines.append("END:VTODO")
+
+    folded: list[str] = []
+    for line in lines:
+        folded.extend(fold_ics_line(line))
+    return uid, "\r\n".join(folded)
+
+
+def split_calendar_component_blocks(text: str) -> tuple[list[str], list[tuple[str, str, list[str]]]]:
+    """Generic VEVENT/VTODO splitter.
+
+    Returns (skeleton, components) where components is a list of
+    (kind, uid, lines).  kind is 'VEVENT' or 'VTODO'.
+    """
+    lines = unfold_ics_lines(text)
+    skeleton: list[str] = []
+    components: list[tuple[str, str, list[str]]] = []
+    current: list[str] | None = None
+    current_kind = ""
+    for line in lines:
+        upper = line.upper()
+        if upper == "BEGIN:VEVENT":
+            current = [line]
+            current_kind = "VEVENT"
+            continue
+        if upper == "BEGIN:VTODO":
+            current = [line]
+            current_kind = "VTODO"
+            continue
+        if current is not None:
+            current.append(line)
+            if upper == f"END:{current_kind}":
+                uid_prop = property_from_event_lines(current, "UID")
+                components.append((current_kind, uid_prop[1] if uid_prop else "", current))
+                current = None
+                current_kind = ""
+            continue
+        skeleton.append(line)
+    return skeleton, components
+
+
+def enforce_single_component_text(text: str) -> tuple[str, int]:
+    """Keep at most the first VEVENT or VTODO component in the calendar.
+
+    Returns (calendar_text, dropped_count).  Dropped count counts every extra
+    VEVENT/VTODO beyond the first.
+    """
+    skeleton, components = split_calendar_component_blocks(text)
+    if len(components) <= 1:
+        return text, 0
+    _kind, _uid, first_lines = components[0]
+    first_block = "\r\n".join(first_lines)
+    return render_calendar_with_events(skeleton, [first_block]), len(components) - 1
+
+
 def split_calendar_event_blocks(text: str) -> tuple[list[str], list[tuple[str, list[str]]]]:
     lines = unfold_ics_lines(text)
     skeleton: list[str] = []
@@ -1026,18 +1276,13 @@ def split_calendar_event_blocks(text: str) -> tuple[list[str], list[tuple[str, l
 
 
 def enforce_single_vevent_text(text: str) -> tuple[str, int]:
-    """Return (calendar_text, dropped_count) keeping at most the first VEVENT.
+    """Backward-compatible wrapper around enforce_single_component_text.
 
-    Local .ics files now represent a single calendar event each.  This helper
-    is used to defensively coerce arbitrary ICS payloads (raw editor saves,
-    legacy multi-event files, imported content) down to that single-event model.
+    Local .ics files now hold a single VEVENT *or* a single VTODO.  Older
+    callers still ask about "single VEVENT" enforcement, so route them to the
+    generic component enforcer.
     """
-    skeleton, events = split_calendar_event_blocks(text)
-    if len(events) <= 1:
-        return text, 0
-    _first_uid, first_lines = events[0]
-    first_block = "\r\n".join(first_lines)
-    return render_calendar_with_events(skeleton, [first_block]), len(events) - 1
+    return enforce_single_component_text(text)
 
 
 def extract_single_event_summary(events: list[dict]) -> str:
@@ -1073,31 +1318,26 @@ def render_calendar_with_events(skeleton: list[str], event_blocks: list[str]) ->
 def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_uid: str | None = None) -> dict[str, Any]:
     path, calendar_dir = calendar_file_path(ctxid, filename)
     text = path.read_text(encoding="utf-8", errors="replace")
-    skeleton, existing = split_calendar_event_blocks(text)
+    skeleton, components = split_calendar_component_blocks(text)
 
-    # Single-event-per-file model: pick the existing event (if any) for
-    # recurrence/non-form metadata preservation, then replace it entirely.
     target_uid = str(old_uid or event.get("uid") or "").strip()
     existing_lines: list[str] | None = None
-    if existing:
-        # Prefer the matching UID, otherwise fall back to the first/only event.
-        for existing_uid, lines in existing:
-            if target_uid and existing_uid == target_uid:
+    for kind, comp_uid, lines in components:
+        if kind == "VEVENT" and target_uid and comp_uid == target_uid:
+            existing_lines = lines
+            break
+    if existing_lines is None:
+        for kind, _comp_uid, lines in components:
+            if kind == "VEVENT":
                 existing_lines = lines
                 break
-        if existing_lines is None:
-            existing_lines = existing[0][1]
 
     uid_value = str(event.get("uid") or "").strip() or uuid.uuid4().hex
     event_with_uid = {**event, "uid": uid_value}
     uid_value, block = build_vevent(event_with_uid, existing_lines=existing_lines)
 
     new_text = render_calendar_with_events(skeleton, [block])
-    new_text, dropped = enforce_single_vevent_text(new_text)
-    if dropped:
-        # render_calendar_with_events shouldn't emit extras since we pass one
-        # block, but defensively guarantee the single-event invariant.
-        pass
+    new_text, _dropped = enforce_single_component_text(new_text)
 
     with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
         tmp.write(new_text)
@@ -1105,15 +1345,22 @@ def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_
     tmp_path.replace(path)
     has_calendar = persist_calendar_indicator(ctxid)
     events = list_ics_events_from_text(new_text)
+    todos = list_ics_todos_from_text(new_text)
     event_payload = events[0] if events else None
+    todo_payload = todos[0] if todos else None
+    component_kind = "event" if event_payload else ("todo" if todo_payload else "")
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "file": file_info(path, calendar_dir),
         "content": new_text,
         "events": events,
+        "todos": todos,
         "event": event_payload,
+        "todo": todo_payload,
+        "component_kind": component_kind,
         "saved_event_uid": uid_value,
+        "saved_component_kind": "event",
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }
@@ -1122,20 +1369,19 @@ def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_
 def delete_calendar_event(ctxid: str, filename: str, uid: str | None = None) -> dict[str, Any]:
     path, calendar_dir = calendar_file_path(ctxid, filename)
     text = path.read_text(encoding="utf-8", errors="replace")
-    skeleton, existing = split_calendar_event_blocks(text)
-    if not existing:
+    skeleton, components = split_calendar_component_blocks(text)
+    if not components:
         raise ValueError("event not found")
 
     requested_uid = str(uid or "").strip()
     if requested_uid:
-        match = next((e for e in existing if e[0] == requested_uid), None)
+        match = next((c for c in components if c[1] == requested_uid), None)
         if match is None:
             raise ValueError("event not found")
-        deleted_uid = match[0]
+        deleted_kind, deleted_uid, _lines = match
     else:
-        deleted_uid = existing[0][0]
+        deleted_kind, deleted_uid, _lines = components[0]
 
-    # Single-event-per-file model: an empty .ics file represents "no event".
     new_text = render_calendar_with_events(skeleton, [])
 
     with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
@@ -1144,15 +1390,79 @@ def delete_calendar_event(ctxid: str, filename: str, uid: str | None = None) -> 
     tmp_path.replace(path)
     has_calendar = persist_calendar_indicator(ctxid)
     events = list_ics_events_from_text(new_text)
+    todos = list_ics_todos_from_text(new_text)
     event_payload = events[0] if events else None
+    todo_payload = todos[0] if todos else None
+    component_kind = "event" if event_payload else ("todo" if todo_payload else "")
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "file": file_info(path, calendar_dir),
         "content": new_text,
         "events": events,
+        "todos": todos,
         "event": event_payload,
+        "todo": todo_payload,
+        "component_kind": component_kind,
         "deleted_event_uid": deleted_uid,
+        "deleted_component_uid": deleted_uid,
+        "deleted_component_kind": "event" if deleted_kind == "VEVENT" else "todo",
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }
+
+def upsert_calendar_todo(ctxid: str, filename: str, todo: dict[str, Any], old_uid: str | None = None) -> dict[str, Any]:
+    path, calendar_dir = calendar_file_path(ctxid, filename)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    skeleton, components = split_calendar_component_blocks(text)
+
+    target_uid = str(old_uid or todo.get("uid") or "").strip()
+    existing_lines: list[str] | None = None
+    for kind, comp_uid, lines in components:
+        if kind == "VTODO" and target_uid and comp_uid == target_uid:
+            existing_lines = lines
+            break
+    if existing_lines is None:
+        for kind, _comp_uid, lines in components:
+            if kind == "VTODO":
+                existing_lines = lines
+                break
+
+    uid_value = str(todo.get("uid") or "").strip() or uuid.uuid4().hex
+    todo_with_uid = {**todo, "uid": uid_value}
+    uid_value, block = build_vtodo(todo_with_uid, existing_lines=existing_lines)
+
+    new_text = render_calendar_with_events(skeleton, [block])
+    new_text, _dropped = enforce_single_component_text(new_text)
+
+    with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
+        tmp.write(new_text)
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(path)
+    has_calendar = persist_calendar_indicator(ctxid)
+    events = list_ics_events_from_text(new_text)
+    todos = list_ics_todos_from_text(new_text)
+    event_payload = events[0] if events else None
+    todo_payload = todos[0] if todos else None
+    component_kind = "event" if event_payload else ("todo" if todo_payload else "")
+    return {
+        "ok": True,
+        "ctxid": validate_context_id(ctxid),
+        "file": file_info(path, calendar_dir),
+        "content": new_text,
+        "events": events,
+        "todos": todos,
+        "event": event_payload,
+        "todo": todo_payload,
+        "component_kind": component_kind,
+        "saved_todo_uid": uid_value,
+        "saved_component_kind": "todo",
+        "has_calendar": has_calendar,
+        "calendar_indicator": has_calendar,
+    }
+
+
+def delete_calendar_todo(ctxid: str, filename: str, uid: str | None = None) -> dict[str, Any]:
+    """Compatibility wrapper: clears the file's component (event or todo)."""
+    result = delete_calendar_event(ctxid, filename, uid)
+    return result

@@ -457,7 +457,9 @@
                       <span x-text="file.name"></span>
                     </div>
                     <div class="a0-agent-calendar-row-meta">
-                      <span x-text="file.event_summary || '(empty)'"></span>
+                      <span x-show="file.component_kind === 'event'">📅 </span>
+                      <span x-show="file.component_kind === 'todo'">☑ </span>
+                      <span x-text="(file.summary || file.event_summary || file.todo_summary) || '(empty)'"></span>
                       <template x-if="file.is_recurring">
                         <span> · Repeats</span>
                       </template>
@@ -516,6 +518,10 @@
                   Editing <span x-text="$store.agentCalendar.selectedFileName"></span>
                 </div>
                 <div class="a0-agent-calendar-actions">
+                  <select class="a0-agent-calendar-small-button" x-model="$store.agentCalendar.componentKind" @change="$store.agentCalendar.switchComponentKind()">
+                    <option value="event">Event (VEVENT)</option>
+                    <option value="todo">Todo (VTODO)</option>
+                  </select>
                   <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.rawEditorVisible = !$store.agentCalendar.rawEditorVisible">
                     <span x-text="$store.agentCalendar.rawEditorVisible ? 'Hide raw ICS' : 'Raw ICS'"></span>
                   </button>
@@ -526,10 +532,14 @@
               <div class="a0-agent-calendar-editor-grid a0-agent-calendar-editor-grid-single">
                 <div>
                   <div class="a0-agent-calendar-form-grid">
-                    <div class="a0-agent-calendar-form-field a0-agent-calendar-form-field-full">
-                      <label>Summary</label>
-                      <input type="text" x-model="$store.agentCalendar.eventForm.summary" placeholder="Event title">
-                    </div>
+                    <template x-if="$store.agentCalendar.componentKind === 'event'">
+                      <div class="a0-agent-calendar-form-field a0-agent-calendar-form-field-full">
+                        <label>Summary</label>
+                        <input type="text" x-model="$store.agentCalendar.eventForm.summary" placeholder="Event title">
+                      </div>
+                    </template>
+                    <template x-if="$store.agentCalendar.componentKind === 'event'">
+                      <div class="a0-agent-calendar-event-fields-rest">
                     <div class="a0-agent-calendar-form-field">
                       <label>Start date</label>
                       <input type="date" x-model="$store.agentCalendar.eventForm.start_date">
@@ -592,9 +602,75 @@
                       <label>Description</label>
                       <textarea rows="3" x-model="$store.agentCalendar.eventForm.description" placeholder="Optional details"></textarea>
                     </div>
+                      </div>
+                    </template>
+                    <template x-if="$store.agentCalendar.componentKind === 'todo'">
+                      <div class="a0-agent-calendar-todo-fields">
+                        <div class="a0-agent-calendar-form-field a0-agent-calendar-form-field-full">
+                          <label>Summary</label>
+                          <input type="text" x-model="$store.agentCalendar.todoForm.summary" placeholder="Todo title">
+                        </div>
+                        <div class="a0-agent-calendar-form-field">
+                          <label>Status</label>
+                          <select x-model="$store.agentCalendar.todoForm.status">
+                            <option value="">(none)</option>
+                            <option value="NEEDS-ACTION">Needs action</option>
+                            <option value="IN-PROCESS">In process</option>
+                            <option value="COMPLETED">Completed</option>
+                            <option value="CANCELLED">Cancelled</option>
+                          </select>
+                        </div>
+                        <div class="a0-agent-calendar-form-field">
+                          <label>Priority (0-9)</label>
+                          <input type="number" min="0" max="9" step="1" x-model="$store.agentCalendar.todoForm.priority" placeholder="Optional">
+                        </div>
+                        <div class="a0-agent-calendar-form-field">
+                          <label>% Complete</label>
+                          <input type="number" min="0" max="100" step="1" x-model="$store.agentCalendar.todoForm.percent_complete" placeholder="Optional">
+                        </div>
+                        <div class="a0-agent-calendar-form-field">
+                          <label>Start date</label>
+                          <input type="date" x-model="$store.agentCalendar.todoForm.start_date">
+                        </div>
+                        <div class="a0-agent-calendar-form-field">
+                          <label>Start time</label>
+                          <input type="time" x-model="$store.agentCalendar.todoForm.start_time" :disabled="$store.agentCalendar.todoForm.all_day">
+                        </div>
+                        <div class="a0-agent-calendar-form-field">
+                          <label>Due date</label>
+                          <input type="date" x-model="$store.agentCalendar.todoForm.due_date">
+                        </div>
+                        <div class="a0-agent-calendar-form-field">
+                          <label>Due time</label>
+                          <input type="time" x-model="$store.agentCalendar.todoForm.due_time" :disabled="$store.agentCalendar.todoForm.all_day">
+                        </div>
+                        <label class="a0-agent-calendar-form-check">
+                          <input type="checkbox" x-model="$store.agentCalendar.todoForm.all_day">
+                          <span>All day</span>
+                        </label>
+                        <div class="a0-agent-calendar-form-field">
+                          <label>Location</label>
+                          <input type="text" x-model="$store.agentCalendar.todoForm.location" placeholder="Optional">
+                        </div>
+                        <div class="a0-agent-calendar-form-field a0-agent-calendar-form-field-full">
+                          <label>Description</label>
+                          <textarea rows="3" x-model="$store.agentCalendar.todoForm.description" placeholder="Optional details"></textarea>
+                        </div>
+                      </div>
+                    </template>
                     <div class="a0-agent-calendar-form-actions">
-                      <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.saveEvent()">Save event</button>
-                      <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.eventForm.uid" @click="$store.agentCalendar.deleteEvent($store.agentCalendar.eventForm.uid)">Clear event</button>
+                      <template x-if="$store.agentCalendar.componentKind === 'event'">
+                        <span>
+                          <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.saveEvent()">Save event</button>
+                          <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.eventForm.uid" @click="$store.agentCalendar.deleteEvent($store.agentCalendar.eventForm.uid)">Clear event</button>
+                        </span>
+                      </template>
+                      <template x-if="$store.agentCalendar.componentKind === 'todo'">
+                        <span>
+                          <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.saveTodo()">Save todo</button>
+                          <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.todoForm.uid" @click="$store.agentCalendar.deleteTodo($store.agentCalendar.todoForm.uid)">Clear todo</button>
+                        </span>
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -683,7 +759,10 @@
       selectedEvents: [],
       rawEditorVisible: false,
       eventForm: {},
+      todoForm: {},
+      componentKind: "event",
       originalEventUid: "",
+      originalTodoUid: "",
       newSubscriptionName: "",
       newSubscriptionUrl: "",
       calendarTabWidth: "7rem",
@@ -1071,6 +1150,71 @@
         };
       },
 
+      defaultTodoForm() {
+        const today = this.todayIsoDate();
+        return {
+          uid: "",
+          summary: "",
+          description: "",
+          location: "",
+          start_date: "",
+          start_time: "09:00",
+          due_date: today,
+          due_time: "17:00",
+          all_day: false,
+          status: "NEEDS-ACTION",
+          priority: "",
+          percent_complete: "",
+          recurrence_frequency: "none",
+          recurrence_interval: "1",
+          recurrence_count: "",
+          recurrence_until: "",
+          rrule: "",
+          rdate: "",
+          exdate: "",
+        };
+      },
+
+      normalizeTodoForm(todo = {}) {
+        const today = this.todayIsoDate();
+        return {
+          uid: String(todo.uid || ""),
+          summary: String(todo.summary || ""),
+          description: String(todo.description || ""),
+          location: String(todo.location || ""),
+          start_date: String(todo.start_date || ""),
+          start_time: String(todo.start_time || "09:00").slice(0, 5),
+          due_date: String(todo.due_date || today),
+          due_time: String(todo.due_time || "17:00").slice(0, 5),
+          all_day: Boolean(todo.all_day),
+          status: String(todo.status || "NEEDS-ACTION"),
+          priority: String(todo.priority || ""),
+          percent_complete: String(todo.percent_complete || ""),
+          recurrence_frequency: String(todo.recurrence_frequency || "none"),
+          recurrence_interval: String(todo.recurrence_interval || "1"),
+          recurrence_count: String(todo.recurrence_count || ""),
+          recurrence_until: String(todo.recurrence_until || ""),
+          rrule: String(todo.rrule || ""),
+          rdate: String(todo.rdate || ""),
+          exdate: String(todo.exdate || ""),
+        };
+      },
+
+      switchComponentKind() {
+        // No persistence side effect: simply reset the inactive form so the
+        // user can fill the freshly-selected component type from scratch.  The
+        // backend rewrites the file on save based on the chosen action.
+        if (this.componentKind === "event") {
+          if (!this.eventForm || !Object.keys(this.eventForm).length) {
+            this.eventForm = this.defaultEventForm();
+          }
+        } else if (this.componentKind === "todo") {
+          if (!this.todoForm || !Object.keys(this.todoForm).length) {
+            this.todoForm = this.defaultTodoForm();
+          }
+        }
+      },
+
       buildSimpleRRule() {
         const form = this.eventForm || {};
         const frequency = String(form.recurrence_frequency || "none").toLowerCase();
@@ -1110,8 +1254,12 @@
         this.selectedFileName = this.selectedFile?.name || this.selectedFileName;
         this.selectedFileContent = result.content || "";
         const events = Array.isArray(result.events) ? result.events : [];
-        this.selectedEvents = events; // kept for backward compat with extensions
+        const todos = Array.isArray(result.todos) ? result.todos : [];
+        this.selectedEvents = events;
         const singleEvent = result.event || events[0] || null;
+        const singleTodo = result.todo || todos[0] || null;
+        const fileKind = String(result.component_kind || result.file?.component_kind || "").toLowerCase();
+
         if (singleEvent) {
           this.eventForm = this.normalizeEventForm(singleEvent);
           this.originalEventUid = String(singleEvent.uid || "");
@@ -1119,6 +1267,18 @@
           this.eventForm = this.defaultEventForm();
           this.originalEventUid = "";
         }
+        if (singleTodo) {
+          this.todoForm = this.normalizeTodoForm(singleTodo);
+          this.originalTodoUid = String(singleTodo.uid || "");
+        } else {
+          this.todoForm = this.defaultTodoForm();
+          this.originalTodoUid = "";
+        }
+
+        if (fileKind === "event") this.componentKind = "event";
+        else if (fileKind === "todo") this.componentKind = "todo";
+        // empty file: keep current selection
+
         this.notifyCalendarIndicatorChanged(result);
         this.error = "";
         if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
@@ -1293,6 +1453,58 @@
         } catch (error) {
           console.error("[Agent Calendar] Failed to save raw .ics file", error);
           this.error = String(error?.message || error || "Failed to save raw .ics file");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async saveTodo() {
+        if (!this.selectedFileName) {
+          this.error = "Open a local .ics file first.";
+          return;
+        }
+        if (!String(this.todoForm?.summary || "").trim()) {
+          this.error = "Summary is required.";
+          return;
+        }
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "upsert_todo",
+            ctxid: this.ctxid || selectedContextId(),
+            filename: this.selectedFileName,
+            old_uid: this.originalTodoUid,
+            todo: this.todoForm,
+          });
+          this.applyFileResult(result);
+          await this.refresh();
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to save todo", error);
+          this.error = String(error?.message || error || "Failed to save todo");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async deleteTodo(uid) {
+        const cleanUid = String(uid || "").trim();
+        if (!this.selectedFileName) return;
+        if (!window.confirm("Clear this todo from the .ics file?")) return;
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "delete_todo",
+            ctxid: this.ctxid || selectedContextId(),
+            filename: this.selectedFileName,
+            uid: cleanUid,
+          });
+          this.applyFileResult(result);
+          await this.refresh();
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to clear todo", error);
+          this.error = String(error?.message || error || "Failed to clear todo");
         } finally {
           this.loading = false;
         }

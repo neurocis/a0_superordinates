@@ -67,6 +67,9 @@ from usr.plugins.a0_superordinates.helpers.agent_calendar import (
     remove_subscription,
     save_calendar_file,
     upsert_calendar_event,
+    upsert_calendar_todo,
+    delete_calendar_todo,
+    upsert_calendar_event,
 )
 
 
@@ -123,6 +126,23 @@ class AgentCalendar(ApiHandler):
 
             if action == "delete_event":
                 return delete_calendar_event(
+                    ctxid=ctxid,
+                    filename=str(input.get("filename") or input.get("relative_path") or ""),
+                    uid=str(input.get("uid") or ""),
+                )
+
+            if action == "upsert_todo":
+                return upsert_calendar_todo(
+                    ctxid=ctxid,
+                    filename=str(input.get("filename") or input.get("relative_path") or ""),
+                    todo=input.get("todo") if isinstance(input.get("todo"), dict) else (
+                        input.get("event") if isinstance(input.get("event"), dict) else {}
+                    ),
+                    old_uid=input.get("old_uid"),
+                )
+
+            if action == "delete_todo":
+                return delete_calendar_todo(
                     ctxid=ctxid,
                     filename=str(input.get("filename") or input.get("relative_path") or ""),
                     uid=str(input.get("uid") or ""),
