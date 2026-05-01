@@ -1306,6 +1306,18 @@
         });
       },
 
+      mergeLocalFileIntoList(file) {
+        if (!file || !(file.name || file.relative_path)) return;
+        const key = String(file.relative_path || file.name || "");
+        const existing = Array.isArray(this.files) ? this.files : [];
+        const index = existing.findIndex((item) => String(item?.relative_path || item?.name || "") === key);
+        if (index >= 0) {
+          this.files = existing.map((item, idx) => idx === index ? { ...item, ...file } : item);
+        } else {
+          this.files = [...existing, file];
+        }
+      },
+
       calendarAnchor() {
         return document.querySelector(".a0-agent-calendar-tab-anchor");
       },
@@ -1927,6 +1939,7 @@
         }
         this.selectedFile = result.file || this.selectedFile;
         this.selectedFileName = this.selectedFile?.name || this.selectedFileName;
+        if (this.selectedSource === "local" && result.file) this.mergeLocalFileIntoList(result.file);
         this.pendingLocalCalendar = false;
         const events = Array.isArray(result.events) ? result.events : [];
         const todos = Array.isArray(result.todos) ? result.todos : [];
@@ -2143,8 +2156,11 @@
             old_uid: creatingLocal ? "" : this.originalTodoUid,
             todo: this.todoForm,
           });
+          const savedFile = result?.file || null;
           this.applyFileResult(result);
           await this.refresh();
+          if (savedFile) this.mergeLocalFileIntoList(savedFile);
+          if (creatingLocal) this.closeIcsFile();
         } catch (error) {
           console.error("[Agent Calendar] Failed to save todo", error);
           this.error = String(error?.message || error || "Failed to save todo");
@@ -2200,8 +2216,11 @@
             old_uid: creatingLocal ? "" : this.originalEventUid,
             event: this.eventForm,
           });
+          const savedFile = result?.file || null;
           this.applyFileResult(result);
           await this.refresh();
+          if (savedFile) this.mergeLocalFileIntoList(savedFile);
+          if (creatingLocal) this.closeIcsFile();
         } catch (error) {
           console.error("[Agent Calendar] Failed to save event", error);
           this.error = String(error?.message || error || "Failed to save event");
