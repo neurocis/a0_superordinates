@@ -501,10 +501,7 @@
                       <template x-if="$store.agentCalendar.caldavAccount.webui_calendar_url">
                         <div>
                           <strong>Calendar Web URL:</strong>
-                          <a :href="$store.agentCalendar.caldavAccount.webui_calendar_url"
-                             target="_blank"
-                             rel="noopener noreferrer"
-                             x-text="$store.agentCalendar.caldavAccount.webui_calendar_url"></a>
+                          <span x-text="$store.agentCalendar.caldavAccount.webui_calendar_url"></span>
                         </div>
                       </template>
                       <template x-if="$store.agentCalendar.caldavAccount.selected_collection_name">
@@ -536,16 +533,18 @@
                       Test
                     </button>
                     <template x-if="$store.agentCalendar.caldavAccount.webui_calendar_url">
-                      <a class="a0-agent-calendar-small-button"
-                         :href="$store.agentCalendar.caldavAccount.webui_calendar_url"
-                         target="_blank"
-                         rel="noopener noreferrer">
+                      <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.openCaldavWebCalendar()">
                         Open Calendar
-                      </a>
+                      </button>
+                    </template>
+                    <template x-if="!$store.agentCalendar.caldavAccount.webui_calendar_url">
+                      <button type="button" class="a0-agent-calendar-small-button" disabled title="Configure WebUI Calendar URL to open calendar">
+                        Open Calendar
+                      </button>
                     </template>
                     <template x-if="$store.agentCalendar.caldavAccount.selected_collection_url">
                       <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.openCaldavCollection()">
-                        Open Collection
+                        Load Events
                       </button>
                     </template>
                     <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.beginEditCaldavAccount()">
@@ -851,6 +850,43 @@
       }
     } catch (_e) {}
     return "";
+  }
+
+  const CAMOFOX_USER_ID = "a0-default";
+
+  function safeHttpUrl(value) {
+    const url = String(value || "").trim();
+    return /^https?:\/\//i.test(url) ? url : "";
+  }
+
+  async function openUrlInAgentBrowser(url) {
+    const cleanUrl = safeHttpUrl(url);
+    if (!cleanUrl) throw new Error("Configure a valid WebUI Calendar URL first.");
+
+    try {
+      await import("/plugins/camofox_browser/webui/camofox-store.js");
+      const tabResult = await callJsonApi("plugins/camofox_browser/camofox_proxy", {
+        method: "POST",
+        path: "/tabs",
+        body: {
+          userId: CAMOFOX_USER_ID,
+          sessionKey: "calendar-webui",
+          url: cleanUrl,
+        },
+      });
+      if (!tabResult?.ok) throw new Error(tabResult?.error || "CamoFox browser did not open the URL.");
+      const camofox = window.Alpine?.store?.("camofox");
+      if (camofox) {
+        camofox._userId = camofox._userId || CAMOFOX_USER_ID;
+        if (typeof camofox.showBrowser === "function") await camofox.showBrowser();
+      }
+      return { ok: true, mechanism: "camofox" };
+    } catch (error) {
+      console.warn("[Agent Calendar] Built-in browser open failed; falling back to window.open", error);
+      const opened = window.open(cleanUrl, "_blank", "noopener,noreferrer");
+      if (!opened) throw error;
+      return { ok: true, mechanism: "window.open" };
+    }
   }
 
   function registerAgentCalendarStore() {
@@ -1842,6 +1878,24 @@
         if (!acc) return null;
         if (!id || String(acc?.id || "") === String(id || "")) return acc;
         return null;
+      },
+
+      async openCaldavWebCalendar() {
+        const url = safeHttpUrl(this.caldavAccount?.webui_calendar_url || "");
+        if (!url) {
+          this.error = "Configure WebUI Calendar URL to open calendar.";
+          return;
+        }
+        this.error = "";
+        try {
+          const result = await openUrlInAgentBrowser(url);
+          if (result?.mechanism === "window.open") {
+            this.error = "Built-in browser was unavailable; opened Calendar Web URL in a new browser tab instead.";
+          }
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to open Calendar Web URL", error);
+          this.error = String(error?.message || error || "Failed to open Calendar Web URL");
+        }
       },
 
       async openCaldavCollection(id) {
