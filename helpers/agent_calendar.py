@@ -339,12 +339,28 @@ def count_ics_components(path: Path) -> dict[str, int]:
 def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     stat = path.stat()
     components = count_ics_components(path)
+    summary = ""
+    event_uid = ""
+    is_recurring = False
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        events = list_ics_events_from_text(text)
+        if events:
+            head = events[0] or {}
+            summary = str(head.get("summary") or "").strip()
+            event_uid = str(head.get("uid") or "").strip()
+            is_recurring = bool(head.get("is_recurring"))
+    except Exception:
+        pass
     return {
         "name": path.name,
         "kind": "ics_file",
         "relative_path": path.relative_to(base_dir).as_posix(),
         "size": stat.st_size,
         "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "event_summary": summary,
+        "event_uid": event_uid,
+        "is_recurring": is_recurring,
         **components,
     }
 
@@ -497,32 +513,49 @@ def calendar_file_path(ctxid: str, filename: str) -> tuple[Path, Path]:
 def read_calendar_file(ctxid: str, filename: str) -> dict[str, Any]:
     path, calendar_dir = calendar_file_path(ctxid, filename)
     text = path.read_text(encoding="utf-8", errors="replace")
+    has_calendar = persist_calendar_indicator(ctxid)
+    events = list_ics_events_from_text(text)
+    event = events[0] if events else None
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "file": file_info(path, calendar_dir),
         "content": text,
-        "events": list_ics_events_from_text(text),
+        "events": events,
+        "event": event,
+        "has_calendar": has_calendar,
+        "calendar_indicator": has_calendar,
     }
 
 
 def save_calendar_file(ctxid: str, filename: str, content: str) -> dict[str, Any]:
     path, calendar_dir = calendar_file_path(ctxid, filename)
     text = normalize_ics_content(content)
-    upper = text.upper()
-    if "BEGIN:VCALENDAR" not in upper or "END:VCALENDAR" not in upper:
-        raise ValueError("content must contain a VCALENDAR")
+    # Enforce single-VEVENT-per-file model.
+    coerced, dropped = enforce_single_vevent_text(text)
+    if dropped:
+        # Be strict about raw editor content so the user does not silently lose
+        # extra events on save.  upsert/create paths already produce single-VEVENT
+        # output and never trip this guard.
+        raise ValueError(
+            "this calendar file may contain at most one VEVENT; "
+            f"found {dropped + 1} events. Split them into separate .ics files."
+        )
+    final_text = coerced
     with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
-        tmp.write(text)
+        tmp.write(final_text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
     has_calendar = persist_calendar_indicator(ctxid)
+    events = list_ics_events_from_text(final_text)
+    event = events[0] if events else None
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "file": file_info(path, calendar_dir),
-        "content": text,
-        "events": list_ics_events_from_text(text),
+        "content": final_text,
+        "events": events,
+        "event": event,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }
@@ -992,6 +1025,29 @@ def split_calendar_event_blocks(text: str) -> tuple[list[str], list[tuple[str, l
     return skeleton, events
 
 
+def enforce_single_vevent_text(text: str) -> tuple[str, int]:
+    """Return (calendar_text, dropped_count) keeping at most the first VEVENT.
+
+    Local .ics files now represent a single calendar event each.  This helper
+    is used to defensively coerce arbitrary ICS payloads (raw editor saves,
+    legacy multi-event files, imported content) down to that single-event model.
+    """
+    skeleton, events = split_calendar_event_blocks(text)
+    if len(events) <= 1:
+        return text, 0
+    _first_uid, first_lines = events[0]
+    first_block = "\r\n".join(first_lines)
+    return render_calendar_with_events(skeleton, [first_block]), len(events) - 1
+
+
+def extract_single_event_summary(events: list[dict]) -> str:
+    if not events:
+        return ""
+    head = events[0] or {}
+    summary = str(head.get("summary") or "").strip()
+    return summary
+
+
 def render_calendar_with_events(skeleton: list[str], event_blocks: list[str]) -> str:
     output: list[str] = []
     inserted = False
@@ -1018,69 +1074,85 @@ def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_
     path, calendar_dir = calendar_file_path(ctxid, filename)
     text = path.read_text(encoding="utf-8", errors="replace")
     skeleton, existing = split_calendar_event_blocks(text)
+
+    # Single-event-per-file model: pick the existing event (if any) for
+    # recurrence/non-form metadata preservation, then replace it entirely.
     target_uid = str(old_uid or event.get("uid") or "").strip()
-    uid = str(event.get("uid") or "").strip() or uuid.uuid4().hex
-    replaced = False
-    blocks: list[str] = []
-    for existing_uid, lines in existing:
-        if target_uid and existing_uid == target_uid:
-            if not replaced:
-                event_with_uid = {**event, "uid": uid}
-                uid, block = build_vevent(event_with_uid, existing_lines=lines)
-                blocks.append(block)
-                replaced = True
-            continue
-        blocks.append("\r\n".join(lines))
-    if not replaced:
-        event_with_uid = {**event, "uid": uid}
-        uid, block = build_vevent(event_with_uid)
-        blocks.append(block)
-    new_text = render_calendar_with_events(skeleton, blocks)
+    existing_lines: list[str] | None = None
+    if existing:
+        # Prefer the matching UID, otherwise fall back to the first/only event.
+        for existing_uid, lines in existing:
+            if target_uid and existing_uid == target_uid:
+                existing_lines = lines
+                break
+        if existing_lines is None:
+            existing_lines = existing[0][1]
+
+    uid_value = str(event.get("uid") or "").strip() or uuid.uuid4().hex
+    event_with_uid = {**event, "uid": uid_value}
+    uid_value, block = build_vevent(event_with_uid, existing_lines=existing_lines)
+
+    new_text = render_calendar_with_events(skeleton, [block])
+    new_text, dropped = enforce_single_vevent_text(new_text)
+    if dropped:
+        # render_calendar_with_events shouldn't emit extras since we pass one
+        # block, but defensively guarantee the single-event invariant.
+        pass
+
     with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
         tmp.write(new_text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
     has_calendar = persist_calendar_indicator(ctxid)
+    events = list_ics_events_from_text(new_text)
+    event_payload = events[0] if events else None
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "file": file_info(path, calendar_dir),
         "content": new_text,
-        "events": list_ics_events_from_text(new_text),
-        "saved_event_uid": uid,
+        "events": events,
+        "event": event_payload,
+        "saved_event_uid": uid_value,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }
 
-def delete_calendar_event(ctxid: str, filename: str, uid: str) -> dict[str, Any]:
-    clean_uid = str(uid or "").strip()
-    if not clean_uid:
-        raise ValueError("uid is required")
+
+def delete_calendar_event(ctxid: str, filename: str, uid: str | None = None) -> dict[str, Any]:
     path, calendar_dir = calendar_file_path(ctxid, filename)
     text = path.read_text(encoding="utf-8", errors="replace")
     skeleton, existing = split_calendar_event_blocks(text)
-    removed = False
-    blocks: list[str] = []
-    for existing_uid, lines in existing:
-        if existing_uid == clean_uid:
-            removed = True
-            continue
-        blocks.append("\r\n".join(lines))
-    if not removed:
+    if not existing:
         raise ValueError("event not found")
-    new_text = render_calendar_with_events(skeleton, blocks)
+
+    requested_uid = str(uid or "").strip()
+    if requested_uid:
+        match = next((e for e in existing if e[0] == requested_uid), None)
+        if match is None:
+            raise ValueError("event not found")
+        deleted_uid = match[0]
+    else:
+        deleted_uid = existing[0][0]
+
+    # Single-event-per-file model: an empty .ics file represents "no event".
+    new_text = render_calendar_with_events(skeleton, [])
+
     with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
         tmp.write(new_text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
     has_calendar = persist_calendar_indicator(ctxid)
+    events = list_ics_events_from_text(new_text)
+    event_payload = events[0] if events else None
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "file": file_info(path, calendar_dir),
         "content": new_text,
-        "events": list_ics_events_from_text(new_text),
-        "deleted_event_uid": clean_uid,
+        "events": events,
+        "event": event_payload,
+        "deleted_event_uid": deleted_uid,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }

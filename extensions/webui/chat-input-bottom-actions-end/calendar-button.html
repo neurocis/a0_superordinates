@@ -457,8 +457,10 @@
                       <span x-text="file.name"></span>
                     </div>
                     <div class="a0-agent-calendar-row-meta">
-                      <span x-text="`${file.events || 0} events`"></span>
-                      · <span x-text="`${file.todos || 0} todos`"></span>
+                      <span x-text="file.event_summary || '(empty)'"></span>
+                      <template x-if="file.is_recurring">
+                        <span> · Repeats</span>
+                      </template>
                     </div>
                   </div>
                   <div class="a0-agent-calendar-actions">
@@ -514,7 +516,6 @@
                   Editing <span x-text="$store.agentCalendar.selectedFileName"></span>
                 </div>
                 <div class="a0-agent-calendar-actions">
-                  <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.newEvent()">New event</button>
                   <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.rawEditorVisible = !$store.agentCalendar.rawEditorVisible">
                     <span x-text="$store.agentCalendar.rawEditorVisible ? 'Hide raw ICS' : 'Raw ICS'"></span>
                   </button>
@@ -522,24 +523,7 @@
                 </div>
               </div>
 
-              <div class="a0-agent-calendar-editor-grid">
-                <div>
-                  <div class="a0-agent-calendar-muted" x-show="$store.agentCalendar.selectedEvents.length === 0">No VEVENT entries in this file yet.</div>
-                  <div class="a0-agent-calendar-event-list">
-                    <template x-for="event in $store.agentCalendar.selectedEvents" :key="event.uid || `${event.summary}-${event.dtstart}`">
-                      <button type="button" class="a0-agent-calendar-event-row" :class="event.uid && event.uid === $store.agentCalendar.eventForm.uid ? 'a0-agent-calendar-event-row-active' : ''" @click="$store.agentCalendar.editEvent(event)">
-                        <div class="a0-agent-calendar-event-title" x-text="event.summary || '(No title)'"></div>
-                        <div class="a0-agent-calendar-event-meta">
-                          <span x-text="event.start_date || event.dtstart || 'No date'"></span>
-                          <span x-show="!event.all_day && event.start_time" x-text="` ${event.start_time}`"></span>
-                          <span x-show="event.location"> · </span><span x-show="event.location" x-text="event.location"></span>
-                          <span x-show="event.is_recurring || event.recurrence_summary"> · </span><span x-show="event.is_recurring || event.recurrence_summary" x-text="event.recurrence_summary || 'Repeats'"></span>
-                        </div>
-                      </button>
-                    </template>
-                  </div>
-                </div>
-
+              <div class="a0-agent-calendar-editor-grid a0-agent-calendar-editor-grid-single">
                 <div>
                   <div class="a0-agent-calendar-form-grid">
                     <div class="a0-agent-calendar-form-field a0-agent-calendar-form-field-full">
@@ -610,7 +594,7 @@
                     </div>
                     <div class="a0-agent-calendar-form-actions">
                       <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.saveEvent()">Save event</button>
-                      <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.eventForm.uid" @click="$store.agentCalendar.deleteEvent($store.agentCalendar.eventForm.uid)">Delete event</button>
+                      <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.eventForm.uid" @click="$store.agentCalendar.deleteEvent($store.agentCalendar.eventForm.uid)">Clear event</button>
                     </div>
                   </div>
                 </div>
@@ -1125,10 +1109,18 @@
         this.selectedFile = result.file || this.selectedFile;
         this.selectedFileName = this.selectedFile?.name || this.selectedFileName;
         this.selectedFileContent = result.content || "";
-        this.selectedEvents = Array.isArray(result.events) ? result.events : [];
+        const events = Array.isArray(result.events) ? result.events : [];
+        this.selectedEvents = events; // kept for backward compat with extensions
+        const singleEvent = result.event || events[0] || null;
+        if (singleEvent) {
+          this.eventForm = this.normalizeEventForm(singleEvent);
+          this.originalEventUid = String(singleEvent.uid || "");
+        } else {
+          this.eventForm = this.defaultEventForm();
+          this.originalEventUid = "";
+        }
         this.notifyCalendarIndicatorChanged(result);
         this.error = "";
-        if (!this.eventForm || !Object.keys(this.eventForm).length) this.newEvent();
         if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
       },
 
@@ -1277,7 +1269,6 @@
             filename: file.name,
           });
           this.applyFileResult(result);
-          if (!this.eventForm || !Object.keys(this.eventForm).length) this.newEvent();
         } catch (error) {
           console.error("[Agent Calendar] Failed to open .ics file", error);
           this.error = String(error?.message || error || "Failed to open .ics file");
@@ -1328,9 +1319,6 @@
             event: this.eventForm,
           });
           this.applyFileResult(result);
-          const savedUid = result?.saved_event_uid || this.eventForm?.uid || "";
-          const saved = this.selectedEvents.find((event) => event.uid === savedUid);
-          if (saved) this.editEvent(saved);
           await this.refresh();
         } catch (error) {
           console.error("[Agent Calendar] Failed to save event", error);
@@ -1342,8 +1330,8 @@
 
       async deleteEvent(uid) {
         const cleanUid = String(uid || "").trim();
-        if (!this.selectedFileName || !cleanUid) return;
-        if (!window.confirm("Delete this event from the .ics file?")) return;
+        if (!this.selectedFileName) return;
+        if (!window.confirm("Clear this event from the .ics file?")) return;
         this.loading = true;
         this.error = "";
         try {
@@ -1354,11 +1342,10 @@
             uid: cleanUid,
           });
           this.applyFileResult(result);
-          this.newEvent();
           await this.refresh();
         } catch (error) {
-          console.error("[Agent Calendar] Failed to delete event", error);
-          this.error = String(error?.message || error || "Failed to delete event");
+          console.error("[Agent Calendar] Failed to clear event", error);
+          this.error = String(error?.message || error || "Failed to clear event");
         } finally {
           this.loading = false;
         }
