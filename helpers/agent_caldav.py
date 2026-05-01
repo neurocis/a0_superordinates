@@ -28,7 +28,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -672,29 +672,199 @@ def _local_sync_items(ctxid: str) -> dict[str, dict[str, Any]]:
     return out
 
 
-def _remote_sync_items(cal_obj) -> dict[str, dict[str, Any]]:
+def _call_caldav_date_search(cal_obj, start: datetime, end: datetime) -> list[Any]:
+    """Call caldav.Calendar.date_search across known caldav-py signatures.
+
+    Several providers return an empty result for broad ``events()`` enumeration but
+    do return VEVENTs when queried with an explicit time range.  caldav-py has
+    also changed argument names across versions, so try the common forms.
+    """
+    method = getattr(cal_obj, "date_search", None)
+    if not callable(method):
+        return []
+    attempts = [
+        lambda: method(start=start, end=end, expand=False),
+        lambda: method(start=start, end=end, expand=True),
+        lambda: method(start=start, end=end),
+        lambda: method(start, end, expand=False),
+        lambda: method(start, end, expand=True),
+        lambda: method(start, end),
+        lambda: method(start=start, end=end, comp_class="VEVENT", expand=False),
+        lambda: method(start=start, end=end, comp_class="VEVENT", expand=True),
+        lambda: method(start=start, end=end, comp_class="VEVENT"),
+        lambda: method(start=start, end=end, event=True, expand=False),
+        lambda: method(start=start, end=end, event=True),
+    ]
+    last_error: Exception | None = None
+    for attempt in attempts:
+        try:
+            found = list(attempt() or [])
+            if found:
+                return found
+        except TypeError as exc:
+            last_error = exc
+            continue
+        except Exception as exc:
+            # Non-signature failures are often provider/report errors; try the
+            # next compatible call shape before giving up.
+            last_error = exc
+            continue
+    if last_error is not None:
+        log.warning("caldav sync: date_search failed or returned no objects: %s", last_error)
+    return []
+
+
+def _call_caldav_object_listing(cal_obj) -> tuple[list[Any], list[str], dict[str, int]]:
+    """Try broad object-listing methods exposed by different caldav-py versions."""
+    objects: list[Any] = []
+    errors: list[str] = []
+    counts: dict[str, int] = {}
+    method_specs = [
+        ("objects", ()),
+        ("calendar_objects", ()),
+        ("children", ()),
+    ]
+    for method_name, args in method_specs:
+        method = getattr(cal_obj, method_name, None)
+        if not callable(method):
+            continue
+        try:
+            found = list(method(*args) or [])
+            counts[method_name] = len(found)
+            objects.extend(found)
+        except Exception as exc:
+            errors.append(f"{method_name}(): {exc}")
+    search = getattr(cal_obj, "search", None)
+    if callable(search):
+        search_attempts = [
+            ("search(event,todo)", lambda: search(event=True, todo=True, expand=False)),
+            ("search(event)", lambda: search(event=True, expand=False)),
+            ("search()", lambda: search()),
+        ]
+        for label, attempt in search_attempts:
+            try:
+                found = list(attempt() or [])
+                counts[label] = len(found)
+                objects.extend(found)
+                if found:
+                    break
+            except TypeError as exc:
+                errors.append(f"{label}: {exc}")
+            except Exception as exc:
+                errors.append(f"{label}: {exc}")
+    return objects, errors, counts
+
+
+def _caldav_object_text(ev) -> str:
+    """Return ICS text from a CalDAV object, loading it if needed."""
+    data = getattr(ev, "data", "")
+    if callable(data):
+        try:
+            data = data()
+        except Exception:
+            data = ""
+    if not data:
+        loader = getattr(ev, "load", None)
+        if callable(loader):
+            try:
+                loader()
+                data = getattr(ev, "data", "")
+                if callable(data):
+                    data = data()
+            except Exception as exc:
+                log.warning("caldav sync: failed to load remote object data: %s", exc)
+    if isinstance(data, bytes):
+        return data.decode("utf-8", errors="replace")
+    text = str(data or "")
+    if text:
+        return text
+    ical = getattr(ev, "icalendar_instance", None)
+    to_ical = getattr(ical, "to_ical", None)
+    if callable(to_ical):
+        try:
+            raw = to_ical()
+            return raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw or "")
+        except Exception:
+            return ""
+    return ""
+
+
+def _dedupe_caldav_objects(objects: list[Any]) -> list[Any]:
+    out: list[Any] = []
+    seen: set[str] = set()
+    for obj in objects:
+        key = str(getattr(obj, "url", "") or getattr(obj, "href", "") or id(obj))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(obj)
+    return out
+
+
+def _remote_sync_items(cal_obj) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     objects: list[Any] = []
+    diagnostics: dict[str, Any] = {
+        "collection_url": str(getattr(cal_obj, "url", "") or ""),
+        "events_listed": 0,
+        "todos_listed": 0,
+        "date_search_listed": 0,
+        "broad_listed": 0,
+        "broad_listing_counts": {},
+        "objects_seen": 0,
+        "parsed": 0,
+        "skipped_without_uid": 0,
+        "skipped_parse_errors": 0,
+        "listing_errors": [],
+        "date_search_range": "",
+        "sample_summaries": [],
+    }
     try:
-        objects.extend(list(cal_obj.events()))
+        listed_events = list(cal_obj.events())
+        diagnostics["events_listed"] = len(listed_events)
+        objects.extend(listed_events)
     except Exception as exc:
+        diagnostics["listing_errors"].append(f"events(): {exc}")
         log.warning("caldav sync: event listing failed: %s", exc)
     try:
-        objects.extend(list(cal_obj.todos(include_completed=True)))
+        listed_todos = list(cal_obj.todos(include_completed=True))
+        diagnostics["todos_listed"] = len(listed_todos)
+        objects.extend(listed_todos)
     except Exception as exc:
+        diagnostics["listing_errors"].append(f"todos(): {exc}")
         log.warning("caldav sync: todo listing failed: %s", exc)
+
+    broad_objects, broad_errors, broad_counts = _call_caldav_object_listing(cal_obj)
+    diagnostics["broad_listed"] = len(broad_objects)
+    diagnostics["broad_listing_counts"] = broad_counts
+    diagnostics["listing_errors"].extend(broad_errors)
+    objects.extend(broad_objects)
+
+    now = datetime.now(timezone.utc)
+    # Wide explicit range: catches today's event and near-future events on
+    # providers that do not return anything from broad events() enumeration.
+    start = (now - timedelta(days=370)).replace(hour=0, minute=0, second=0, microsecond=0)
+    end = (now + timedelta(days=735)).replace(hour=23, minute=59, second=59, microsecond=0)
+    diagnostics["date_search_range"] = f"{start.isoformat().replace('+00:00', 'Z')}..{end.isoformat().replace('+00:00', 'Z')}"
+    date_objects = _call_caldav_date_search(cal_obj, start, end)
+    diagnostics["date_search_listed"] = len(date_objects)
+    objects.extend(date_objects)
+
+    objects = _dedupe_caldav_objects(objects)
+    diagnostics["objects_seen"] = len(objects)
     for ev in objects:
         try:
-            text = str(getattr(ev, "data", "") or "")
+            text = _caldav_object_text(ev)
             component = _component_from_ics_text(text)
             if not component or not component.get("uid"):
+                diagnostics["skipped_without_uid"] += 1
                 continue
             modified = _remote_object_modified_datetime(ev, component["lines"]) or datetime.fromtimestamp(0, timezone.utc)
             uid = str(component["uid"])
             existing = out.get(uid)
             if existing and existing.get("modified") and existing["modified"] >= modified:
                 continue
-            out[uid] = {
+            item = {
                 "uid": uid,
                 "kind": component["kind"],
                 "summary": component.get("summary") or "",
@@ -703,10 +873,21 @@ def _remote_sync_items(cal_obj) -> dict[str, dict[str, Any]]:
                 "ics": component["ics"],
                 "modified": modified,
             }
+            out[uid] = item
+            diagnostics["parsed"] = len(out)
+            if len(diagnostics["sample_summaries"]) < 8:
+                diagnostics["sample_summaries"].append({
+                    "uid": uid,
+                    "kind": item["kind"],
+                    "summary": item["summary"],
+                    "href": item["href"],
+                })
         except Exception as exc:
+            diagnostics["skipped_parse_errors"] += 1
             log.warning("caldav sync: skipping remote object: %s", exc)
             continue
-    return out
+    diagnostics["remote_uids"] = len(out)
+    return out, diagnostics
 
 
 def sync_caldav_ics_files(ctxid: str, account_id: str | None = None) -> dict[str, Any]:
@@ -729,7 +910,7 @@ def sync_caldav_ics_files(ctxid: str, account_id: str | None = None) -> dict[str
     try:
         cal_obj = _calendar_object(account)
         local_items = _local_sync_items(clean_ctxid)
-        remote_items = _remote_sync_items(cal_obj)
+        remote_items, remote_scan = _remote_sync_items(cal_obj)
         all_uids = sorted(set(local_items) | set(remote_items))
 
         for uid in all_uids:
@@ -810,6 +991,10 @@ def sync_caldav_ics_files(ctxid: str, account_id: str | None = None) -> dict[str
             "skipped": skipped,
             "errors": errors,
             "actions": actions,
+            "local_count": len(local_items),
+            "remote_count": len(remote_items),
+            "scanned_collection": account.get("selected_collection_name") or account.get("selected_collection_url") or "",
+            "remote_scan": remote_scan,
         }
         if errors:
             payload["error"] = "; ".join(errors)
@@ -828,6 +1013,10 @@ def sync_caldav_ics_files(ctxid: str, account_id: str | None = None) -> dict[str
             "skipped": skipped,
             "errors": [str(exc)],
             "actions": actions,
+            "local_count": 0,
+            "remote_count": 0,
+            "scanned_collection": account.get("selected_collection_name") or account.get("selected_collection_url") or "",
+            "remote_scan": {},
         }
         return payload
 

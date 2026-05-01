@@ -652,6 +652,7 @@
                 Save CalDAV account
               </button>
             </div>
+            <div class="a0-agent-calendar-row-meta" x-show="$store.agentCalendar.lastSyncSummary" x-text="$store.agentCalendar.lastSyncSummary"></div>
           </div>
 
           <template x-if="$store.agentCalendar.selectedFileName">
@@ -938,6 +939,7 @@
       loading: false,
       collectionRefreshInflight: false,
       error: "",
+      lastSyncSummary: "",
       ctxid: "",
       agentName: "",
       calendarDir: "",
@@ -1921,6 +1923,23 @@
         }
       },
 
+      syncSummaryText(sync) {
+        const data = sync || {};
+        const remoteScan = data.remote_scan || {};
+        const bits = [
+          `Scanned ${data.scanned_collection || "selected collection"}`,
+          `remote ${Number(data.remote_count || 0)} parsed / ${Number(remoteScan.objects_seen || 0)} seen`,
+          `local ${Number(data.local_count || 0)}`,
+          `downloaded ${Number(data.downloaded || 0)}`,
+          `uploaded ${Number(data.uploaded || 0)}`,
+          `skipped ${Number(data.skipped || 0)}`,
+        ];
+        if (Number(remoteScan.date_search_listed || 0)) bits.push(`date-search ${Number(remoteScan.date_search_listed || 0)}`);
+        if (Array.isArray(remoteScan.listing_errors) && remoteScan.listing_errors.length) bits.push(`listing warnings ${remoteScan.listing_errors.length}`);
+        if (Array.isArray(data.errors) && data.errors.length) bits.push(`errors ${data.errors.length}`);
+        return bits.join(" · ");
+      },
+
       async syncCaldavIcsFiles() {
         if (!this.caldavAccount) {
           this.error = "Configure a CalDAV account before syncing ICS files.";
@@ -1939,6 +1958,7 @@
           });
           this.applyResult(result);
           const sync = result?.sync || {};
+          this.lastSyncSummary = this.syncSummaryText(sync);
           if (sync.ok === false || result?.ok === false) {
             this.error = result?.error || (Array.isArray(sync.errors) ? sync.errors.join("; ") : "CalDAV/ICS sync failed.");
           } else {
