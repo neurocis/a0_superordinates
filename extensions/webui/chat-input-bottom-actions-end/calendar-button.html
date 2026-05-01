@@ -2220,7 +2220,7 @@
           this.applyFileResult(result);
           await this.refresh();
           if (savedFile) this.mergeLocalFileIntoList(savedFile);
-          if (creatingLocal) this.closeIcsFile();
+          this.closeIcsFile();
         } catch (error) {
           console.error("[Agent Calendar] Failed to save event", error);
           this.error = String(error?.message || error || "Failed to save event");
