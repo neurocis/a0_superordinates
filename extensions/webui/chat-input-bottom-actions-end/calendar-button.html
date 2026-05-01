@@ -648,15 +648,20 @@
           const rect = output.getBoundingClientRect();
           const lowerTop = this.calendarLowerChromeTop(host);
           const gap = 2;
-          const desiredBottom = Math.max(0, lowerTop - lift - gap);
+
+          // `liftComposerElements()` runs before this method, so lowerTop is
+          // already the visual top of the lifted prompt/model chrome. Do not
+          // subtract `lift` again here; doing so shrinks/slides #chat-history by
+          // the lift twice and makes the monologue jump too high.
+          const desiredBottom = Math.max(0, lowerTop - gap);
           const targetHeightFromGeometry = Math.max(140, Math.round(desiredBottom - rect.top));
           const baseHeight = Number.parseFloat(output.dataset.a0CalendarBaseHeight || "0") || rect.height || output.clientHeight || targetHeightFromGeometry;
           const targetHeight = Math.min(Math.round(baseHeight), targetHeightFromGeometry);
           const basePadding = Number.parseFloat(output.dataset.a0CalendarBasePaddingBottom || "0") || 0;
 
           // Shrink the actual scroll viewport so its bottom edge sits above the
-          // lifted Agent/model strip. Padding alone leaves the viewport behind
-          // that strip, which is what caused the monologue to be obscured.
+          // visually lifted Agent/model strip. Padding alone leaves the viewport
+          // behind that strip, which is what caused the monologue to be obscured.
           output.style.height = `${targetHeight}px`;
           output.style.maxHeight = `${targetHeight}px`;
           output.style.paddingBottom = `${Math.round(basePadding + Math.max(0, lift * 0.25))}px`;
