@@ -465,6 +465,9 @@
                     <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.openIcsFile(file)">
                       Edit
                     </button>
+                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.deleteLocalCalendar(file)">
+                      Delete
+                    </button>
                   </div>
                 </div>
               </template>
@@ -1123,6 +1126,7 @@
         this.selectedFileName = this.selectedFile?.name || this.selectedFileName;
         this.selectedFileContent = result.content || "";
         this.selectedEvents = Array.isArray(result.events) ? result.events : [];
+        this.notifyCalendarIndicatorChanged(result);
         this.error = "";
         if (!this.eventForm || !Object.keys(this.eventForm).length) this.newEvent();
         if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
@@ -1196,6 +1200,15 @@
         }
       },
 
+      notifyCalendarIndicatorChanged(result) {
+        if (!result || result.has_calendar === undefined) return;
+        try {
+          Alpine.store("superordinates")?.fetchMap?.();
+        } catch (_error) {
+          // Non-critical; the sidebar also refreshes periodically.
+        }
+      },
+
       applyResult(result) {
         if (!result || result.ok === false) {
           this.error = result?.error || "Calendar API returned an error.";
@@ -1207,6 +1220,7 @@
         this.calendarDir = result.calendar_dir || "";
         this.files = Array.isArray(result.files) ? result.files : [];
         this.subscriptions = Array.isArray(result.subscriptions) ? result.subscriptions : [];
+        this.notifyCalendarIndicatorChanged(result);
         if (this.selectedFileName && !this.files.some((file) => file?.name === this.selectedFileName)) this.closeIcsFile();
         this.error = "";
         if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
@@ -1227,6 +1241,26 @@
         } catch (error) {
           console.error("[Agent Calendar] Failed to create .ics file", error);
           this.error = String(error?.message || error || "Failed to create .ics file");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async deleteLocalCalendar(file) {
+        if (!file?.name) return;
+        if (!window.confirm(`Delete local calendar file ${file.name}?`)) return;
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "delete_ics",
+            ctxid: this.ctxid || selectedContextId(),
+            filename: file.name,
+          });
+          this.applyResult(result);
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to delete .ics file", error);
+          this.error = String(error?.message || error || "Failed to delete .ics file");
         } finally {
           this.loading = false;
         }

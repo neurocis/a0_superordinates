@@ -146,6 +146,8 @@ For safety, file operations are constrained to sanitized `.ics` filenames inside
 
 Recurring event support includes simple minute/hour/day/week/month/year controls, custom `RRULE` editing, and advanced `RDATE`/`EXDATE` textareas. Existing complex recurrence rules and non-form `VEVENT` metadata such as attendees, alarms, URLs, and `X-*` properties are preserved when editing ordinary form fields.
 
+When an Agent has at least one local `.ics` file or Web ICS subscription, the plugin persists and reconciles a `has_calendar` indicator for that Agent. The Superordinates sidebar suffixes that Agent's display name with `📅`; the icon is removed automatically when the last calendar source is deleted.
+
 ## Installation
 
 ### From Plugin Hub

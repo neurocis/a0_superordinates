@@ -24,6 +24,8 @@ CHATS_ROOT = Path("/a0/usr/chats")
 CALENDAR_DIRNAME = "calendar"
 SUBSCRIPTIONS_FILENAME = "subscriptions.json"
 REGISTRY_VERSION = 1
+CALENDAR_INDICATOR_KEY = "has_calendar"
+CALENDAR_INDICATOR_ALT_KEY = "calendar_indicator"
 
 _CTXID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 _BAD_FILENAME_CHARS_RE = re.compile(r"[^A-Za-z0-9_. -]+")
@@ -103,6 +105,161 @@ def context_calendar_dir(ctxid: str, create: bool = True) -> Path:
 
 def subscriptions_path(ctxid: str, create: bool = True) -> Path:
     return context_calendar_dir(ctxid, create=create) / SUBSCRIPTIONS_FILENAME
+
+
+def chat_json_path(ctxid: str) -> Path:
+    return CHATS_ROOT / validate_context_id(ctxid) / "chat.json"
+
+
+def _parse_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
+
+
+def local_ics_file_paths(ctxid: str) -> list[Path]:
+    """Return actual local .ics files for a context without trusting metadata."""
+    clean = validate_context_id(ctxid)
+    calendar_dir = context_calendar_dir(clean, create=False)
+    if not calendar_dir.exists() or not calendar_dir.is_dir():
+        return []
+    try:
+        return [
+            path for path in sorted(calendar_dir.glob("*.ics"), key=lambda p: p.name.lower())
+            if path.is_file()
+        ]
+    except OSError:
+        return []
+
+
+def subscription_entries(ctxid: str) -> list[dict[str, Any]]:
+    """Return valid-ish Web ICS subscription entries from the registry."""
+    try:
+        registry = load_subscriptions(ctxid, create=False)
+    except Exception:
+        return []
+    entries = registry.get("subscriptions", [])
+    if not isinstance(entries, list):
+        return []
+    valid: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        url = str(entry.get("url") or "").strip()
+        if url:
+            valid.append(entry)
+    return valid
+
+
+def derive_has_calendar(ctxid: str) -> bool:
+    """Derive the indicator from real sources, not from stale state."""
+    clean = validate_context_id(ctxid)
+    return bool(local_ics_file_paths(clean) or subscription_entries(clean))
+
+
+def _set_calendar_indicator_on_context(clean_ctxid: str, has_calendar: bool) -> bool:
+    """Mirror the indicator into any loaded AgentContext data/output_data."""
+    changed = False
+    try:
+        from agent import AgentContext
+
+        ctx = AgentContext.get(clean_ctxid)
+        if ctx is not None:
+            data = getattr(ctx, "data", None)
+            if isinstance(data, dict):
+                if data.get(CALENDAR_INDICATOR_KEY) is not has_calendar:
+                    data[CALENDAR_INDICATOR_KEY] = has_calendar
+                    changed = True
+                if data.get(CALENDAR_INDICATOR_ALT_KEY) is not has_calendar:
+                    data[CALENDAR_INDICATOR_ALT_KEY] = has_calendar
+                    changed = True
+            output_data = getattr(ctx, "output_data", None)
+            if isinstance(output_data, dict):
+                if output_data.get(CALENDAR_INDICATOR_KEY) is not has_calendar:
+                    output_data[CALENDAR_INDICATOR_KEY] = has_calendar
+                    changed = True
+                if output_data.get(CALENDAR_INDICATOR_ALT_KEY) is not has_calendar:
+                    output_data[CALENDAR_INDICATOR_ALT_KEY] = has_calendar
+                    changed = True
+    except Exception:
+        pass
+    return changed
+
+
+def persist_calendar_indicator(ctxid: str, has_calendar: bool | None = None) -> bool:
+    """Persist/reconcile the per-agent Calendar indicator.
+
+    If has_calendar is omitted, derive it from actual local .ics files and Web
+    ICS subscriptions.  The value is written to chat.json data/output_data and
+    mirrored into any loaded AgentContext so both persisted and in-memory UI
+    snapshots converge on the real source state.
+
+    To keep sidebar map polling cheap, chats with no calendar sources and no
+    previous indicator metadata are left untouched.  Once a context has ever
+    advertised the indicator, false is persisted too so stale true values are
+    cleared after the last calendar source is removed.
+    """
+    clean = validate_context_id(ctxid)
+    derived = derive_has_calendar(clean) if has_calendar is None else bool(has_calendar)
+    _set_calendar_indicator_on_context(clean, derived)
+
+    path = chat_json_path(clean)
+    if path.exists():
+        try:
+            chat = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(chat, dict):
+                data = chat.get("data")
+                if not isinstance(data, dict):
+                    data = {}
+                output_data = chat.get("output_data")
+                if not isinstance(output_data, dict):
+                    output_data = {}
+
+                has_existing_metadata = any(
+                    key in data or key in output_data
+                    for key in (CALENDAR_INDICATOR_KEY, CALENDAR_INDICATOR_ALT_KEY)
+                )
+                if derived or has_existing_metadata:
+                    changed = False
+                    if chat.get("data") is not data:
+                        chat["data"] = data
+                        changed = True
+                    if chat.get("output_data") is not output_data:
+                        chat["output_data"] = output_data
+                        changed = True
+                    for mapping in (data, output_data):
+                        if mapping.get(CALENDAR_INDICATOR_KEY) is not derived:
+                            mapping[CALENDAR_INDICATOR_KEY] = derived
+                            changed = True
+                        if mapping.get(CALENDAR_INDICATOR_ALT_KEY) is not derived:
+                            mapping[CALENDAR_INDICATOR_ALT_KEY] = derived
+                            changed = True
+                    if changed:
+                        with NamedTemporaryFile("w", encoding="utf-8", dir=str(path.parent), delete=False) as tmp:
+                            json.dump(chat, tmp, indent=2)
+                            tmp.write("\n")
+                            tmp_path = Path(tmp.name)
+                        tmp_path.replace(path)
+        except Exception:
+            # Indicator persistence is useful UI metadata, but calendar CRUD
+            # should not fail solely because chat.json is temporarily unreadable.
+            pass
+    return derived
+
+
+def calendar_indicator_from_metadata(ctxid: str) -> bool:
+    """Best-effort read of persisted indicator; reconciles before returning."""
+    return persist_calendar_indicator(ctxid)
 
 
 def sanitize_calendar_filename(name: str) -> str:
@@ -192,8 +349,8 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     }
 
 
-def load_subscriptions(ctxid: str) -> dict[str, Any]:
-    path = subscriptions_path(ctxid, create=True)
+def load_subscriptions(ctxid: str, create: bool = True) -> dict[str, Any]:
+    path = subscriptions_path(ctxid, create=create)
     if not path.exists():
         return {"version": REGISTRY_VERSION, "subscriptions": []}
     try:
@@ -222,8 +379,9 @@ def save_subscriptions(ctxid: str, registry: dict[str, Any]) -> None:
 def list_calendar_stack(ctxid: str) -> dict[str, Any]:
     clean_ctxid = validate_context_id(ctxid)
     calendar_dir = context_calendar_dir(clean_ctxid, create=True)
-    files = [file_info(path, calendar_dir) for path in sorted(calendar_dir.glob("*.ics"), key=lambda p: p.name.lower())]
+    files = [file_info(path, calendar_dir) for path in local_ics_file_paths(clean_ctxid)]
     registry = load_subscriptions(clean_ctxid)
+    has_calendar = persist_calendar_indicator(clean_ctxid)
     return {
         "ok": True,
         "ctxid": clean_ctxid,
@@ -231,6 +389,8 @@ def list_calendar_stack(ctxid: str) -> dict[str, Any]:
         "calendar_dir": str(calendar_dir),
         "files": files,
         "subscriptions": registry.get("subscriptions", []),
+        "has_calendar": has_calendar,
+        "calendar_indicator": has_calendar,
     }
 
 
@@ -242,7 +402,11 @@ def create_local_calendar(ctxid: str, filename: str, title: str | None = None, o
         raise ValueError(f"calendar file already exists: {safe_name}")
     calendar_name = title or Path(safe_name).stem.replace("_", " ").strip() or "Agent Calendar"
     path.write_text(build_empty_calendar(calendar_name), encoding="utf-8")
-    return file_info(path, calendar_dir)
+    persist_calendar_indicator(ctxid)
+    info = file_info(path, calendar_dir)
+    info["has_calendar"] = True
+    info["calendar_indicator"] = True
+    return info
 
 
 def normalize_subscription_url(url: str) -> str:
@@ -269,6 +433,9 @@ def add_subscription(ctxid: str, name: str, url: str) -> dict[str, Any]:
     }
     subscriptions.append(entry)
     save_subscriptions(ctxid, registry)
+    persist_calendar_indicator(ctxid)
+    entry["has_calendar"] = True
+    entry["calendar_indicator"] = True
     return entry
 
 
@@ -281,7 +448,30 @@ def remove_subscription(ctxid: str, subscription_id: str) -> bool:
     before = len(subscriptions)
     registry["subscriptions"] = [s for s in subscriptions if str(s.get("id") or "") != clean_id]
     save_subscriptions(ctxid, registry)
-    return len(registry["subscriptions"]) != before
+    removed = len(registry["subscriptions"]) != before
+    if removed:
+        persist_calendar_indicator(ctxid)
+    return removed
+
+
+def delete_local_calendar(ctxid: str, filename: str) -> dict[str, Any]:
+    """Delete a local .ics file and reconcile the Calendar indicator."""
+    path, calendar_dir = calendar_file_path(ctxid, filename)
+    deleted_name = path.name
+    path.unlink()
+    has_calendar = persist_calendar_indicator(ctxid)
+    files = [file_info(item, calendar_dir) for item in local_ics_file_paths(ctxid)]
+    registry = load_subscriptions(ctxid)
+    return {
+        "ok": True,
+        "ctxid": validate_context_id(ctxid),
+        "calendar_dir": str(calendar_dir),
+        "deleted": deleted_name,
+        "files": files,
+        "subscriptions": registry.get("subscriptions", []),
+        "has_calendar": has_calendar,
+        "calendar_indicator": has_calendar,
+    }
 
 
 # ---- Writable ICS file/event editing helpers ----
@@ -326,12 +516,15 @@ def save_calendar_file(ctxid: str, filename: str, content: str) -> dict[str, Any
         tmp.write(text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
+    has_calendar = persist_calendar_indicator(ctxid)
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "file": file_info(path, calendar_dir),
         "content": text,
         "events": list_ics_events_from_text(text),
+        "has_calendar": has_calendar,
+        "calendar_indicator": has_calendar,
     }
 
 
@@ -847,6 +1040,7 @@ def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_
         tmp.write(new_text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
+    has_calendar = persist_calendar_indicator(ctxid)
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
@@ -854,6 +1048,8 @@ def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_
         "content": new_text,
         "events": list_ics_events_from_text(new_text),
         "saved_event_uid": uid,
+        "has_calendar": has_calendar,
+        "calendar_indicator": has_calendar,
     }
 
 def delete_calendar_event(ctxid: str, filename: str, uid: str) -> dict[str, Any]:
@@ -877,6 +1073,7 @@ def delete_calendar_event(ctxid: str, filename: str, uid: str) -> dict[str, Any]
         tmp.write(new_text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
+    has_calendar = persist_calendar_indicator(ctxid)
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
@@ -884,4 +1081,6 @@ def delete_calendar_event(ctxid: str, filename: str, uid: str) -> dict[str, Any]
         "content": new_text,
         "events": list_ics_events_from_text(new_text),
         "deleted_event_uid": clean_uid,
+        "has_calendar": has_calendar,
+        "calendar_indicator": has_calendar,
     }

@@ -61,6 +61,7 @@ from usr.plugins.a0_superordinates.helpers.agent_calendar import (
     add_subscription,
     create_local_calendar,
     delete_calendar_event,
+    delete_local_calendar,
     list_calendar_stack,
     read_calendar_file,
     remove_subscription,
@@ -95,6 +96,12 @@ class AgentCalendar(ApiHandler):
 
             if action == "read_ics":
                 return read_calendar_file(
+                    ctxid=ctxid,
+                    filename=str(input.get("filename") or input.get("relative_path") or ""),
+                )
+
+            if action in {"delete_ics", "delete_local_ics", "delete_calendar"}:
+                return delete_local_calendar(
                     ctxid=ctxid,
                     filename=str(input.get("filename") or input.get("relative_path") or ""),
                 )

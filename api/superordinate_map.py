@@ -16,10 +16,59 @@ Fixes applied:
 
 import json
 import os
+import sys
+from pathlib import Path
 
-from agent import AgentContext
-from helpers.api import ApiHandler, Request, Response
+
+# Import Agent Zero framework modules defensively.  This plugin has a local
+# helpers/ package, and when the plugin directory is the current/early sys.path
+# entry it can shadow /a0/helpers.  agent.py imports top-level helpers.dotenv,
+# so map API discovery can otherwise fail before returning JSON.
+_FRAMEWORK_ROOT = Path("/a0").resolve()
+_PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+_PLUGIN_HELPERS = (_PLUGIN_ROOT / "helpers").resolve()
+_ORIGINAL_SYS_PATH = list(sys.path)
+
+
+def _path_resolves_to_plugin_root(entry: str) -> bool:
+    try:
+        candidate = Path(entry or os.getcwd()).resolve()
+    except Exception:
+        return False
+    return candidate == _PLUGIN_ROOT
+
+
+def _module_file_is_plugin_helper(module: object) -> bool:
+    try:
+        module_file = Path(str(getattr(module, "__file__", "") or "/")).resolve()
+        return module_file == _PLUGIN_HELPERS / "__init__.py" or module_file.is_relative_to(_PLUGIN_HELPERS)
+    except Exception:
+        return False
+
+
+try:
+    for _name in list(sys.modules):
+        if _name == "helpers" or _name.startswith("helpers."):
+            if _module_file_is_plugin_helper(sys.modules[_name]):
+                sys.modules.pop(_name, None)
+
+    _framework_root_str = str(_FRAMEWORK_ROOT)
+    sys.path = [
+        p for p in sys.path
+        if p != _framework_root_str and not _path_resolves_to_plugin_root(p)
+    ]
+    sys.path.insert(0, _framework_root_str)
+
+    # Import a framework helpers submodule first so sys.modules["helpers"] is
+    # definitely /a0/helpers before agent.py imports models.py, which imports
+    # top-level helpers.dotenv.
+    from helpers.api import ApiHandler, Request, Response
+    from agent import AgentContext
+finally:
+    sys.path = _ORIGINAL_SYS_PATH
+
 from usr.plugins.a0_superordinates.helpers.static_name import sync_static_name_output
+from usr.plugins.a0_superordinates.helpers.agent_calendar import persist_calendar_indicator
 
 
 
@@ -147,6 +196,19 @@ class SuperordinateMap(ApiHandler):
 
         # Phase 3: Assemble the final hierarchy map.
         # Include any context that is either a parent or a child.
+        # Calendar indicators are reconciled from real .ics/subscription sources
+        # here so stale persisted metadata is corrected whenever the sidebar map
+        # is refreshed.
+        calendar_indicators: dict[str, bool] = {}
+        for ctxid in all_ctx_data:
+            try:
+                calendar_indicators[ctxid] = persist_calendar_indicator(ctxid)
+            except Exception:
+                ctx_data = all_ctx_data.get(ctxid, {}) or {}
+                calendar_indicators[ctxid] = bool(
+                    ctx_data.get("has_calendar") or ctx_data.get("calendar_indicator")
+                )
+
         hierarchy_map: dict[str, dict] = {}
 
         # Add all contexts that have a parent
@@ -154,6 +216,8 @@ class SuperordinateMap(ApiHandler):
             hierarchy_map[ctxid] = {
                 "parent": par_id,
                 "children": children_of.get(ctxid, []),
+                "has_calendar": calendar_indicators.get(ctxid, False),
+                "calendar_indicator": calendar_indicators.get(ctxid, False),
             }
 
         # Add all contexts that have children (even if they have no parent)
@@ -162,11 +226,15 @@ class SuperordinateMap(ApiHandler):
                 hierarchy_map[ctxid] = {
                     "parent": parent_of.get(ctxid),
                     "children": kids,
+                    "has_calendar": calendar_indicators.get(ctxid, False),
+                    "calendar_indicator": calendar_indicators.get(ctxid, False),
                 }
             # If already added (context is both parent and child), ensure
             # children list is set from our derived data
             else:
                 hierarchy_map[ctxid]["children"] = kids
+                hierarchy_map[ctxid]["has_calendar"] = calendar_indicators.get(ctxid, False)
+                hierarchy_map[ctxid]["calendar_indicator"] = calendar_indicators.get(ctxid, False)
 
 
         # Add standalone/root contexts too so every visible chat is represented.
@@ -175,6 +243,8 @@ class SuperordinateMap(ApiHandler):
                 hierarchy_map[ctxid] = {
                     "parent": parent_of.get(ctxid),
                     "children": children_of.get(ctxid, []),
+                    "has_calendar": calendar_indicators.get(ctxid, False),
+                    "calendar_indicator": calendar_indicators.get(ctxid, False),
                 }
 
         # Include name registry for name-based lookups

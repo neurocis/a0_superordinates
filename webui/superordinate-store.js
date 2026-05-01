@@ -215,6 +215,26 @@ const model = {
     return !this.isStaticName(ctxid);
   },
 
+  hasCalendar(ctxid) {
+    if (!ctxid) return false;
+
+    const contexts = Alpine.store('chats')?.contexts;
+    if (Array.isArray(contexts)) {
+      const ctx = contexts.find(c => c?.id === ctxid);
+      const data = ctx?.data || ctx?.ctx?.data || {};
+      if (this._parseBool(ctx?.has_calendar ?? ctx?.calendar_indicator, false)) return true;
+      if (this._parseBool(data.has_calendar ?? data.calendar_indicator, false)) return true;
+    }
+
+    const entry = this.hierarchyMap[ctxid] || {};
+    return this._parseBool(entry.has_calendar ?? entry.calendar_indicator, false);
+  },
+
+  displayNameWithIndicators(node) {
+    const base = String(node?.name || (node?.no ? `Chat #${node.no}` : '') || '').trim() || 'Chat';
+    return node?._hasCalendar ? `${base} 📅` : base;
+  },
+
   _cancelStaticNameRenameIfNeeded() {
     if (this.renamingId && !this.canRename(this.renamingId)) {
       this.renamingId = null;
@@ -292,6 +312,7 @@ const model = {
           _isExpanded: hasKids && this.isExpanded(node.id),
           _isUnseen: !!this._finishedUnseen[node.id],
           _staticName: this.isStaticName(node.id),
+          _hasCalendar: this.hasCalendar(node.id),
         });
         // Add children if expanded
         if (hasKids && this.isExpanded(node.id)) {
