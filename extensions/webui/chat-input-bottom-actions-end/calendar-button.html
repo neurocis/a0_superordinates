@@ -530,6 +530,7 @@
                           <span x-text="event.start_date || event.dtstart || 'No date'"></span>
                           <span x-show="!event.all_day && event.start_time" x-text="` ${event.start_time}`"></span>
                           <span x-show="event.location"> · </span><span x-show="event.location" x-text="event.location"></span>
+                          <span x-show="event.is_recurring || event.recurrence_summary"> · </span><span x-show="event.is_recurring || event.recurrence_summary" x-text="event.recurrence_summary || 'Repeats'"></span>
                         </div>
                       </button>
                     </template>
@@ -562,6 +563,38 @@
                       <input type="checkbox" x-model="$store.agentCalendar.eventForm.all_day">
                       <span>All day</span>
                     </label>
+                    <div class="a0-agent-calendar-form-field">
+                      <label>Repeat</label>
+                      <select x-model="$store.agentCalendar.eventForm.recurrence_frequency" @change="$store.agentCalendar.syncRecurrenceRule()">
+                        <option value="none">Does not repeat</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                        <option value="custom">Custom RRULE</option>
+                      </select>
+                    </div>
+                    <div class="a0-agent-calendar-form-field" x-show="$store.agentCalendar.eventForm.recurrence_frequency !== 'none'">
+                      <label>Interval</label>
+                      <input type="number" min="1" step="1" x-model="$store.agentCalendar.eventForm.recurrence_interval" @input="$store.agentCalendar.syncRecurrenceRule()" placeholder="1">
+                    </div>
+                    <div class="a0-agent-calendar-form-field" x-show="$store.agentCalendar.eventForm.recurrence_frequency !== 'none' && $store.agentCalendar.eventForm.recurrence_frequency !== 'custom'">
+                      <label>Count</label>
+                      <input type="number" min="1" step="1" x-model="$store.agentCalendar.eventForm.recurrence_count" @input="$store.agentCalendar.syncRecurrenceRule()" placeholder="Optional">
+                    </div>
+                    <div class="a0-agent-calendar-form-field" x-show="$store.agentCalendar.eventForm.recurrence_frequency !== 'none' && $store.agentCalendar.eventForm.recurrence_frequency !== 'custom'">
+                      <label>Until</label>
+                      <input type="date" x-model="$store.agentCalendar.eventForm.recurrence_until" @input="$store.agentCalendar.syncRecurrenceRule()" :disabled="Boolean($store.agentCalendar.eventForm.recurrence_count)">
+                    </div>
+                    <div class="a0-agent-calendar-form-field a0-agent-calendar-form-field-full" x-show="$store.agentCalendar.eventForm.recurrence_frequency === 'custom'">
+                      <label>Custom RRULE</label>
+                      <input type="text" x-model="$store.agentCalendar.eventForm.rrule" placeholder="FREQ=WEEKLY;INTERVAL=2;COUNT=10">
+                    </div>
+                    <div class="a0-agent-calendar-form-field a0-agent-calendar-form-field-full" x-show="$store.agentCalendar.eventForm.recurrence_frequency !== 'none'">
+                      <label>RDATE / EXDATE</label>
+                      <textarea rows="2" x-model="$store.agentCalendar.eventForm.rdate" placeholder="Optional extra dates, one RDATE line or value per line"></textarea>
+                      <textarea rows="2" x-model="$store.agentCalendar.eventForm.exdate" placeholder="Optional exception dates, one EXDATE line or value per line"></textarea>
+                    </div>
                     <div class="a0-agent-calendar-form-field">
                       <label>Location</label>
                       <input type="text" x-model="$store.agentCalendar.eventForm.location" placeholder="Optional">
@@ -1017,6 +1050,13 @@
           end_date: today,
           end_time: "10:00",
           all_day: false,
+          recurrence_frequency: "none",
+          recurrence_interval: "1",
+          recurrence_count: "",
+          recurrence_until: "",
+          rrule: "",
+          rdate: "",
+          exdate: "",
         };
       },
 
@@ -1032,7 +1072,44 @@
           end_date: String(event.end_date || event.start_date || today),
           end_time: String(event.end_time || event.start_time || "10:00").slice(0, 5),
           all_day: Boolean(event.all_day),
+          recurrence_frequency: String(event.recurrence_frequency || (event.is_recurring ? "custom" : "none") || "none"),
+          recurrence_interval: String(event.recurrence_interval || "1"),
+          recurrence_count: String(event.recurrence_count || ""),
+          recurrence_until: String(event.recurrence_until || ""),
+          rrule: String(event.rrule || ""),
+          rdate: String(event.rdate || ""),
+          exdate: String(event.exdate || ""),
         };
+      },
+
+      buildSimpleRRule() {
+        const form = this.eventForm || {};
+        const frequency = String(form.recurrence_frequency || "none").toLowerCase();
+        const freqMap = { daily: "DAILY", weekly: "WEEKLY", monthly: "MONTHLY", yearly: "YEARLY" };
+        if (!freqMap[frequency]) return "";
+        const parts = [`FREQ=${freqMap[frequency]}`];
+        const interval = Number.parseInt(String(form.recurrence_interval || "1"), 10);
+        if (Number.isFinite(interval) && interval > 1) parts.push(`INTERVAL=${interval}`);
+        const count = Number.parseInt(String(form.recurrence_count || ""), 10);
+        if (Number.isFinite(count) && count > 0) {
+          parts.push(`COUNT=${count}`);
+        } else {
+          const until = String(form.recurrence_until || "").trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(until)) parts.push(`UNTIL=${until.replaceAll("-", "")}T235959Z`);
+        }
+        return parts.join(";");
+      },
+
+      syncRecurrenceRule() {
+        if (!this.eventForm) return;
+        const frequency = String(this.eventForm.recurrence_frequency || "none").toLowerCase();
+        if (frequency === "none") {
+          this.eventForm.rrule = "";
+          this.eventForm.rdate = "";
+          this.eventForm.exdate = "";
+          return;
+        }
+        if (frequency !== "custom") this.eventForm.rrule = this.buildSimpleRRule();
       },
 
       applyFileResult(result) {
@@ -1203,6 +1280,7 @@
           this.error = "Start date is required.";
           return;
         }
+        this.syncRecurrenceRule();
         this.loading = true;
         this.error = "";
         try {

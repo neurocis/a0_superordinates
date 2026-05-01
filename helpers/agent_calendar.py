@@ -392,6 +392,26 @@ def property_from_event_lines(lines: list[str], prop: str) -> tuple[str, str] | 
     return None
 
 
+def property_lines_from_event_lines(lines: list[str], prop: str) -> list[str]:
+    target = prop.upper()
+    found: list[str] = []
+    for line in lines:
+        name, _params, _value = split_content_line(line)
+        if name == target:
+            found.append(line)
+    return found
+
+
+def property_values_from_event_lines(lines: list[str], prop: str) -> list[str]:
+    target = prop.upper()
+    found: list[str] = []
+    for line in lines:
+        name, _params, value = split_content_line(line)
+        if name == target:
+            found.append(value)
+    return found
+
+
 def parse_ics_datetime_for_ui(value: str, params: str = "") -> dict[str, Any]:
     raw = str(value or "").strip()
     all_day = "VALUE=DATE" in str(params or "").upper() or (len(raw) == 8 and "T" not in raw)
@@ -406,6 +426,102 @@ def parse_ics_datetime_for_ui(value: str, params: str = "") -> dict[str, Any]:
             "raw": raw,
         }
     return {"date": "", "time": "", "all_day": False, "raw": raw}
+
+
+def parse_rrule_parts(rrule: str) -> dict[str, str]:
+    parts: dict[str, str] = {}
+    for chunk in str(rrule or "").strip().split(";"):
+        if not chunk or "=" not in chunk:
+            continue
+        key, value = chunk.split("=", 1)
+        key = key.strip().upper()
+        value = value.strip()
+        if key:
+            parts[key] = value
+    return parts
+
+
+def recurrence_frequency_from_rrule(rrule: str) -> str:
+    clean = str(rrule or "").strip()
+    if not clean:
+        return "none"
+    parts = parse_rrule_parts(clean)
+    freq = parts.get("FREQ", "").upper()
+    mapping = {
+        "DAILY": "daily",
+        "WEEKLY": "weekly",
+        "MONTHLY": "monthly",
+        "YEARLY": "yearly",
+    }
+    # Only expose the RRULE through the simple UI controls when the rule can be
+    # round-tripped by those controls.  Anything with BYDAY/BYMONTHDAY/WKST/etc.
+    # stays custom so a form save does not silently simplify the recurrence.
+    simple_keys = {"FREQ", "INTERVAL", "COUNT", "UNTIL"}
+    if freq in mapping and set(parts).issubset(simple_keys):
+        return mapping[freq]
+    return "custom"
+
+
+def parse_rrule_until_for_ui(value: str) -> str:
+    raw = str(value or "").strip().rstrip("Z")
+    if len(raw) >= 8 and raw[:8].isdigit():
+        return f"{raw[0:4]}-{raw[4:6]}-{raw[6:8]}"
+    return ""
+
+
+def recurrence_summary(rrule: str, rdate_lines: list[str] | None = None, exdate_lines: list[str] | None = None) -> str:
+    clean_rrule = str(rrule or "").strip()
+    rdates = rdate_lines or []
+    exdates = exdate_lines or []
+    if not clean_rrule and not rdates and not exdates:
+        return ""
+
+    parts = parse_rrule_parts(clean_rrule)
+    freq = parts.get("FREQ", "").upper()
+    freq_label = {
+        "DAILY": "daily",
+        "WEEKLY": "weekly",
+        "MONTHLY": "monthly",
+        "YEARLY": "yearly",
+    }.get(freq, "custom")
+    if clean_rrule:
+        interval = parts.get("INTERVAL", "1") or "1"
+        label = f"Repeats {freq_label}"
+        if interval not in {"", "1"}:
+            label = f"Repeats every {interval} {freq_label} intervals"
+        if parts.get("COUNT"):
+            label += f", {parts['COUNT']} times"
+        elif parts.get("UNTIL"):
+            until = parse_rrule_until_for_ui(parts["UNTIL"])
+            if until:
+                label += f", until {until}"
+    else:
+        label = "Repeats on selected dates"
+    if exdates:
+        label += f"; {len(exdates)} exception date line{'s' if len(exdates) != 1 else ''}"
+    return label
+
+
+def recurrence_payload_from_event_lines(event_lines: list[str]) -> dict[str, Any]:
+    rrule_values = property_values_from_event_lines(event_lines, "RRULE")
+    rrule = rrule_values[0] if rrule_values else ""
+    rdate_lines = property_lines_from_event_lines(event_lines, "RDATE")
+    exdate_lines = property_lines_from_event_lines(event_lines, "EXDATE")
+    parts = parse_rrule_parts(rrule)
+    frequency = recurrence_frequency_from_rrule(rrule)
+    if not rrule and (rdate_lines or exdate_lines):
+        frequency = "custom"
+    return {
+        "rrule": rrule,
+        "rdate": "\n".join(rdate_lines),
+        "exdate": "\n".join(exdate_lines),
+        "recurrence_frequency": frequency,
+        "recurrence_interval": parts.get("INTERVAL", "1") or "1",
+        "recurrence_count": parts.get("COUNT", ""),
+        "recurrence_until": parse_rrule_until_for_ui(parts.get("UNTIL", "")),
+        "recurrence_summary": recurrence_summary(rrule, rdate_lines, exdate_lines),
+        "is_recurring": bool(rrule or rdate_lines or exdate_lines),
+    }
 
 
 def list_ics_events_from_text(text: str) -> list[dict[str, Any]]:
@@ -430,6 +546,7 @@ def list_ics_events_from_text(text: str) -> list[dict[str, Any]]:
                 dtend = property_from_event_lines(event_lines, "DTEND")
                 start = parse_ics_datetime_for_ui(dtstart[1], dtstart[0]) if dtstart else {"date": "", "time": "", "all_day": False, "raw": ""}
                 end = parse_ics_datetime_for_ui(dtend[1], dtend[0]) if dtend else {"date": "", "time": "", "all_day": False, "raw": ""}
+                recurrence = recurrence_payload_from_event_lines(event_lines)
                 events.append({
                     "uid": uid[1] if uid else "",
                     "summary": unescape_ics_text(summary[1]) if summary else "(No title)",
@@ -442,6 +559,7 @@ def list_ics_events_from_text(text: str) -> list[dict[str, Any]]:
                     "all_day": bool(start.get("all_day")),
                     "dtstart": start.get("raw", ""),
                     "dtend": end.get("raw", ""),
+                    **recurrence,
                 })
     return events
 
@@ -459,7 +577,146 @@ def format_ics_datetime(date_value: str, time_value: str = "", all_day: bool = F
     return "", f"{date_part}T{time_clean.replace(':', '')}00"
 
 
-def build_vevent(event: dict[str, Any]) -> tuple[str, str]:
+def normalize_rrule_value(value: str) -> str:
+    clean = str(value or "").strip()
+    if clean.upper().startswith("RRULE:"):
+        clean = clean.split(":", 1)[1].strip()
+    if not clean:
+        return ""
+    if "\n" in clean or "\r" in clean:
+        raise ValueError("RRULE must be a single line")
+    if ":" in clean:
+        raise ValueError("RRULE value must not contain ':'")
+    if "FREQ=" not in clean.upper():
+        raise ValueError("RRULE must include FREQ=")
+    return clean
+
+
+def event_has_recurrence_controls(event: dict[str, Any]) -> bool:
+    return any(
+        key in event
+        for key in (
+            "rrule",
+            "rdate",
+            "exdate",
+            "recurrence_frequency",
+            "recurrence",
+            "recurrence_interval",
+            "recurrence_count",
+            "recurrence_until",
+        )
+    )
+
+
+def build_rrule_from_event(event: dict[str, Any]) -> str:
+    explicit = str(event.get("rrule") or "").strip()
+    frequency = str(event.get("recurrence_frequency") or event.get("recurrence") or "").strip().lower()
+    if explicit and (frequency in {"", "custom"}):
+        return normalize_rrule_value(explicit)
+    if frequency in {"", "none", "no", "false"}:
+        return ""
+    freq_map = {
+        "daily": "DAILY",
+        "weekly": "WEEKLY",
+        "monthly": "MONTHLY",
+        "yearly": "YEARLY",
+    }
+    if frequency == "custom":
+        return normalize_rrule_value(explicit)
+    if frequency not in freq_map:
+        if explicit:
+            return normalize_rrule_value(explicit)
+        raise ValueError("recurrence_frequency must be none, daily, weekly, monthly, yearly, or custom")
+
+    parts = [f"FREQ={freq_map[frequency]}"]
+    try:
+        interval = int(str(event.get("recurrence_interval") or "1"))
+    except ValueError as exc:
+        raise ValueError("recurrence interval must be a number") from exc
+    if interval < 1:
+        raise ValueError("recurrence interval must be at least 1")
+    if interval > 1:
+        parts.append(f"INTERVAL={interval}")
+
+    count = str(event.get("recurrence_count") or "").strip()
+    until = str(event.get("recurrence_until") or "").strip()
+    if count:
+        try:
+            count_int = int(count)
+        except ValueError as exc:
+            raise ValueError("recurrence count must be a number") from exc
+        if count_int < 1:
+            raise ValueError("recurrence count must be at least 1")
+        parts.append(f"COUNT={count_int}")
+    elif until:
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", until):
+            raise ValueError("recurrence until date must use YYYY-MM-DD")
+        parts.append(f"UNTIL={until.replace('-', '')}T235959Z")
+    return ";".join(parts)
+
+
+def normalize_recurrence_property_lines(value: str, prop: str) -> list[str]:
+    target = prop.upper()
+    lines: list[str] = []
+    for raw in str(value or "").replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        clean = raw.strip()
+        if not clean:
+            continue
+        if "\n" in clean or "\r" in clean:
+            raise ValueError(f"{target} must contain one property per line")
+        name, params, line_value = split_content_line(clean)
+        if name == target and line_value:
+            suffix = f";{params}" if params else ""
+            lines.append(f"{target}{suffix}:{line_value}")
+        else:
+            if ":" in clean:
+                raise ValueError(f"{target} lines must be {target}:... or values only")
+            lines.append(f"{target}:{clean}")
+    return lines
+
+
+_EDITABLE_EVENT_PROPERTIES = {
+    "UID",
+    "DTSTAMP",
+    "DTSTART",
+    "DTEND",
+    "SUMMARY",
+    "LOCATION",
+    "DESCRIPTION",
+    "RRULE",
+    "RDATE",
+    "EXDATE",
+}
+
+
+def preserved_top_level_event_lines(existing_lines: list[str] | None) -> list[str]:
+    if not existing_lines:
+        return []
+    preserved: list[str] = []
+    nested_depth = 0
+    for line in existing_lines:
+        upper = line.upper()
+        if upper in {"BEGIN:VEVENT", "END:VEVENT"}:
+            continue
+        name, _params, value = split_content_line(line)
+        if nested_depth > 0:
+            preserved.append(line)
+            if name == "BEGIN":
+                nested_depth += 1
+            elif name == "END":
+                nested_depth = max(0, nested_depth - 1)
+            continue
+        if name == "BEGIN" and value.upper() != "VEVENT":
+            preserved.append(line)
+            nested_depth = 1
+            continue
+        if name in _EDITABLE_EVENT_PROPERTIES:
+            continue
+        preserved.append(line)
+    return preserved
+
+
+def build_vevent(event: dict[str, Any], existing_lines: list[str] | None = None) -> tuple[str, str]:
     uid = str(event.get("uid") or "").strip() or uuid.uuid4().hex
     summary = str(event.get("summary") or "").strip() or "Untitled Event"
     description = str(event.get("description") or "")
@@ -473,6 +730,19 @@ def build_vevent(event: dict[str, Any]) -> tuple[str, str]:
 
     start_params, start_value = format_ics_datetime(start_date, start_time, all_day)
     end_params, end_value = format_ics_datetime(end_date, end_time, all_day)
+    if existing_lines is not None and not event_has_recurrence_controls(event):
+        # Backward-compatible safety: callers that edit simple fields without
+        # sending recurrence controls must not accidentally flatten a recurring
+        # event into a one-time event.  The WebUI sends explicit controls, so it
+        # can still intentionally remove or change recurrence.
+        rrule_values = property_values_from_event_lines(existing_lines, "RRULE")
+        rrule = rrule_values[0] if rrule_values else ""
+        rdate_lines = property_lines_from_event_lines(existing_lines, "RDATE")
+        exdate_lines = property_lines_from_event_lines(existing_lines, "EXDATE")
+    else:
+        rrule = build_rrule_from_event(event)
+        rdate_lines = normalize_recurrence_property_lines(str(event.get("rdate") or ""), "RDATE")
+        exdate_lines = normalize_recurrence_property_lines(str(event.get("exdate") or ""), "EXDATE")
 
     lines = [
         "BEGIN:VEVENT",
@@ -486,13 +756,17 @@ def build_vevent(event: dict[str, Any]) -> tuple[str, str]:
         lines.append(f"LOCATION:{escape_ics_text(location)}")
     if description.strip():
         lines.append(f"DESCRIPTION:{escape_ics_text(description)}")
+    if rrule:
+        lines.append(f"RRULE:{rrule}")
+    lines.extend(rdate_lines)
+    lines.extend(exdate_lines)
+    lines.extend(preserved_top_level_event_lines(existing_lines))
     lines.append("END:VEVENT")
 
     folded: list[str] = []
     for line in lines:
         folded.extend(fold_ics_line(line))
     return uid, "\r\n".join(folded)
-
 
 def split_calendar_event_blocks(text: str) -> tuple[list[str], list[tuple[str, list[str]]]]:
     lines = unfold_ics_lines(text)
@@ -541,18 +815,22 @@ def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_
     path, calendar_dir = calendar_file_path(ctxid, filename)
     text = path.read_text(encoding="utf-8", errors="replace")
     skeleton, existing = split_calendar_event_blocks(text)
-    uid, block = build_vevent(event)
     target_uid = str(old_uid or event.get("uid") or "").strip()
+    uid = str(event.get("uid") or "").strip() or uuid.uuid4().hex
     replaced = False
     blocks: list[str] = []
     for existing_uid, lines in existing:
         if target_uid and existing_uid == target_uid:
             if not replaced:
+                event_with_uid = {**event, "uid": uid}
+                uid, block = build_vevent(event_with_uid, existing_lines=lines)
                 blocks.append(block)
                 replaced = True
             continue
         blocks.append("\r\n".join(lines))
     if not replaced:
+        event_with_uid = {**event, "uid": uid}
+        uid, block = build_vevent(event_with_uid)
         blocks.append(block)
     new_text = render_calendar_with_events(skeleton, blocks)
     with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
@@ -567,7 +845,6 @@ def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_
         "events": list_ics_events_from_text(new_text),
         "saved_event_uid": uid,
     }
-
 
 def delete_calendar_event(ctxid: str, filename: str, uid: str) -> dict[str, Any]:
     clean_uid = str(uid or "").strip()

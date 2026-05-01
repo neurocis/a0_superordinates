@@ -121,6 +121,8 @@ The Calendar panel can:
 - Add or remove remote ICS subscription links
 - Open a local `.ics` file in the browser
 - Add, edit, and delete `VEVENT` entries through a form
+- Create and edit recurring events with `RRULE`, `RDATE`, and `EXDATE`
+- Preserve existing recurrence metadata and non-form event properties during form edits
 - Edit and save raw ICS text when needed
 
 The backing API is:
@@ -141,6 +143,8 @@ Supported actions include:
 - `remove_subscription`
 
 For safety, file operations are constrained to sanitized `.ics` filenames inside the selected context's calendar directory.
+
+Recurring event support includes simple Daily/Weekly/Monthly/Yearly controls, custom `RRULE` editing, and advanced `RDATE`/`EXDATE` textareas. Existing complex recurrence rules and non-form `VEVENT` metadata such as attendees, alarms, URLs, and `X-*` properties are preserved when editing ordinary form fields.
 
 ## Installation
 
