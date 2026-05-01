@@ -561,6 +561,13 @@
     pointer-events: none;
   }
 
+  .a0-agent-calendar-file-icon-button .material-symbols-outlined,
+  .a0-agent-calendar-small-button .material-symbols-outlined {
+    font-size: 1rem;
+    line-height: 1;
+    pointer-events: none;
+  }
+
   .a0-agent-calendar-content-grid .a0-agent-calendar-input-row {
     grid-template-columns: minmax(100px, 0.8fr) minmax(160px, 1.2fr) auto;
   }
@@ -813,14 +820,8 @@
                             class="a0-agent-calendar-small-button a0-agent-calendar-file-icon-button"
                             title="Delete"
                             aria-label="Delete"
-                            @click="$store.agentCalendar.deleteLocalCalendar(file)">
-                      <svg class="a0-agent-calendar-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path d="M3 6h18"></path>
-                        <path d="M8 6V4h8v2"></path>
-                        <path d="M19 6l-1 14H6L5 6"></path>
-                        <path d="M10 11v6"></path>
-                        <path d="M14 11v6"></path>
-                      </svg>
+                            @click.stop="$confirmClick($event, () => $store.agentCalendar.deleteLocalCalendar(file))">
+                      <span class="material-symbols-outlined" aria-hidden="true">delete</span>
                     </button>
                   </div>
                 </div>
@@ -1084,13 +1085,13 @@
                     <template x-if="$store.agentCalendar.componentKind === 'event'">
                       <span>
                         <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.saveCurrentItem()" x-text="$store.agentCalendar.selectedSource === 'caldav' ? 'Save CalDAV event' : 'Save event'"></button>
-                        <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.eventForm.uid" @click="$store.agentCalendar.deleteCurrentItem()" x-text="$store.agentCalendar.selectedSource === 'caldav' ? 'Delete CalDAV event' : 'Clear event'"></button>
+                        <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.eventForm.uid" @click="$confirmClick($event, () => $store.agentCalendar.deleteCurrentItem())" x-text="$store.agentCalendar.selectedSource === 'caldav' ? 'Delete CalDAV event' : 'Clear event'"></button>
                       </span>
                     </template>
                     <template x-if="$store.agentCalendar.componentKind === 'todo'">
                       <span>
                         <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.saveCurrentItem()" x-text="$store.agentCalendar.selectedSource === 'caldav' ? 'Save CalDAV todo' : 'Save todo'"></button>
-                        <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.todoForm.uid" @click="$store.agentCalendar.deleteCurrentItem()" x-text="$store.agentCalendar.selectedSource === 'caldav' ? 'Delete CalDAV todo' : 'Clear todo'"></button>
+                        <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.todoForm.uid" @click="$confirmClick($event, () => $store.agentCalendar.deleteCurrentItem())" x-text="$store.agentCalendar.selectedSource === 'caldav' ? 'Delete CalDAV todo' : 'Clear todo'"></button>
                       </span>
                     </template>
                   </div>
@@ -2083,7 +2084,6 @@
 
       async deleteLocalCalendar(file) {
         if (!file?.name) return;
-        if (!window.confirm(`Delete local calendar file ${file.name}?`)) return;
         this.loading = true;
         this.error = "";
         try {
@@ -2153,7 +2153,6 @@
       async deleteTodo(uid) {
         const cleanUid = String(uid || "").trim();
         if (!this.selectedFileName) return;
-        if (!window.confirm("Clear this todo from the .ics file?")) return;
         this.loading = true;
         this.error = "";
         try {
@@ -2206,7 +2205,6 @@
       async deleteEvent(uid) {
         const cleanUid = String(uid || "").trim();
         if (!this.selectedFileName) return;
-        if (!window.confirm("Clear this event from the .ics file?")) return;
         this.loading = true;
         this.error = "";
         try {
@@ -2762,7 +2760,6 @@
       async deleteCaldavEvent(ev) {
         const href = ev?.href || this.selectedCaldavHref;
         if (!this.caldavAccount || !href) return;
-        if (!window.confirm("Delete this CalDAV event?")) return;
         this.loading = true;
         this.error = "";
         try {
