@@ -375,8 +375,45 @@
 
   .a0-agent-calendar-caldav-form {
     grid-column: 1 / -1;
-    grid-template-columns: minmax(220px, 1.5fr) minmax(160px, 0.9fr) minmax(180px, 0.9fr) auto !important;
+    grid-template-columns: minmax(420px, 2fr) minmax(140px, 0.75fr) minmax(160px, 0.8fr) auto !important;
     align-items: center;
+  }
+
+  .a0-agent-calendar-caldav-server-collection {
+    display: grid;
+    grid-template-columns: minmax(190px, 1fr) minmax(150px, 0.85fr) auto;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .a0-agent-calendar-caldav-server-collection > input,
+  .a0-agent-calendar-caldav-collection-select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .a0-agent-calendar-caldav-collection-select {
+    padding: 0.45rem 0.6rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    outline: none;
+  }
+
+  .a0-agent-calendar-caldav-collection-select option {
+    color: #111;
+  }
+
+  .a0-agent-calendar-icon-button {
+    width: 2.15rem;
+    min-width: 2.15rem;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    text-align: center;
+    font-size: 1rem;
+    line-height: 1;
   }
 
   .a0-agent-calendar-content-grid .a0-agent-calendar-input-row {
@@ -586,7 +623,27 @@
             </div>
 
             <div class="a0-agent-calendar-input-row a0-agent-calendar-caldav-form">
-              <input type="url" placeholder="CalDAV server URL, e.g. https://caldav.example.com" x-model="$store.agentCalendar.newCaldav.server_url">
+              <div class="a0-agent-calendar-caldav-server-collection">
+                <input type="url" placeholder="CalDAV server URL, e.g. https://caldav.example.com" x-model="$store.agentCalendar.newCaldav.server_url">
+                <select class="a0-agent-calendar-caldav-collection-select"
+                        x-model="$store.agentCalendar.selectedCaldavCollectionUrl"
+                        :disabled="$store.agentCalendar.loading || !$store.agentCalendar.caldavAccount || !$store.agentCalendar.caldavCollections().length"
+                        title="Selected CalDAV collection for sync"
+                        @change="$store.agentCalendar.selectCaldavCollection($event.target.value)">
+                  <option value="" disabled>Collection…</option>
+                  <template x-for="collection in $store.agentCalendar.caldavCollections()" :key="collection.url || collection.name || collection.display_name">
+                    <option :value="collection.url" x-text="$store.agentCalendar.caldavCollectionLabel(collection)"></option>
+                  </template>
+                </select>
+                <button type="button"
+                        class="a0-agent-calendar-small-button a0-agent-calendar-icon-button"
+                        :disabled="$store.agentCalendar.loading || !$store.agentCalendar.caldavAccount"
+                        title="Refresh CalDAV collections"
+                        aria-label="Refresh CalDAV collections"
+                        @click="$store.agentCalendar.refreshCaldavCollections()">
+                  ↻
+                </button>
+              </div>
               <input type="text" placeholder="Username" autocomplete="username" x-model="$store.agentCalendar.newCaldav.username">
               <input type="password" placeholder="Password / App password" autocomplete="new-password" x-model="$store.agentCalendar.newCaldav.password" @keydown.enter="$store.agentCalendar.addCaldavAccount()">
               <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.addCaldavAccount()">
@@ -887,6 +944,7 @@
       caldavEvents: [],
       selectedCaldavAccountId: "",
       selectedCaldavCollectionLabel: "",
+      selectedCaldavCollectionUrl: "",
       selectedCaldavHref: "",
       selectedSource: "local",
       selectedFileName: "",
@@ -1256,6 +1314,7 @@
         this.caldavEvents = [];
         this.selectedCaldavAccountId = "";
         this.selectedCaldavCollectionLabel = "";
+        this.selectedCaldavCollectionUrl = "";
         this.selectedCaldavHref = "";
         this.selectedSource = "local";
         this.closeIcsFile();
@@ -1553,6 +1612,7 @@
         const account = result.caldav_account || (Array.isArray(result.caldav_accounts) ? result.caldav_accounts[0] : null) || null;
         this.caldavAccount = account;
         this.caldavAccounts = account ? [account] : [];
+        this.selectedCaldavCollectionUrl = String(account?.selected_collection_url || "");
         this.hydrateCaldavFormFromAccount();
         this.notifyCalendarIndicatorChanged(result);
         if (this.selectedSource === "local" && this.selectedFileName && !this.files.some((file) => file?.name === this.selectedFileName)) this.closeIcsFile();
@@ -1791,6 +1851,43 @@
         this.editingCaldavAccount = false;
       },
 
+      caldavCollectionLabel(collection) {
+        if (!collection) return "";
+        return String(collection.display_name || collection.displayName || collection.name || collection.url || "").trim() || "Collection";
+      },
+
+      caldavCollections() {
+        const acc = this.caldavAccount || null;
+        if (!acc) return [];
+        const raw = Array.isArray(acc.collections) ? acc.collections : [];
+        const seen = new Set();
+        const collections = [];
+        raw.forEach((collection) => {
+          if (!collection || typeof collection !== "object") return;
+          const url = String(collection.url || "").trim();
+          if (!url || seen.has(url)) return;
+          seen.add(url);
+          collections.push({
+            ...collection,
+            url,
+            display_name: this.caldavCollectionLabel(collection),
+          });
+        });
+        const selectedUrl = String(acc.selected_collection_url || "").trim();
+        if (selectedUrl && !seen.has(selectedUrl)) {
+          collections.unshift({
+            url: selectedUrl,
+            name: acc.selected_collection_name || selectedUrl,
+            display_name: acc.selected_collection_name || selectedUrl,
+          });
+        }
+        return collections;
+      },
+
+      async refreshCaldavCollections() {
+        await this.testCaldavAccount();
+      },
+
       async syncCaldavIcsFiles() {
         if (!this.caldavAccount) {
           this.error = "Configure a CalDAV account before syncing ICS files.";
@@ -1925,16 +2022,26 @@
       },
 
       async selectCaldavCollection(collectionUrl) {
-        if (!this.caldavAccount || !collectionUrl) return;
+        const cleanUrl = String(collectionUrl || "").trim();
+        this.selectedCaldavCollectionUrl = cleanUrl;
+        if (!this.caldavAccount || !cleanUrl) return;
         this.loading = true;
         this.error = "";
         try {
           const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
             action: "select_caldav_collection",
             ctxid: this.ctxid || selectedContextId(),
-            collection_url: collectionUrl,
+            collection_url: cleanUrl,
           });
           this.applyResult(result);
+          if (this.caldavAccount?.selected_collection_url) {
+            this.selectedCaldavCollectionUrl = String(this.caldavAccount.selected_collection_url || "");
+            this.selectedCaldavCollectionLabel = this.caldavAccount.selected_collection_name || this.caldavAccount.selected_collection_url;
+          }
+          if (this.selectedSource === "caldav") {
+            this.selectedCaldavHref = "";
+            await this.refreshCaldavEvents();
+          }
         } catch (error) {
           console.error("[Agent Calendar] Failed to select CalDAV collection", error);
           this.error = String(error?.message || error || "Failed to select CalDAV collection");
@@ -1998,6 +2105,7 @@
       closeCaldavCollection() {
         this.selectedCaldavAccountId = "";
         this.selectedCaldavCollectionLabel = "";
+        this.selectedCaldavCollectionUrl = "";
         this.selectedCaldavHref = "";
         this.caldavEvents = [];
         if (this.selectedSource === "caldav") {
