@@ -266,6 +266,58 @@ def sanitize_calendar_filename(name: str) -> str:
     return value
 
 
+def unique_calendar_filename_from_summary(
+    ctxid: str,
+    summary: str,
+    fallback: str = "calendar",
+    max_stem_length: int = 80,
+) -> str:
+    """Return an unused local .ics filename derived from an item summary."""
+    calendar_dir = context_calendar_dir(ctxid, create=True)
+    base_summary = str(summary or "").strip() or fallback
+    safe_name = sanitize_calendar_filename(base_summary)
+    parsed = Path(safe_name)
+    suffix = parsed.suffix or ".ics"
+    stem = parsed.stem.strip(" ._-") or fallback
+    if len(stem) > max_stem_length:
+        stem = stem[:max_stem_length].rstrip(" ._-") or fallback
+
+    candidate = sanitize_calendar_filename(f"{stem}{suffix}")
+    if not (calendar_dir / candidate).exists():
+        return candidate
+
+    for index in range(2, 1000):
+        candidate = sanitize_calendar_filename(f"{stem}-{index}{suffix}")
+        if not (calendar_dir / candidate).exists():
+            return candidate
+
+    raise ValueError("could not allocate a unique calendar filename")
+
+
+def calendar_file_path_for_upsert(
+    ctxid: str,
+    filename: str,
+    summary: str,
+    fallback: str,
+) -> tuple[Path, Path, str]:
+    """Return target path, dir, and existing/new calendar text for item upsert.
+
+    Existing edits pass a filename and must target an existing file. New local
+    items can pass a blank filename; then the filename is allocated from Summary
+    at save time, avoiding the old browser prompt.
+    """
+    clean_filename = str(filename or "").strip()
+    if clean_filename:
+        path, calendar_dir = calendar_file_path(ctxid, clean_filename)
+        return path, calendar_dir, path.read_text(encoding="utf-8", errors="replace")
+
+    calendar_dir = context_calendar_dir(ctxid, create=True)
+    safe_name = unique_calendar_filename_from_summary(ctxid, summary, fallback=fallback)
+    path = calendar_dir / safe_name
+    title = Path(safe_name).stem.replace("_", " ").strip() or "Agent Calendar"
+    return path, calendar_dir, build_empty_calendar(title)
+
+
 def escape_ics_text(value: str) -> str:
     text = str(value or "")
     return (
@@ -1515,8 +1567,12 @@ def render_calendar_with_events(skeleton: list[str], event_blocks: list[str]) ->
 
 
 def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_uid: str | None = None) -> dict[str, Any]:
-    path, calendar_dir = calendar_file_path(ctxid, filename)
-    text = path.read_text(encoding="utf-8", errors="replace")
+    path, calendar_dir, text = calendar_file_path_for_upsert(
+        ctxid,
+        filename,
+        str(event.get("summary") or "").strip(),
+        fallback="event",
+    )
     skeleton, components = split_calendar_component_blocks(text)
 
     target_uid = str(old_uid or event.get("uid") or "").strip()
@@ -1611,8 +1667,12 @@ def delete_calendar_event(ctxid: str, filename: str, uid: str | None = None) -> 
     }
 
 def upsert_calendar_todo(ctxid: str, filename: str, todo: dict[str, Any], old_uid: str | None = None) -> dict[str, Any]:
-    path, calendar_dir = calendar_file_path(ctxid, filename)
-    text = path.read_text(encoding="utf-8", errors="replace")
+    path, calendar_dir, text = calendar_file_path_for_upsert(
+        ctxid,
+        filename,
+        str(todo.get("summary") or "").strip(),
+        fallback="todo",
+    )
     skeleton, components = split_calendar_component_blocks(text)
 
     target_uid = str(old_uid or todo.get("uid") or "").strip()

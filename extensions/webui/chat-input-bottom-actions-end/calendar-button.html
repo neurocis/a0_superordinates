@@ -1228,6 +1228,7 @@
       selectedCaldavHref: "",
       selectedSource: "local",
       selectedFileName: "",
+      pendingLocalCalendar: false,
       selectedFile: null,
       selectedEvents: [],
       eventForm: {},
@@ -1900,6 +1901,9 @@
           const collection = String(this.selectedCaldavCollectionLabel || this.selectedCaldavCollectionUrl || "").trim();
           return collection ? `CalDAV collection: ${collection}` : "CalDAV item";
         }
+        if (this.pendingLocalCalendar) {
+          return "New local ICS item — filename will be derived from Summary when saved";
+        }
         const name = String(this.selectedFileName || this.selectedFile?.name || "").trim();
         return name ? `Local ICS file: ${name}` : "Local ICS item";
       },
@@ -1923,6 +1927,7 @@
         }
         this.selectedFile = result.file || this.selectedFile;
         this.selectedFileName = this.selectedFile?.name || this.selectedFileName;
+        this.pendingLocalCalendar = false;
         const events = Array.isArray(result.events) ? result.events : [];
         const todos = Array.isArray(result.todos) ? result.todos : [];
         this.selectedEvents = events;
@@ -1956,6 +1961,7 @@
 
       closeIcsFile() {
         this.selectedFileName = "";
+        this.pendingLocalCalendar = false;
         this.selectedFile = null;
         this.selectedEvents = [];
         this.eventForm = {};
@@ -2053,7 +2059,7 @@
         this.caldavSyncStatus = result?.caldav_sync_status || result?.sync_status || this.caldavSyncStatus || null;
         this.hydrateCaldavFormFromAccount();
         this.notifyCalendarIndicatorChanged(result);
-        if (this.selectedSource === "local" && this.selectedFileName && !this.files.some((file) => file?.name === this.selectedFileName)) this.closeIcsFile();
+        if (this.selectedSource === "local" && this.selectedFileName && !this.pendingLocalCalendar && !this.files.some((file) => file?.name === this.selectedFileName)) this.closeIcsFile();
         if (this.selectedSource === "caldav" && (!this.caldavAccount ||
             (this.selectedCaldavAccountId && String(this.caldavAccount?.id || "") !== String(this.selectedCaldavAccountId)))) {
           this.closeCaldavCollection();
@@ -2062,24 +2068,20 @@
         if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
       },
 
-      async createLocalCalendar() {
-        const filename = window.prompt("Calendar filename", "local.ics");
-        if (!filename) return;
-        this.loading = true;
+      createLocalCalendar() {
+        this.selectedSource = "local";
+        this.selectedFileName = "__new_local_calendar__";
+        this.pendingLocalCalendar = true;
+        this.selectedFile = null;
+        this.selectedEvents = [];
+        this.componentKind = "event";
+        this.eventForm = this.defaultEventForm();
+        this.todoForm = this.defaultTodoForm();
+        this.originalEventUid = "";
+        this.originalTodoUid = "";
+        this.selectedCaldavHref = "";
         this.error = "";
-        try {
-          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
-            action: "create_ics",
-            ctxid: this.ctxid || selectedContextId(),
-            filename,
-          });
-          this.applyResult(result);
-        } catch (error) {
-          console.error("[Agent Calendar] Failed to create .ics file", error);
-          this.error = String(error?.message || error || "Failed to create .ics file");
-        } finally {
-          this.loading = false;
-        }
+        if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
       },
 
       async deleteLocalCalendar(file) {
@@ -2122,7 +2124,8 @@
       },
 
       async saveTodo() {
-        if (!this.selectedFileName) {
+        const creatingLocal = Boolean(this.pendingLocalCalendar && this.selectedSource === "local");
+        if (!this.selectedFileName && !creatingLocal) {
           this.error = "Open a local .ics file first.";
           return;
         }
@@ -2136,8 +2139,8 @@
           const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
             action: "upsert_todo",
             ctxid: this.ctxid || selectedContextId(),
-            filename: this.selectedFileName,
-            old_uid: this.originalTodoUid,
+            filename: creatingLocal ? "" : this.selectedFileName,
+            old_uid: creatingLocal ? "" : this.originalTodoUid,
             todo: this.todoForm,
           });
           this.applyFileResult(result);
@@ -2173,8 +2176,13 @@
       },
 
       async saveEvent() {
-        if (!this.selectedFileName) {
+        const creatingLocal = Boolean(this.pendingLocalCalendar && this.selectedSource === "local");
+        if (!this.selectedFileName && !creatingLocal) {
           this.error = "Open a local .ics file first.";
+          return;
+        }
+        if (creatingLocal && !String(this.eventForm?.summary || "").trim()) {
+          this.error = "Summary is required.";
           return;
         }
         if (!String(this.eventForm?.start_date || "").trim()) {
@@ -2188,8 +2196,8 @@
           const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
             action: "upsert_event",
             ctxid: this.ctxid || selectedContextId(),
-            filename: this.selectedFileName,
-            old_uid: this.originalEventUid,
+            filename: creatingLocal ? "" : this.selectedFileName,
+            old_uid: creatingLocal ? "" : this.originalEventUid,
             event: this.eventForm,
           });
           this.applyFileResult(result);
