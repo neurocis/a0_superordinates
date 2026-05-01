@@ -727,7 +727,8 @@
                   <div class="a0-agent-calendar-row-main">
                     <div class="a0-agent-calendar-file-headline">
                       <div class="a0-agent-calendar-file-date-line">
-                        <span class="a0-agent-calendar-file-kind-icon" aria-hidden="true">📅</span>
+                        <span class="a0-agent-calendar-file-kind-icon" x-show="$store.agentCalendar.fileComponentKind(file) === 'event'" aria-hidden="true">📅</span>
+                        <span class="a0-agent-calendar-file-kind-icon" x-show="$store.agentCalendar.fileComponentKind(file) === 'todo'" aria-hidden="true">☑</span>
                         <span class="a0-agent-calendar-file-date" x-text="$store.agentCalendar.fileStartLabel(file)"></span>
                         <template x-if="file.is_recurring">
                           <i class="ti ti-repeat a0-agent-calendar-recurrence-icon" title="Recurrent" aria-label="Recurrent"></i>
@@ -1154,6 +1155,12 @@
 
       fileSummary(file) {
         return String(file?.summary || file?.event_summary || file?.todo_summary || "(empty)");
+      },
+
+      fileComponentKind(file) {
+        const kind = String(file?.component_kind || file?.kind || file?.type || "").trim().toLowerCase();
+        if (kind === "todo" || kind === "vtodo" || kind.includes("todo")) return "todo";
+        return "event";
       },
 
       softHyphenateText(value) {
