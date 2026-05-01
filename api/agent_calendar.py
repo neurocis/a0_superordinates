@@ -1,4 +1,4 @@
-"""API endpoint for per-agent calendar files and ICS subscriptions."""
+"""API endpoint for per-agent calendar files and CalDAV accounts."""
 
 from __future__ import annotations
 
@@ -39,9 +39,6 @@ def _module_file_is_plugin_helper(module: object) -> bool:
 
 
 try:
-    # If a previous import already bound top-level ``helpers`` to this plugin,
-    # discard only that mistaken top-level binding before importing the framework
-    # package.  Do not remove fully-qualified usr.plugins.* modules.
     for _name in list(sys.modules):
         if _name == "helpers" or _name.startswith("helpers."):
             if _module_file_is_plugin_helper(sys.modules[_name]):
@@ -57,19 +54,29 @@ try:
     from helpers.api import ApiHandler, Request
 finally:
     sys.path = _ORIGINAL_SYS_PATH
+
 from usr.plugins.a0_superordinates.helpers.agent_calendar import (
-    add_subscription,
     create_local_calendar,
     delete_calendar_event,
+    delete_calendar_todo,
     delete_local_calendar,
     list_calendar_stack,
     read_calendar_file,
-    remove_subscription,
     save_calendar_file,
     upsert_calendar_event,
     upsert_calendar_todo,
-    delete_calendar_todo,
-    upsert_calendar_event,
+)
+from usr.plugins.a0_superordinates.helpers.agent_caldav import (
+    add_caldav_account,
+    delete_caldav_event,
+    get_caldav_event,
+    list_caldav_accounts,
+    list_caldav_collections,
+    list_caldav_events,
+    remove_caldav_account,
+    select_caldav_collection,
+    test_caldav_account,
+    upsert_caldav_event,
 )
 
 
@@ -83,9 +90,11 @@ class AgentCalendar(ApiHandler):
         ctxid = str(input.get("ctxid") or input.get("context_id") or "").strip()
 
         try:
+            # ----- Calendar stack listing -----
             if action == "list":
                 return list_calendar_stack(ctxid)
 
+            # ----- Local .ics file lifecycle -----
             if action == "create_ics":
                 created = create_local_calendar(
                     ctxid=ctxid,
@@ -116,6 +125,7 @@ class AgentCalendar(ApiHandler):
                     content=str(input.get("content") or ""),
                 )
 
+            # ----- Local VEVENT/VTODO editing -----
             if action == "upsert_event":
                 return upsert_calendar_event(
                     ctxid=ctxid,
@@ -148,24 +158,97 @@ class AgentCalendar(ApiHandler):
                     uid=str(input.get("uid") or ""),
                 )
 
-            if action == "add_subscription":
-                subscription = add_subscription(
-                    ctxid=ctxid,
-                    name=str(input.get("name") or ""),
-                    url=str(input.get("url") or ""),
-                )
+            # ----- CalDAV account lifecycle -----
+            if action == "list_caldav_accounts":
                 payload = list_calendar_stack(ctxid)
-                payload["added"] = subscription
+                payload["caldav_accounts"] = list_caldav_accounts(ctxid)
                 return payload
 
-            if action == "remove_subscription":
-                removed = remove_subscription(
+            if action == "add_caldav_account":
+                added = add_caldav_account(
                     ctxid=ctxid,
-                    subscription_id=str(input.get("subscription_id") or input.get("id") or ""),
+                    label=str(input.get("label") or ""),
+                    server_url=str(input.get("server_url") or input.get("url") or ""),
+                    username=str(input.get("username") or ""),
+                    password=str(input.get("password") or ""),
+                )
+                payload = list_calendar_stack(ctxid)
+                payload["added"] = added
+                return payload
+
+            if action == "remove_caldav_account":
+                removed = remove_caldav_account(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
                 )
                 payload = list_calendar_stack(ctxid)
                 payload["removed"] = removed
                 return payload
+
+            if action == "test_caldav_account":
+                result = test_caldav_account(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
+                )
+                payload = list_calendar_stack(ctxid)
+                payload["test"] = result
+                return payload
+
+            if action == "list_caldav_collections":
+                result = list_caldav_collections(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
+                )
+                payload = list_calendar_stack(ctxid)
+                payload["collections"] = result.get("collections", [])
+                payload["test"] = result
+                return payload
+
+            if action == "select_caldav_collection":
+                selected = select_caldav_collection(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
+                    collection_url=str(input.get("collection_url") or input.get("url") or ""),
+                )
+                payload = list_calendar_stack(ctxid)
+                payload["selected"] = selected
+                return payload
+
+            # ----- CalDAV event CRUD -----
+            if action == "list_caldav_events":
+                return list_caldav_events(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
+                )
+
+            if action == "get_caldav_event":
+                return get_caldav_event(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
+                    href=str(input.get("href") or ""),
+                )
+
+            if action == "upsert_caldav_event":
+                payload = {}
+                if isinstance(input.get("event"), dict):
+                    payload["event"] = input.get("event")
+                if isinstance(input.get("todo"), dict):
+                    payload["todo"] = input.get("todo")
+                if isinstance(input.get("ics"), str):
+                    payload["ics"] = input.get("ics")
+                return upsert_caldav_event(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
+                    payload=payload,
+                    href=str(input.get("href") or ""),
+                )
+
+            if action == "delete_caldav_event":
+                return delete_caldav_event(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
+                    href=str(input.get("href") or ""),
+                )
 
             return {"ok": False, "error": f"unknown action: {action}"}
         except Exception as exc:

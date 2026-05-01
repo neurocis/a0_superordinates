@@ -104,9 +104,9 @@ Input: `{"context": "<ctxid>"}` → Returns full hierarchy tree
 - **Alpine store**: `$store.superordinates` with auto-refresh (5s)
 - **Profile badges** and expand/collapse for nested hierarchies
 
-## Agent Calendar / ICS Editing
+## Agent Calendar (Local ICS + CalDAV)
 
-On the `feat/agent-ics` branch, the plugin also adds a **Calendar** button to the chat input action bar.
+On the `feat/agent-ics` branch, the plugin adds a **Calendar** button to the chat input action bar.
 
 Each agent context has a writable calendar folder on the webserver:
 
@@ -118,9 +118,9 @@ The Calendar panel can:
 
 - List local `.ics` files for the selected agent context
 - Create a new local `.ics` file
-- Add or remove remote ICS subscription links
+- Register CalDAV accounts (server URL, username, password) per agent context, discover their calendar collections, and pick an active collection
 - Open a local `.ics` file in the browser
-- Add, edit, and delete `VEVENT` entries through a form
+- Add, edit, and delete `VEVENT` / `VTODO` entries through a form (against either a local file or a CalDAV collection)
 - Create and edit recurring events with `RRULE`, `RDATE`, and `EXDATE`
 - Preserve existing recurrence metadata and non-form event properties during form edits
 
@@ -136,10 +136,14 @@ Supported actions include:
 - `create_ics`
 - `read_ics`
 - `save_ics`
-- `upsert_event`
-- `delete_event`
-- `add_subscription`
-- `remove_subscription`
+- `upsert_event` / `delete_event`
+- `upsert_todo` / `delete_todo`
+- `list_caldav_accounts`
+- `add_caldav_account` / `remove_caldav_account`
+- `test_caldav_account` / `list_caldav_collections`
+- `select_caldav_collection`
+- `list_caldav_events` / `get_caldav_event`
+- `upsert_caldav_event` / `delete_caldav_event`
 
 For safety, file operations are constrained to sanitized `.ics` filenames inside the selected context's calendar directory.
 
@@ -147,7 +151,31 @@ Recurring event support includes simple minute/hour/day/week/month/year controls
 
 Local `.ics` files are stored as **single-component resources**: each file contains at most one `VEVENT` *or* one `VTODO`. Saving a raw ICS payload with multiple components is rejected; create a separate `.ics` file per component instead. The Calendar editor lets you switch the file between Event and Todo modes; saving rewrites the file as the selected component type.
 
-When an Agent has at least one local `.ics` file or Web ICS subscription, the plugin persists and reconciles a `has_calendar` indicator for that Agent. The Superordinates sidebar suffixes that Agent's display name with `📅`; the icon is removed automatically when the last calendar source is deleted.
+When an Agent has at least one local `.ics` file or at least one CalDAV account with an active (selected) collection, the plugin persists and reconciles a `has_calendar` indicator for that Agent. The Superordinates sidebar suffixes that Agent's display name with `📅`; the icon is removed automatically when the last calendar source is deleted.
+
+### CalDAV accounts
+
+Each Agent context can register one or more CalDAV accounts. Accounts are stored at:
+
+```text
+/a0/usr/chats/<ctxid>/calendar/caldav.json
+```
+
+Each account holds a label, server URL, username, password, the discovered list of collections, and the URL/name of the currently selected collection. Discovery and event CRUD use the maintained [`caldav`](https://pypi.org/project/caldav/) PyPI client. The structured Event/Todo editor saves to the active CalDAV collection via PUT/DELETE.
+
+Provider notes:
+
+- **Google**: typically requires an app password or OAuth; plain account passwords usually fail.
+- **iCloud**: requires an app-specific password; use `https://caldav.icloud.com` as the server URL.
+- **Nextcloud / Radicale / SOGo**: use the canonical CalDAV entry point (for Nextcloud, `https://<host>/remote.php/dav`).
+
+### Deprecation: ICS Subscription Links
+
+The previous "Web ICS Subscription Links" feature has been removed in favor of CalDAV accounts. Existing `subscriptions.json` files are silently ignored on read; nothing is migrated automatically because CalDAV (read/write) and one-way ICS subscriptions are semantically different. Recreate the corresponding feeds as CalDAV accounts where applicable.
+
+### Security note
+
+CalDAV passwords are currently stored in plaintext alongside the account record. Rotate or remove accounts if this is a concern.
 
 ## Installation
 

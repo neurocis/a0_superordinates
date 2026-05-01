@@ -1,10 +1,10 @@
 """Per-agent calendar storage helpers.
 
-Phase 1 keeps this deliberately simple:
-
 - each Agent ContextID gets a calendar folder under /a0/usr/chats/<ctxid>/calendar
-- local writable calendars are plain *.ics files in that folder
-- subscription links are stored in subscriptions.json in that same folder
+- local writable calendars are plain *.ics files in that folder, each holding at
+  most one VEVENT or VTODO
+- CalDAV accounts (server + credentials + selected collection) are stored in
+  caldav.json in that same folder; see helpers/agent_caldav.py for the client.
 
 This is an interchange/storage layer only; scheduler execution can consume it
 later without coupling the Superordinates tree to scheduler internals.
@@ -22,14 +22,14 @@ from typing import Any
 
 CHATS_ROOT = Path("/a0/usr/chats")
 CALENDAR_DIRNAME = "calendar"
-SUBSCRIPTIONS_FILENAME = "subscriptions.json"
+CALDAV_REGISTRY_FILENAME = "caldav.json"
+LEGACY_SUBSCRIPTIONS_FILENAME = "subscriptions.json"
 REGISTRY_VERSION = 1
 CALENDAR_INDICATOR_KEY = "has_calendar"
 CALENDAR_INDICATOR_ALT_KEY = "calendar_indicator"
 
 _CTXID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 _BAD_FILENAME_CHARS_RE = re.compile(r"[^A-Za-z0-9_. -]+")
-_ALLOWED_SUBSCRIPTION_PREFIXES = ("http://", "https://", "webcal://")
 
 
 def utc_now() -> datetime:
@@ -103,10 +103,6 @@ def context_calendar_dir(ctxid: str, create: bool = True) -> Path:
     return path
 
 
-def subscriptions_path(ctxid: str, create: bool = True) -> Path:
-    return context_calendar_dir(ctxid, create=create) / SUBSCRIPTIONS_FILENAME
-
-
 def chat_json_path(ctxid: str) -> Path:
     return CHATS_ROOT / validate_context_id(ctxid) / "chat.json"
 
@@ -142,29 +138,22 @@ def local_ics_file_paths(ctxid: str) -> list[Path]:
         return []
 
 
-def subscription_entries(ctxid: str) -> list[dict[str, Any]]:
-    """Return valid-ish Web ICS subscription entries from the registry."""
-    try:
-        registry = load_subscriptions(ctxid, create=False)
-    except Exception:
-        return []
-    entries = registry.get("subscriptions", [])
-    if not isinstance(entries, list):
-        return []
-    valid: list[dict[str, Any]] = []
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        url = str(entry.get("url") or "").strip()
-        if url:
-            valid.append(entry)
-    return valid
-
-
 def derive_has_calendar(ctxid: str) -> bool:
-    """Derive the indicator from real sources, not from stale state."""
+    """Derive the indicator from real sources, not from stale state.
+
+    True when the agent has at least one local *.ics file or at least one
+    CalDAV account with an active (selected) collection.
+    """
     clean = validate_context_id(ctxid)
-    return bool(local_ics_file_paths(clean) or subscription_entries(clean))
+    if local_ics_file_paths(clean):
+        return True
+    try:
+        from . import agent_caldav  # late import to avoid circular dep
+        if agent_caldav.has_active_caldav_source(clean):
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _set_calendar_indicator_on_context(clean_ctxid: str, has_calendar: bool) -> bool:
@@ -200,7 +189,7 @@ def persist_calendar_indicator(ctxid: str, has_calendar: bool | None = None) -> 
     """Persist/reconcile the per-agent Calendar indicator.
 
     If has_calendar is omitted, derive it from actual local .ics files and Web
-    ICS subscriptions.  The value is written to chat.json data/output_data and
+    CalDAV accounts with an active collection.  The value is written to chat.json data/output_data and
     mirrored into any loaded AgentContext so both persisted and in-memory UI
     snapshots converge on the real source state.
 
@@ -272,7 +261,7 @@ def sanitize_calendar_filename(name: str) -> str:
         raise ValueError("calendar filename is required")
     if not value.lower().endswith(".ics"):
         value = f"{value}.ics"
-    if value in {".ics", "subscriptions.json"}:
+    if value in {".ics", LEGACY_SUBSCRIPTIONS_FILENAME, CALDAV_REGISTRY_FILENAME}:
         raise ValueError("invalid calendar filename")
     return value
 
@@ -378,38 +367,15 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     }
 
 
-def load_subscriptions(ctxid: str, create: bool = True) -> dict[str, Any]:
-    path = subscriptions_path(ctxid, create=create)
-    if not path.exists():
-        return {"version": REGISTRY_VERSION, "subscriptions": []}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        data = {}
-    if not isinstance(data, dict):
-        data = {}
-    subscriptions = data.get("subscriptions")
-    if not isinstance(subscriptions, list):
-        subscriptions = []
-    return {"version": int(data.get("version") or REGISTRY_VERSION), "subscriptions": subscriptions}
-
-
-def save_subscriptions(ctxid: str, registry: dict[str, Any]) -> None:
-    path = subscriptions_path(ctxid, create=True)
-    registry.setdefault("version", REGISTRY_VERSION)
-    registry.setdefault("subscriptions", [])
-    with NamedTemporaryFile("w", encoding="utf-8", dir=str(path.parent), delete=False) as tmp:
-        json.dump(registry, tmp, indent=2, sort_keys=True)
-        tmp.write("\n")
-        tmp_path = Path(tmp.name)
-    tmp_path.replace(path)
-
-
 def list_calendar_stack(ctxid: str) -> dict[str, Any]:
     clean_ctxid = validate_context_id(ctxid)
     calendar_dir = context_calendar_dir(clean_ctxid, create=True)
     files = [file_info(path, calendar_dir) for path in local_ics_file_paths(clean_ctxid)]
-    registry = load_subscriptions(clean_ctxid)
+    try:
+        from . import agent_caldav  # late import to avoid circular dep
+        caldav_accounts = agent_caldav.list_caldav_accounts(clean_ctxid)
+    except Exception:
+        caldav_accounts = []
     has_calendar = persist_calendar_indicator(clean_ctxid)
     return {
         "ok": True,
@@ -417,7 +383,7 @@ def list_calendar_stack(ctxid: str) -> dict[str, Any]:
         "agent_name": get_agent_display_name(clean_ctxid),
         "calendar_dir": str(calendar_dir),
         "files": files,
-        "subscriptions": registry.get("subscriptions", []),
+        "caldav_accounts": caldav_accounts,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }
@@ -438,51 +404,6 @@ def create_local_calendar(ctxid: str, filename: str, title: str | None = None, o
     return info
 
 
-def normalize_subscription_url(url: str) -> str:
-    clean = str(url or "").strip()
-    if not clean:
-        raise ValueError("subscription URL is required")
-    lowered = clean.lower()
-    if not lowered.startswith(_ALLOWED_SUBSCRIPTION_PREFIXES):
-        raise ValueError("subscription URL must start with http://, https://, or webcal://")
-    return clean
-
-
-def add_subscription(ctxid: str, name: str, url: str) -> dict[str, Any]:
-    clean_url = normalize_subscription_url(url)
-    clean_name = str(name or "").strip() or clean_url
-    registry = load_subscriptions(ctxid)
-    subscriptions = registry.setdefault("subscriptions", [])
-    entry = {
-        "id": uuid.uuid4().hex[:12],
-        "name": clean_name,
-        "url": clean_url,
-        "kind": "ics_subscription",
-        "created": iso_now(),
-    }
-    subscriptions.append(entry)
-    save_subscriptions(ctxid, registry)
-    persist_calendar_indicator(ctxid)
-    entry["has_calendar"] = True
-    entry["calendar_indicator"] = True
-    return entry
-
-
-def remove_subscription(ctxid: str, subscription_id: str) -> bool:
-    clean_id = str(subscription_id or "").strip()
-    if not clean_id:
-        raise ValueError("subscription_id is required")
-    registry = load_subscriptions(ctxid)
-    subscriptions = registry.setdefault("subscriptions", [])
-    before = len(subscriptions)
-    registry["subscriptions"] = [s for s in subscriptions if str(s.get("id") or "") != clean_id]
-    save_subscriptions(ctxid, registry)
-    removed = len(registry["subscriptions"]) != before
-    if removed:
-        persist_calendar_indicator(ctxid)
-    return removed
-
-
 def delete_local_calendar(ctxid: str, filename: str) -> dict[str, Any]:
     """Delete a local .ics file and reconcile the Calendar indicator."""
     path, calendar_dir = calendar_file_path(ctxid, filename)
@@ -490,14 +411,18 @@ def delete_local_calendar(ctxid: str, filename: str) -> dict[str, Any]:
     path.unlink()
     has_calendar = persist_calendar_indicator(ctxid)
     files = [file_info(item, calendar_dir) for item in local_ics_file_paths(ctxid)]
-    registry = load_subscriptions(ctxid)
+    try:
+        from . import agent_caldav  # late import to avoid circular dep
+        caldav_accounts = agent_caldav.list_caldav_accounts(ctxid)
+    except Exception:
+        caldav_accounts = []
     return {
         "ok": True,
         "ctxid": validate_context_id(ctxid),
         "calendar_dir": str(calendar_dir),
         "deleted": deleted_name,
         "files": files,
-        "subscriptions": registry.get("subscriptions", []),
+        "caldav_accounts": caldav_accounts,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }

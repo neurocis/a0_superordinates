@@ -196,7 +196,7 @@ class SuperordinateMap(ApiHandler):
 
         # Phase 3: Assemble the final hierarchy map.
         # Include any context that is either a parent or a child.
-        # Calendar indicators are reconciled from real .ics/subscription sources
+        # Calendar indicators are reconciled from real .ics/CalDAV sources
         # here so stale persisted metadata is corrected whenever the sidebar map
         # is refreshed.
         calendar_indicators: dict[str, bool] = {}
