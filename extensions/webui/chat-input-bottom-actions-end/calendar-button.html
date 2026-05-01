@@ -498,8 +498,7 @@
           if (host && (el === host || host.contains(el))) return;
           if (el.closest?.(".chat-bottom-actions-bar") || el.classList?.contains("chat-bottom-actions-bar")) return;
 
-          // Avoid double-transforming nested DOM. The prompt disappeared when
-          // both `.input-row` and one of its wrappers were lifted at once.
+          // Never transform both a node and a related ancestor/descendant.
           for (const existing of targets) {
             if (existing && existing.contains?.(el)) return;
           }
@@ -512,52 +511,24 @@
         };
 
         try {
-          // Model/preset/status strip above the prompt input.
-          add(document.getElementById("progress-bar-box"));
-
-          // Prompt box and surrounding controls. Lift the whole input row so
-          // the textarea, plus button, send button, and mic stay together.
-          const input = document.getElementById("chat-input");
           const reference = this.calendarComposerReferenceEl(host);
-          if (reference) {
-            add(reference);
-          } else {
-            let node = input;
-            while (node && node !== document.body && node !== document.documentElement) {
-              const rect = node.getBoundingClientRect?.();
-              if (
-                rect &&
-                rect.width >= 260 &&
-                rect.height >= 24 &&
-                rect.height <= 260 &&
-                node.querySelector?.("#chat-input") &&
-                !node.querySelector?.(".chat-bottom-actions-bar")
-              ) {
-                add(node);
-                break;
-              }
-              node = node.parentElement;
-            }
-          }
-          if (!targets.some((el) => el.contains?.(input))) add(input?.closest?.("#chat-input-container") || input);
-
-          // Other input-section children above the bottom action row, such as
-          // queue/attachment previews, should move with the prompt area too.
-          // Do not add wrappers that contain the already-selected prompt row or
-          // model/progress strip; that would nest transforms and hide the input.
-          const inputSection = document.getElementById("input-section");
           const progressBox = document.getElementById("progress-bar-box");
-          if (inputSection) {
-            for (const child of Array.from(inputSection.children || [])) {
-              if (!child || child === host || host?.contains?.(child)) continue;
-              if (child.matches?.("template, style, script")) continue;
-              if (child.querySelector?.(".chat-bottom-actions-bar") || child.classList?.contains("chat-bottom-actions-bar")) continue;
-              if (reference && child !== reference && child.contains?.(reference)) continue;
-              if (progressBox && child !== progressBox && child.contains?.(progressBox)) continue;
-              const rect = child.getBoundingClientRect?.();
-              if (rect && rect.width >= 120 && rect.height >= 8 && rect.bottom > window.innerHeight * 0.35) add(child);
-            }
+
+          // Keep this intentionally deterministic. Earlier versions also
+          // scanned arbitrary #input-section children for attachment/queue
+          // wrappers, but in real layouts that can select a second wrapper for
+          // the same prompt area and make the prompt appear double-lifted.
+          if (
+            progressBox &&
+            !(reference && (
+              progressBox === reference ||
+              progressBox.contains?.(reference) ||
+              reference.contains?.(progressBox)
+            ))
+          ) {
+            add(progressBox);
           }
+          add(reference);
         } catch (_e) {}
 
         return targets;
@@ -741,9 +712,17 @@
           const anchorRect = anchor.getBoundingClientRect();
           const reference = this.calendarComposerReferenceEl(host);
           const referenceRect = reference?.getBoundingClientRect?.();
+          const activeReferenceLift = reference
+            ? (Number.parseFloat(reference.style.getPropertyValue("--a0-calendar-panel-lift")) ||
+              Number.parseFloat(getComputedStyle(reference).getPropertyValue("--a0-calendar-panel-lift")) ||
+              0)
+            : 0;
           const panelBottom = Math.round(anchorRect.top || buttonRect.top || hostRect.top);
-          const originalComposerGap = referenceRect
-            ? Math.max(0, Math.round(panelBottom - referenceRect.bottom))
+          const referenceUnliftedBottom = referenceRect
+            ? Math.round(referenceRect.bottom + activeReferenceLift)
+            : null;
+          const originalComposerGap = referenceUnliftedBottom !== null
+            ? Math.max(0, Math.round(panelBottom - referenceUnliftedBottom))
             : 0;
           const desiredComposerGap = Math.max(2, Math.round(margin * 0.35));
           const baseHeight = Math.round(Math.min(220, Math.max(140, viewportHeight * 0.18)));
