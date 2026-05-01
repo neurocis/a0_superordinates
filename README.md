@@ -123,7 +123,6 @@ The Calendar panel can:
 - Add, edit, and delete `VEVENT` entries through a form
 - Create and edit recurring events with `RRULE`, `RDATE`, and `EXDATE`
 - Preserve existing recurrence metadata and non-form event properties during form edits
-- Edit and save raw ICS text when needed
 
 The backing API is:
 

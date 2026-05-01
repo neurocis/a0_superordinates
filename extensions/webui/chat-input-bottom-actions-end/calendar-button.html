@@ -299,22 +299,6 @@
     margin-top: 0.15rem;
   }
 
-  .a0-agent-calendar-raw-editor {
-    grid-column: 1 / -1;
-    display: grid;
-    gap: 0.45rem;
-    margin-top: 0.65rem;
-  }
-
-  .a0-agent-calendar-raw-editor textarea {
-    width: 100%;
-    min-height: 180px;
-    resize: vertical;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-    font-size: 0.78rem;
-    line-height: 1.35;
-  }
-
   .a0-agent-calendar-content-grid .a0-agent-calendar-input-row {
     grid-template-columns: minmax(100px, 0.8fr) minmax(160px, 1.2fr) auto;
   }
@@ -522,9 +506,6 @@
                     <option value="event">Event (VEVENT)</option>
                     <option value="todo">Todo (VTODO)</option>
                   </select>
-                  <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.rawEditorVisible = !$store.agentCalendar.rawEditorVisible">
-                    <span x-text="$store.agentCalendar.rawEditorVisible ? 'Hide raw ICS' : 'Raw ICS'"></span>
-                  </button>
                   <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.closeIcsFile()">Close</button>
                 </div>
               </div>
@@ -675,12 +656,6 @@
                   </div>
                 </div>
 
-                <div class="a0-agent-calendar-raw-editor" x-show="$store.agentCalendar.rawEditorVisible">
-                  <textarea x-model="$store.agentCalendar.selectedFileContent" spellcheck="false"></textarea>
-                  <div class="a0-agent-calendar-actions" style="justify-content: flex-end;">
-                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.saveRawContent()">Save raw ICS</button>
-                  </div>
-                </div>
               </div>
             </div>
           </template>
@@ -755,9 +730,7 @@
       subscriptions: [],
       selectedFileName: "",
       selectedFile: null,
-      selectedFileContent: "",
       selectedEvents: [],
-      rawEditorVisible: false,
       eventForm: {},
       todoForm: {},
       componentKind: "event",
@@ -1252,7 +1225,6 @@
         }
         this.selectedFile = result.file || this.selectedFile;
         this.selectedFileName = this.selectedFile?.name || this.selectedFileName;
-        this.selectedFileContent = result.content || "";
         const events = Array.isArray(result.events) ? result.events : [];
         const todos = Array.isArray(result.todos) ? result.todos : [];
         this.selectedEvents = events;
@@ -1287,9 +1259,7 @@
       closeIcsFile() {
         this.selectedFileName = "";
         this.selectedFile = null;
-        this.selectedFileContent = "";
         this.selectedEvents = [];
-        this.rawEditorVisible = false;
         this.eventForm = {};
         this.originalEventUid = "";
         if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
@@ -1432,27 +1402,6 @@
         } catch (error) {
           console.error("[Agent Calendar] Failed to open .ics file", error);
           this.error = String(error?.message || error || "Failed to open .ics file");
-        } finally {
-          this.loading = false;
-        }
-      },
-
-      async saveRawContent() {
-        if (!this.selectedFileName) return;
-        this.loading = true;
-        this.error = "";
-        try {
-          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
-            action: "save_ics",
-            ctxid: this.ctxid || selectedContextId(),
-            filename: this.selectedFileName,
-            content: this.selectedFileContent,
-          });
-          this.applyFileResult(result);
-          await this.refresh();
-        } catch (error) {
-          console.error("[Agent Calendar] Failed to save raw .ics file", error);
-          this.error = String(error?.message || error || "Failed to save raw .ics file");
         } finally {
           this.loading = false;
         }
