@@ -319,13 +319,45 @@
     margin-bottom: 0.6rem;
   }
 
+  .a0-agent-calendar-caldav-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
   .a0-agent-calendar-caldav-header-row .a0-agent-calendar-section-header {
     margin-bottom: 0;
   }
 
+  .a0-agent-calendar-caldav-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .a0-agent-calendar-caldav-status-ok {
+    color: #35d66b;
+  }
+
+  .a0-agent-calendar-caldav-status-error {
+    color: #ff5f57;
+  }
+
+  .a0-agent-calendar-caldav-status-empty {
+    color: rgba(255,255,255,0.94);
+  }
+
   .a0-agent-calendar-caldav-web-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: 8px;
     align-items: center;
     flex: 0 1 30%;
@@ -518,9 +550,14 @@
 
           <div class="a0-agent-calendar-section">
             <div class="a0-agent-calendar-caldav-header-row">
-              <h3 class="a0-agent-calendar-section-header">CalDAV Account</h3>
+              <div class="a0-agent-calendar-caldav-title">
+                <span class="a0-agent-calendar-caldav-status"
+                      :class="$store.agentCalendar.caldavStatusClass()"
+                      :title="$store.agentCalendar.caldavStatusTitle()"
+                      x-text="$store.agentCalendar.caldavStatusGlyph()"></span>
+                <h3 class="a0-agent-calendar-section-header">CalDAV Account</h3>
+              </div>
               <div class="a0-agent-calendar-caldav-web-row">
-                <input type="url" placeholder="WebUI Calendar URL (optional)" x-model="$store.agentCalendar.newCaldav.webui_calendar_url">
                 <button type="button"
                         class="a0-agent-calendar-small-button"
                         :disabled="!$store.agentCalendar.safeHttpUrl($store.agentCalendar.newCaldav.webui_calendar_url)"
@@ -528,6 +565,7 @@
                         @click="$store.agentCalendar.openConfiguredWebCalendar()">
                   Open My Calendar
                 </button>
+                <input type="url" placeholder="WebUI Calendar URL (optional)" x-model="$store.agentCalendar.newCaldav.webui_calendar_url">
               </div>
             </div>
 
@@ -1686,6 +1724,33 @@
         return safeHttpUrl(value);
       },
 
+      caldavStatusKind() {
+        const acc = this.caldavAccount || null;
+        if (!acc || !String(acc.server_url || acc.url || "").trim()) return "empty";
+        const status = String(acc.status || acc.connection_status || "").toLowerCase();
+        if (["ok", "connected", "success", "working"].includes(status)) return "ok";
+        if (["error", "failed", "fail", "invalid"].includes(status)) return "error";
+        return "empty";
+      },
+
+      caldavStatusGlyph() {
+        const kind = this.caldavStatusKind();
+        if (kind === "ok") return "✓";
+        if (kind === "error") return "✕";
+        return "O";
+      },
+
+      caldavStatusClass() {
+        return `a0-agent-calendar-caldav-status-${this.caldavStatusKind()}`;
+      },
+
+      caldavStatusTitle() {
+        const kind = this.caldavStatusKind();
+        if (kind === "ok") return "CalDAV connection works";
+        if (kind === "error") return "CalDAV connection failed";
+        return "CalDAV connection not configured";
+      },
+
       hydrateCaldavFormFromAccount() {
         const acc = this.caldavAccount || null;
         if (!acc) {
@@ -1786,10 +1851,18 @@
           this.applyResult(result);
           const test = result?.test;
           if (test && test.ok === false) {
+            if (this.caldavAccount) {
+              this.caldavAccount = { ...this.caldavAccount, status: "error" };
+              this.caldavAccounts = [this.caldavAccount];
+            }
             this.error = test.error || "CalDAV verification failed.";
           }
         } catch (error) {
           console.error("[Agent Calendar] Failed to test CalDAV account", error);
+          if (this.caldavAccount) {
+            this.caldavAccount = { ...this.caldavAccount, status: "error" };
+            this.caldavAccounts = [this.caldavAccount];
+          }
           this.error = String(error?.message || error || "Failed to test CalDAV account");
         } finally {
           this.loading = false;
