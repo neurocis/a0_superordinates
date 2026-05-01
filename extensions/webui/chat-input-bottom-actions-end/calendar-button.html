@@ -460,6 +460,20 @@
           anchor;
       },
 
+      calendarComposerReferenceEl(host) {
+        try {
+          const input = document.getElementById("chat-input");
+          const row = input?.closest?.(".input-row");
+          if (row && !(host && (row === host || host.contains(row)))) return row;
+
+          const container = input?.closest?.("#chat-input-container");
+          if (container && !(host && (container === host || host.contains(container)))) return container;
+          return input || null;
+        } catch (_e) {
+          return null;
+        }
+      },
+
       calendarComposerLiftTargets(host) {
         const targets = [];
         const add = (el) => {
@@ -473,24 +487,29 @@
           // Model/preset/status strip above the prompt input.
           add(document.getElementById("progress-bar-box"));
 
-          // Prompt box and surrounding controls. Prefer the immediate useful
-          // component wrapper, falling back to the input container if needed.
+          // Prompt box and surrounding controls. Lift the whole input row so
+          // the textarea, plus button, send button, and mic stay together.
           const input = document.getElementById("chat-input");
-          let node = input;
-          while (node && node !== document.body && node !== document.documentElement) {
-            const rect = node.getBoundingClientRect?.();
-            if (
-              rect &&
-              rect.width >= 260 &&
-              rect.height >= 24 &&
-              rect.height <= 260 &&
-              node.querySelector?.("#chat-input") &&
-              !node.querySelector?.(".chat-bottom-actions-bar")
-            ) {
-              add(node);
-              break;
+          const reference = this.calendarComposerReferenceEl(host);
+          if (reference) {
+            add(reference);
+          } else {
+            let node = input;
+            while (node && node !== document.body && node !== document.documentElement) {
+              const rect = node.getBoundingClientRect?.();
+              if (
+                rect &&
+                rect.width >= 260 &&
+                rect.height >= 24 &&
+                rect.height <= 260 &&
+                node.querySelector?.("#chat-input") &&
+                !node.querySelector?.(".chat-bottom-actions-bar")
+              ) {
+                add(node);
+                break;
+              }
+              node = node.parentElement;
             }
-            node = node.parentElement;
           }
           if (!targets.some((el) => el.contains?.(input))) add(input?.closest?.("#chat-input-container") || input);
 
@@ -686,8 +705,22 @@
           const marginValue = getComputedStyle(anchor).getPropertyValue("--a0-calendar-panel-margin").trim();
           const margin = Number.parseFloat(marginValue) || 8;
 
-          const desiredHeight = Math.round(Math.min(220, Math.max(140, viewportHeight * 0.18)));
-          const lift = desiredHeight + Math.round(margin * 0.5);
+          const anchorRect = anchor.getBoundingClientRect();
+          const reference = this.calendarComposerReferenceEl(host);
+          const referenceRect = reference?.getBoundingClientRect?.();
+          const panelBottom = Math.round(anchorRect.top || buttonRect.top || hostRect.top);
+          const originalComposerGap = referenceRect
+            ? Math.max(0, Math.round(panelBottom - referenceRect.bottom))
+            : 0;
+          const desiredComposerGap = Math.max(2, Math.round(margin * 0.35));
+          const baseHeight = Math.round(Math.min(220, Math.max(140, viewportHeight * 0.18)));
+          const desiredHeight = Math.max(baseHeight, originalComposerGap + desiredComposerGap);
+
+          // The panel is anchored to the bottom action row and opens upward.
+          // If we lift the composer by the full panel height, the old distance
+          // between composer and action row remains as a visible gap. Subtract
+          // that original gap so the lifted composer lands just above the panel.
+          const lift = Math.max(0, Math.round(desiredHeight - originalComposerGap + desiredComposerGap));
           const panelWidth = Math.max(280, Math.min(hostRect.width, window.innerWidth - (margin * 2)));
           const offsetLeft = Math.max(0, Math.round(buttonRect.left - hostRect.left));
 
