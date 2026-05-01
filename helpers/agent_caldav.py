@@ -39,6 +39,8 @@ log = logging.getLogger("agent_caldav")
 
 CALDAV_FILENAME = "caldav.json"
 REGISTRY_VERSION = 1
+A0_DESCRIPTION_JSON_MARKER = '!{"a0_name":'
+A0_DESCRIPTION_JSON_MARKER_ESCAPED = '!{\\"a0_name\\":'
 
 
 # ---------------------------------------------------------------------------
@@ -626,6 +628,77 @@ def _unique_local_sync_path(calendar_dir: Path, preferred_name: str, existing_pa
     raise ValueError("could not allocate local ICS filename for synced CalDAV item")
 
 
+def _a0_description_values_from_ics_text(text: str) -> list[str]:
+    """Return unescaped DESCRIPTION values from an ICS body."""
+    cal = _calendar_helpers()
+    values: list[str] = []
+    for line in cal.unfold_ics_lines(cal.normalize_ics_content(text)):
+        name, _params, value = cal.split_content_line(line)
+        if name == "DESCRIPTION":
+            values.append(cal.unescape_ics_text(value))
+    return values
+
+
+def _raw_decode_a0_json_payload(candidate: str) -> Any | None:
+    decoder = json.JSONDecoder()
+    try:
+        payload, _end = decoder.raw_decode(candidate)
+        return payload
+    except json.JSONDecodeError:
+        pass
+
+    # Some providers/user inputs may preserve JSON as quote-escaped text, e.g.
+    # !{\"a0_name\":...}.  Try the conservative de-escaped variant as a fallback.
+    if '\"' in candidate:
+        try:
+            payload, _end = decoder.raw_decode(candidate.replace('\"', '"'))
+            return payload
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def extract_a0_description_json_from_ics(text: str) -> Any | None:
+    """Extract the first embedded A0 JSON object from any DESCRIPTION field.
+
+    The embedded payload is identified by a sentinel immediately before the JSON
+    object, currently ``!{"a0_name":``.  The returned value is the decoded JSON
+    object beginning at that sentinel's ``{``; trailing description text is
+    ignored by ``JSONDecoder.raw_decode``.
+    """
+    markers = (A0_DESCRIPTION_JSON_MARKER, A0_DESCRIPTION_JSON_MARKER_ESCAPED)
+    for description in _a0_description_values_from_ics_text(text):
+        for marker in markers:
+            index = description.find(marker)
+            if index < 0:
+                continue
+            candidate = description[index + 1 :]
+            payload = _raw_decode_a0_json_payload(candidate)
+            if isinstance(payload, dict) and payload.get("a0_name"):
+                return payload
+    return None
+
+
+def extract_a0_description_json_sidecar(path: Path, text: str | None = None) -> Path | None:
+    """Write ``<same-stem>.json`` beside an ICS file when DESCRIPTION embeds A0 JSON."""
+    try:
+        source_text = text if text is not None else path.read_text(encoding="utf-8", errors="replace")
+        payload = extract_a0_description_json_from_ics(source_text)
+        if payload is None:
+            return None
+        sidecar = path.with_suffix(".json")
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        with NamedTemporaryFile("w", encoding="utf-8", dir=str(sidecar.parent), delete=False) as tmp:
+            json.dump(payload, tmp, ensure_ascii=False, indent=2)
+            tmp.write("\n")
+            tmp_path = Path(tmp.name)
+        tmp_path.replace(sidecar)
+        return sidecar
+    except Exception as exc:
+        log.warning("caldav sync: failed to extract A0 JSON sidecar for %s: %s", path, exc)
+        return None
+
+
 def _write_local_ics(path: Path, text: str, modified: datetime | None = None) -> None:
     cal = _calendar_helpers()
     final_text, dropped = cal.enforce_single_component_text(cal.normalize_ics_content(text))
@@ -636,6 +709,7 @@ def _write_local_ics(path: Path, text: str, modified: datetime | None = None) ->
         tmp.write(final_text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
+    extract_a0_description_json_sidecar(path, final_text)
     if modified is not None:
         ts = modified.timestamp()
         os.utime(path, (ts, ts))

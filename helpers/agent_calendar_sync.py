@@ -503,6 +503,21 @@ def _local_from_path(path: Path, source: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
+def _extract_a0_json_sidecars_for_context(ctxid: str) -> list[str]:
+    """Scan local ICS files during sync and write A0 JSON sidecars where present."""
+    cal = _calendar_helpers()
+    cd = _caldav_helpers()
+    extracted: list[str] = []
+    for path in cal.local_ics_file_paths(ctxid):
+        sidecar = cd.extract_a0_description_json_sidecar(path)
+        if sidecar is not None:
+            try:
+                extracted.append(sidecar.relative_to(cal.context_calendar_dir(ctxid, create=True)).as_posix())
+            except ValueError:
+                extracted.append(sidecar.name)
+    return extracted
+
+
 def _prune_tombstones(state: dict[str, Any]) -> None:
     cutoff = time.time() - TOMBSTONE_RETENTION_SECONDS
     objects = state.setdefault("objects", {})
@@ -543,6 +558,7 @@ def sync_context(ctxid: str, account_id: str | None = None, *, force: bool = Fal
             save_sync_state(clean_ctxid, state)
 
             local_items = _local_scan(clean_ctxid)
+            initial_a0_json_sidecars = _extract_a0_json_sidecars_for_context(clean_ctxid)
             remote_items, remote_scan, _cal_obj = _remote_scan(account)
             objects = state.setdefault("objects", {})
             keys = sorted(set(local_items) | set(remote_items) | set(objects))
@@ -718,6 +734,7 @@ def sync_context(ctxid: str, account_id: str | None = None, *, force: bool = Fal
             else:
                 state["last_success_at"] = _iso()
                 state["last_error"] = ""
+            final_a0_json_sidecars = sorted(set(initial_a0_json_sidecars + _extract_a0_json_sidecars_for_context(clean_ctxid)))
             state["last_sync_summary"] = {
                 "ok": not errors,
                 "uploaded": uploaded,
@@ -730,6 +747,7 @@ def sync_context(ctxid: str, account_id: str | None = None, *, force: bool = Fal
                 "actions": actions[-200:],
                 "local_count": len(local_items),
                 "remote_count": len(remote_items),
+                "a0_json_sidecars": final_a0_json_sidecars,
                 "scanned_collection": account.get("selected_collection_name") or account.get("selected_collection_url") or "",
                 "remote_scan": remote_scan,
                 "finished_at": _iso(),
