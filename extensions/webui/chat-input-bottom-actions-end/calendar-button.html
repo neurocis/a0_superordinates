@@ -627,8 +627,10 @@
                 <input type="url" placeholder="CalDAV server URL, e.g. https://caldav.example.com" x-model="$store.agentCalendar.newCaldav.server_url">
                 <select class="a0-agent-calendar-caldav-collection-select"
                         x-model="$store.agentCalendar.selectedCaldavCollectionUrl"
-                        :disabled="$store.agentCalendar.loading || !$store.agentCalendar.caldavAccount || !$store.agentCalendar.caldavCollections().length"
+                        :disabled="$store.agentCalendar.loading || !$store.agentCalendar.caldavAccount"
                         title="Selected CalDAV collection for sync"
+                        @pointerdown="$store.agentCalendar.refreshCaldavCollectionsForDropdown()"
+                        @focus="$store.agentCalendar.refreshCaldavCollectionsForDropdown()"
                         @change="$store.agentCalendar.selectCaldavCollection($event.target.value)">
                   <option value="" disabled>Collection…</option>
                   <template x-for="collection in $store.agentCalendar.caldavCollections()" :key="collection.url || collection.name || collection.display_name">
@@ -637,7 +639,7 @@
                 </select>
                 <button type="button"
                         class="a0-agent-calendar-small-button a0-agent-calendar-icon-button"
-                        :disabled="$store.agentCalendar.loading || !$store.agentCalendar.caldavAccount"
+                        :disabled="$store.agentCalendar.loading || $store.agentCalendar.collectionRefreshInflight || !$store.agentCalendar.caldavAccount"
                         title="Refresh CalDAV collections"
                         aria-label="Refresh CalDAV collections"
                         @click="$store.agentCalendar.refreshCaldavCollections()">
@@ -934,6 +936,7 @@
     window.Alpine.store("agentCalendar", {
       visible: false,
       loading: false,
+      collectionRefreshInflight: false,
       error: "",
       ctxid: "",
       agentName: "",
@@ -1886,6 +1889,36 @@
 
       async refreshCaldavCollections() {
         await this.testCaldavAccount();
+      },
+
+      async refreshCaldavCollectionsForDropdown() {
+        if (!this.caldavAccount || this.collectionRefreshInflight || this.loading) return;
+        this.collectionRefreshInflight = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "test_caldav_account",
+            ctxid: this.ctxid || selectedContextId(),
+          });
+          this.applyResult(result);
+          const test = result?.test;
+          if (test && test.ok === false) {
+            if (this.caldavAccount) {
+              this.caldavAccount = { ...this.caldavAccount, status: "error" };
+              this.caldavAccounts = [this.caldavAccount];
+            }
+            this.error = test.error || "CalDAV verification failed.";
+          }
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to refresh CalDAV collections from dropdown", error);
+          if (this.caldavAccount) {
+            this.caldavAccount = { ...this.caldavAccount, status: "error" };
+            this.caldavAccounts = [this.caldavAccount];
+          }
+          this.error = String(error?.message || error || "Failed to refresh CalDAV collections");
+        } finally {
+          this.collectionRefreshInflight = false;
+        }
       },
 
       async syncCaldavIcsFiles() {
