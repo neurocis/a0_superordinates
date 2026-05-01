@@ -168,32 +168,90 @@
     overflow-wrap: anywhere;
   }
 
+  .a0-agent-calendar-file-card {
+    position: relative;
+    display: block;
+    min-height: 5.35rem;
+    padding: 0.58rem 0.62rem 2.55rem;
+  }
+
+  .a0-agent-calendar-file-card .a0-agent-calendar-row-main {
+    padding-right: 0.1rem;
+  }
+
   .a0-agent-calendar-file-headline {
-    display: flex;
-    align-items: baseline;
-    gap: 0.3rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.28rem;
     min-width: 0;
-    overflow-wrap: anywhere;
+  }
+
+  .a0-agent-calendar-file-date-line {
+    display: flex;
+    align-items: center;
+    gap: 0.28rem;
+    min-width: 0;
+    line-height: 1.15;
+  }
+
+  .a0-agent-calendar-file-kind-icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    font-size: 0.92rem;
+    line-height: 1;
+    opacity: 0.9;
   }
 
   .a0-agent-calendar-file-date {
-    flex: 0 0 auto;
+    min-width: 0;
     font-size: 0.78rem;
     font-weight: 400;
     opacity: 0.72;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .a0-agent-calendar-file-summary {
+    display: block;
     min-width: 0;
+    max-width: 100%;
     font-weight: 700;
-    overflow-wrap: anywhere;
+    line-height: 1.16;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: normal;
+    hyphens: manual;
   }
 
   .a0-agent-calendar-recurrence-icon {
     flex: 0 0 auto;
     opacity: 0.82;
     font-size: 0.88rem;
+  }
+
+  .a0-agent-calendar-file-actions {
+    position: absolute;
+    right: 0.45rem;
+    bottom: 0.45rem;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+
+  .a0-agent-calendar-file-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    min-width: 1.8rem;
+    height: 1.8rem;
+    padding: 0 !important;
+    border-radius: 999px;
+    font-size: 0.98rem;
+    line-height: 1;
   }
 
   .a0-agent-calendar-row-meta {
@@ -665,24 +723,33 @@
 
             <div class="a0-agent-calendar-list a0-agent-calendar-files-list">
               <template x-for="file in $store.agentCalendar.sortedIcsFiles()" :key="file.relative_path">
-                <div class="a0-agent-calendar-row" :title="$store.agentCalendar.fileTooltip(file)">
+                <div class="a0-agent-calendar-row a0-agent-calendar-file-card" :title="$store.agentCalendar.fileTooltip(file)">
                   <div class="a0-agent-calendar-row-main">
                     <div class="a0-agent-calendar-file-headline">
-                      <span class="a0-agent-calendar-file-date" x-text="$store.agentCalendar.fileStartLabel(file)"></span>
-                      <span x-show="file.component_kind === 'event'">📅</span>
-                      <span x-show="file.component_kind === 'todo'">☑</span>
-                      <template x-if="file.is_recurring">
-                        <i class="ti ti-repeat a0-agent-calendar-recurrence-icon" title="Recurrent" aria-label="Recurrent"></i>
-                      </template>
-                      <span class="a0-agent-calendar-file-summary" x-text="$store.agentCalendar.fileSummary(file)"></span>
+                      <div class="a0-agent-calendar-file-date-line">
+                        <span class="a0-agent-calendar-file-kind-icon" aria-hidden="true">📅</span>
+                        <span class="a0-agent-calendar-file-date" x-text="$store.agentCalendar.fileStartLabel(file)"></span>
+                        <template x-if="file.is_recurring">
+                          <i class="ti ti-repeat a0-agent-calendar-recurrence-icon" title="Recurrent" aria-label="Recurrent"></i>
+                        </template>
+                      </div>
+                      <span class="a0-agent-calendar-file-summary" x-text="$store.agentCalendar.fileSummarySoft(file)"></span>
                     </div>
                   </div>
-                  <div class="a0-agent-calendar-actions">
-                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.openIcsFile(file)">
-                      Edit
+                  <div class="a0-agent-calendar-actions a0-agent-calendar-file-actions">
+                    <button type="button"
+                            class="a0-agent-calendar-small-button a0-agent-calendar-file-icon-button"
+                            title="Edit"
+                            aria-label="Edit"
+                            @click="$store.agentCalendar.openIcsFile(file)">
+                      <i class="ti ti-pencil" aria-hidden="true"></i>
                     </button>
-                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.deleteLocalCalendar(file)">
-                      Delete
+                    <button type="button"
+                            class="a0-agent-calendar-small-button a0-agent-calendar-file-icon-button"
+                            title="Delete"
+                            aria-label="Delete"
+                            @click="$store.agentCalendar.deleteLocalCalendar(file)">
+                      <i class="ti ti-trash" aria-hidden="true"></i>
                     </button>
                   </div>
                 </div>
@@ -1087,6 +1154,14 @@
 
       fileSummary(file) {
         return String(file?.summary || file?.event_summary || file?.todo_summary || "(empty)");
+      },
+
+      softHyphenateText(value) {
+        return String(value || "").replace(/\S+/gu, (token) => Array.from(token).join("\u00ad"));
+      },
+
+      fileSummarySoft(file) {
+        return this.softHyphenateText(this.fileSummary(file));
       },
 
       fileTooltip(file) {
