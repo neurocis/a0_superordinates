@@ -567,6 +567,8 @@
                       <label>Repeat</label>
                       <select x-model="$store.agentCalendar.eventForm.recurrence_frequency" @change="$store.agentCalendar.syncRecurrenceRule()">
                         <option value="none">Does not repeat</option>
+                        <option value="minutely">Every N minutes</option>
+                        <option value="hourly">Hourly</option>
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
                         <option value="monthly">Monthly</option>
@@ -1085,7 +1087,7 @@
       buildSimpleRRule() {
         const form = this.eventForm || {};
         const frequency = String(form.recurrence_frequency || "none").toLowerCase();
-        const freqMap = { daily: "DAILY", weekly: "WEEKLY", monthly: "MONTHLY", yearly: "YEARLY" };
+        const freqMap = { minutely: "MINUTELY", hourly: "HOURLY", daily: "DAILY", weekly: "WEEKLY", monthly: "MONTHLY", yearly: "YEARLY" };
         if (!freqMap[frequency]) return "";
         const parts = [`FREQ=${freqMap[frequency]}`];
         const interval = Number.parseInt(String(form.recurrence_interval || "1"), 10);

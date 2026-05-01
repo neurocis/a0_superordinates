@@ -448,6 +448,8 @@ def recurrence_frequency_from_rrule(rrule: str) -> str:
     parts = parse_rrule_parts(clean)
     freq = parts.get("FREQ", "").upper()
     mapping = {
+        "MINUTELY": "minutely",
+        "HOURLY": "hourly",
         "DAILY": "daily",
         "WEEKLY": "weekly",
         "MONTHLY": "monthly",
@@ -479,16 +481,22 @@ def recurrence_summary(rrule: str, rdate_lines: list[str] | None = None, exdate_
     parts = parse_rrule_parts(clean_rrule)
     freq = parts.get("FREQ", "").upper()
     freq_label = {
-        "DAILY": "daily",
-        "WEEKLY": "weekly",
-        "MONTHLY": "monthly",
-        "YEARLY": "yearly",
+        "MINUTELY": "minute",
+        "HOURLY": "hour",
+        "DAILY": "day",
+        "WEEKLY": "week",
+        "MONTHLY": "month",
+        "YEARLY": "year",
     }.get(freq, "custom")
     if clean_rrule:
         interval = parts.get("INTERVAL", "1") or "1"
-        label = f"Repeats {freq_label}"
-        if interval not in {"", "1"}:
-            label = f"Repeats every {interval} {freq_label} intervals"
+        if freq_label == "custom":
+            label = "Repeats custom"
+        elif interval in {"", "1"}:
+            label = f"Repeats every {freq_label}"
+        else:
+            plural = freq_label if freq_label.endswith("s") else f"{freq_label}s"
+            label = f"Repeats every {interval} {plural}"
         if parts.get("COUNT"):
             label += f", {parts['COUNT']} times"
         elif parts.get("UNTIL"):
@@ -616,6 +624,8 @@ def build_rrule_from_event(event: dict[str, Any]) -> str:
     if frequency in {"", "none", "no", "false"}:
         return ""
     freq_map = {
+        "minutely": "MINUTELY",
+        "hourly": "HOURLY",
         "daily": "DAILY",
         "weekly": "WEEKLY",
         "monthly": "MONTHLY",
@@ -626,7 +636,7 @@ def build_rrule_from_event(event: dict[str, Any]) -> str:
     if frequency not in freq_map:
         if explicit:
             return normalize_rrule_value(explicit)
-        raise ValueError("recurrence_frequency must be none, daily, weekly, monthly, yearly, or custom")
+        raise ValueError("recurrence_frequency must be none, minutely, hourly, daily, weekly, monthly, yearly, or custom")
 
     parts = [f"FREQ={freq_map[frequency]}"]
     try:

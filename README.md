@@ -144,7 +144,7 @@ Supported actions include:
 
 For safety, file operations are constrained to sanitized `.ics` filenames inside the selected context's calendar directory.
 
-Recurring event support includes simple Daily/Weekly/Monthly/Yearly controls, custom `RRULE` editing, and advanced `RDATE`/`EXDATE` textareas. Existing complex recurrence rules and non-form `VEVENT` metadata such as attendees, alarms, URLs, and `X-*` properties are preserved when editing ordinary form fields.
+Recurring event support includes simple minute/hour/day/week/month/year controls, custom `RRULE` editing, and advanced `RDATE`/`EXDATE` textareas. Existing complex recurrence rules and non-form `VEVENT` metadata such as attendees, alarms, URLs, and `X-*` properties are preserved when editing ordinary form fields.
 
 ## Installation
 
