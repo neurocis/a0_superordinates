@@ -174,7 +174,11 @@ class AgentCalendar(ApiHandler):
                     server_url=str(input.get("server_url") or input.get("url") or ""),
                     username=str(input.get("username") or ""),
                     password=str(input.get("password") or ""),
-                    webui_calendar_url=str(input.get("webui_calendar_url") or ""),
+                    webui_calendar_url=str(
+                        input.get("webui_calendar_url")
+                        if input.get("webui_calendar_url") is not None
+                        else input.get("webuiCalendarUrl") or ""
+                    ),
                 )
                 payload = list_calendar_stack(ctxid)
                 payload["caldav_account"] = account

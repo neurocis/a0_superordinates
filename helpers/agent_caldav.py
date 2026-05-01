@@ -68,7 +68,9 @@ def _normalize_account(entry: dict[str, Any] | None) -> dict[str, Any] | None:
     entry.setdefault("password", "")
     entry.setdefault("kind", "caldav")
     entry["webui_calendar_url"] = normalize_webui_calendar_url(
-        entry.get("webui_calendar_url") or "",
+        entry.get("webui_calendar_url")
+        if entry.get("webui_calendar_url") is not None
+        else entry.get("webuiCalendarUrl") or "",
         reject_unsafe=False,
     )
     entry.setdefault("collections", [])
@@ -233,12 +235,18 @@ def add_caldav_account(
     clean_label = (str(label or "").strip()) or clean_url
     clean_username = str(username or "").strip()
     clean_password = str(password or "")
+    previous = caldav_account_entry(ctxid) or {}
+    if not clean_password and isinstance(previous, dict):
+        # Editing/reconfiguring an existing singleton account should not require
+        # re-entering the password just to change metadata such as the optional
+        # WebUI Calendar URL.  A blank password is still rejected for first-time
+        # account creation below.
+        clean_password = str(previous.get("password") or "")
     if not clean_username:
         raise ValueError("username is required")
     if not clean_password:
         raise ValueError("password is required")
 
-    previous = caldav_account_entry(ctxid) or {}
     registry = load_caldav_registry(ctxid, create=True)
     entry = _normalize_account({
         "id": str(previous.get("id") or uuid.uuid4().hex[:12]),

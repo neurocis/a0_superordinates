@@ -498,10 +498,10 @@
                         <strong>CalDAV server:</strong>
                         <span x-text="($store.agentCalendar.caldavAccount.username ? $store.agentCalendar.caldavAccount.username + '@' : '') + $store.agentCalendar.caldavAccount.server_url"></span>
                       </div>
-                      <template x-if="$store.agentCalendar.caldavAccount.webui_calendar_url">
+                      <template x-if="$store.agentCalendar.caldavWebUrl($store.agentCalendar.caldavAccount)">
                         <div>
                           <strong>Calendar Web URL:</strong>
-                          <span x-text="$store.agentCalendar.caldavAccount.webui_calendar_url"></span>
+                          <span x-text="$store.agentCalendar.caldavWebUrl($store.agentCalendar.caldavAccount)"></span>
                         </div>
                       </template>
                       <template x-if="$store.agentCalendar.caldavAccount.selected_collection_name">
@@ -532,12 +532,12 @@
                     <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.testCaldavAccount()">
                       Test
                     </button>
-                    <template x-if="$store.agentCalendar.caldavAccount.webui_calendar_url">
+                    <template x-if="$store.agentCalendar.caldavWebUrl($store.agentCalendar.caldavAccount)">
                       <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.openCaldavWebCalendar()">
                         Open Calendar
                       </button>
                     </template>
-                    <template x-if="!$store.agentCalendar.caldavAccount.webui_calendar_url">
+                    <template x-if="!$store.agentCalendar.caldavWebUrl($store.agentCalendar.caldavAccount)">
                       <button type="button" class="a0-agent-calendar-small-button" disabled title="Configure WebUI Calendar URL to open calendar">
                         Open Calendar
                       </button>
@@ -857,6 +857,10 @@
   function safeHttpUrl(value) {
     const url = String(value || "").trim();
     return /^https?:\/\//i.test(url) ? url : "";
+  }
+
+  function caldavWebUrl(account) {
+    return String(account?.webui_calendar_url ?? account?.webuiCalendarUrl ?? "");
   }
 
   async function openUrlInAgentBrowser(url) {
@@ -1748,6 +1752,10 @@
         }
       },
 
+      caldavWebUrl(account) {
+        return caldavWebUrl(account);
+      },
+
       _emptyCaldavForm() {
         return { label: "", server_url: "", webui_calendar_url: "", username: "", password: "" };
       },
@@ -1757,7 +1765,7 @@
         this.newCaldav = {
           label: String(acc.label || ""),
           server_url: String(acc.server_url || ""),
-          webui_calendar_url: String(acc.webui_calendar_url || ""),
+          webui_calendar_url: caldavWebUrl(acc),
           username: String(acc.username || ""),
           password: "",
         };
@@ -1774,7 +1782,8 @@
         const webUrl = String(this.newCaldav?.webui_calendar_url || "").trim();
         const user = String(this.newCaldav?.username || "").trim();
         const pass = String(this.newCaldav?.password || "");
-        if (!url || !user || !pass) {
+        const hasExistingPassword = Boolean(this.caldavAccount?.has_password);
+        if (!url || !user || (!pass && !hasExistingPassword)) {
           this.error = "CalDAV server URL, username, and password are required.";
           return;
         }
@@ -1881,7 +1890,7 @@
       },
 
       async openCaldavWebCalendar() {
-        const url = safeHttpUrl(this.caldavAccount?.webui_calendar_url || "");
+        const url = safeHttpUrl(caldavWebUrl(this.caldavAccount));
         if (!url) {
           this.error = "Configure WebUI Calendar URL to open calendar.";
           return;
