@@ -282,3 +282,319 @@ def remove_subscription(ctxid: str, subscription_id: str) -> bool:
     registry["subscriptions"] = [s for s in subscriptions if str(s.get("id") or "") != clean_id]
     save_subscriptions(ctxid, registry)
     return len(registry["subscriptions"]) != before
+
+
+# ---- Writable ICS file/event editing helpers ----
+
+def calendar_file_path(ctxid: str, filename: str) -> tuple[Path, Path]:
+    """Return a safe local .ics path for a context.
+
+    The UI only exposes filenames returned by list_calendar_stack(), but the API
+    defensively strips paths and re-applies the same filename rules used when
+    creating calendars so callers cannot escape the per-context calendar folder.
+    """
+    calendar_dir = context_calendar_dir(ctxid, create=True)
+    safe_name = sanitize_calendar_filename(filename)
+    path = (calendar_dir / safe_name).resolve()
+    base = calendar_dir.resolve()
+    if path.parent != base:
+        raise ValueError("invalid calendar path")
+    if not path.exists():
+        raise FileNotFoundError(f"calendar file not found: {safe_name}")
+    return path, calendar_dir
+
+
+def read_calendar_file(ctxid: str, filename: str) -> dict[str, Any]:
+    path, calendar_dir = calendar_file_path(ctxid, filename)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    return {
+        "ok": True,
+        "ctxid": validate_context_id(ctxid),
+        "file": file_info(path, calendar_dir),
+        "content": text,
+        "events": list_ics_events_from_text(text),
+    }
+
+
+def save_calendar_file(ctxid: str, filename: str, content: str) -> dict[str, Any]:
+    path, calendar_dir = calendar_file_path(ctxid, filename)
+    text = normalize_ics_content(content)
+    upper = text.upper()
+    if "BEGIN:VCALENDAR" not in upper or "END:VCALENDAR" not in upper:
+        raise ValueError("content must contain a VCALENDAR")
+    with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
+        tmp.write(text)
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(path)
+    return {
+        "ok": True,
+        "ctxid": validate_context_id(ctxid),
+        "file": file_info(path, calendar_dir),
+        "content": text,
+        "events": list_ics_events_from_text(text),
+    }
+
+
+def normalize_ics_content(content: str) -> str:
+    text = str(content or "").replace("\r\n", "\n").replace("\r", "\n")
+    text = "\r\n".join(line.rstrip() for line in text.split("\n"))
+    if not text.endswith("\r\n"):
+        text += "\r\n"
+    return text
+
+
+def unfold_ics_lines(text: str) -> list[str]:
+    raw_lines = str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    lines: list[str] = []
+    for raw in raw_lines:
+        if not raw:
+            continue
+        if raw.startswith((" ", "\t")) and lines:
+            lines[-1] += raw[1:]
+        else:
+            lines.append(raw)
+    return lines
+
+
+def split_content_line(line: str) -> tuple[str, str, str]:
+    before, sep, value = line.partition(":")
+    if not sep:
+        return line.upper(), "", ""
+    name, _semi, params = before.partition(";")
+    return name.upper(), params, value
+
+
+def unescape_ics_text(value: str) -> str:
+    text = str(value or "")
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\" and i + 1 < len(text):
+            nxt = text[i + 1]
+            if nxt in ("n", "N"):
+                out.append("\n")
+            else:
+                out.append(nxt)
+            i += 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def property_from_event_lines(lines: list[str], prop: str) -> tuple[str, str] | None:
+    target = prop.upper()
+    for line in lines:
+        name, params, value = split_content_line(line)
+        if name == target:
+            return params, value
+    return None
+
+
+def parse_ics_datetime_for_ui(value: str, params: str = "") -> dict[str, Any]:
+    raw = str(value or "").strip()
+    all_day = "VALUE=DATE" in str(params or "").upper() or (len(raw) == 8 and "T" not in raw)
+    if all_day and len(raw) >= 8:
+        return {"date": f"{raw[0:4]}-{raw[4:6]}-{raw[6:8]}", "time": "00:00", "all_day": True, "raw": raw}
+    compact = raw.rstrip("Z")
+    if len(compact) >= 15 and "T" in compact:
+        return {
+            "date": f"{compact[0:4]}-{compact[4:6]}-{compact[6:8]}",
+            "time": f"{compact[9:11]}:{compact[11:13]}",
+            "all_day": False,
+            "raw": raw,
+        }
+    return {"date": "", "time": "", "all_day": False, "raw": raw}
+
+
+def list_ics_events_from_text(text: str) -> list[dict[str, Any]]:
+    lines = unfold_ics_lines(text)
+    events: list[dict[str, Any]] = []
+    current: list[str] | None = None
+    for line in lines:
+        upper = line.upper()
+        if upper == "BEGIN:VEVENT":
+            current = [line]
+            continue
+        if current is not None:
+            current.append(line)
+            if upper == "END:VEVENT":
+                event_lines = current
+                current = None
+                uid = property_from_event_lines(event_lines, "UID")
+                summary = property_from_event_lines(event_lines, "SUMMARY")
+                description = property_from_event_lines(event_lines, "DESCRIPTION")
+                location = property_from_event_lines(event_lines, "LOCATION")
+                dtstart = property_from_event_lines(event_lines, "DTSTART")
+                dtend = property_from_event_lines(event_lines, "DTEND")
+                start = parse_ics_datetime_for_ui(dtstart[1], dtstart[0]) if dtstart else {"date": "", "time": "", "all_day": False, "raw": ""}
+                end = parse_ics_datetime_for_ui(dtend[1], dtend[0]) if dtend else {"date": "", "time": "", "all_day": False, "raw": ""}
+                events.append({
+                    "uid": uid[1] if uid else "",
+                    "summary": unescape_ics_text(summary[1]) if summary else "(No title)",
+                    "description": unescape_ics_text(description[1]) if description else "",
+                    "location": unescape_ics_text(location[1]) if location else "",
+                    "start_date": start.get("date", ""),
+                    "start_time": start.get("time", ""),
+                    "end_date": end.get("date", ""),
+                    "end_time": end.get("time", ""),
+                    "all_day": bool(start.get("all_day")),
+                    "dtstart": start.get("raw", ""),
+                    "dtend": end.get("raw", ""),
+                })
+    return events
+
+
+def format_ics_datetime(date_value: str, time_value: str = "", all_day: bool = False, *, end_date: bool = False) -> tuple[str, str]:
+    date_clean = str(date_value or "").strip()
+    time_clean = str(time_value or "").strip() or "00:00"
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_clean):
+        raise ValueError("event date must use YYYY-MM-DD")
+    date_part = date_clean.replace("-", "")
+    if all_day:
+        return ";VALUE=DATE", date_part
+    if not re.match(r"^\d{2}:\d{2}$", time_clean):
+        raise ValueError("event time must use HH:MM")
+    return "", f"{date_part}T{time_clean.replace(':', '')}00"
+
+
+def build_vevent(event: dict[str, Any]) -> tuple[str, str]:
+    uid = str(event.get("uid") or "").strip() or uuid.uuid4().hex
+    summary = str(event.get("summary") or "").strip() or "Untitled Event"
+    description = str(event.get("description") or "")
+    location = str(event.get("location") or "")
+    all_day = bool(event.get("all_day"))
+
+    start_date = str(event.get("start_date") or "").strip()
+    start_time = str(event.get("start_time") or "").strip() or "00:00"
+    end_date = str(event.get("end_date") or start_date).strip() or start_date
+    end_time = str(event.get("end_time") or start_time).strip() or start_time
+
+    start_params, start_value = format_ics_datetime(start_date, start_time, all_day)
+    end_params, end_value = format_ics_datetime(end_date, end_time, all_day)
+
+    lines = [
+        "BEGIN:VEVENT",
+        f"UID:{uid}",
+        f"DTSTAMP:{ics_timestamp()}",
+        f"DTSTART{start_params}:{start_value}",
+        f"DTEND{end_params}:{end_value}",
+        f"SUMMARY:{escape_ics_text(summary)}",
+    ]
+    if location.strip():
+        lines.append(f"LOCATION:{escape_ics_text(location)}")
+    if description.strip():
+        lines.append(f"DESCRIPTION:{escape_ics_text(description)}")
+    lines.append("END:VEVENT")
+
+    folded: list[str] = []
+    for line in lines:
+        folded.extend(fold_ics_line(line))
+    return uid, "\r\n".join(folded)
+
+
+def split_calendar_event_blocks(text: str) -> tuple[list[str], list[tuple[str, list[str]]]]:
+    lines = unfold_ics_lines(text)
+    skeleton: list[str] = []
+    events: list[tuple[str, list[str]]] = []
+    current: list[str] | None = None
+    for line in lines:
+        upper = line.upper()
+        if upper == "BEGIN:VEVENT":
+            current = [line]
+            continue
+        if current is not None:
+            current.append(line)
+            if upper == "END:VEVENT":
+                uid_prop = property_from_event_lines(current, "UID")
+                events.append((uid_prop[1] if uid_prop else "", current))
+                current = None
+            continue
+        skeleton.append(line)
+    return skeleton, events
+
+
+def render_calendar_with_events(skeleton: list[str], event_blocks: list[str]) -> str:
+    output: list[str] = []
+    inserted = False
+    for line in skeleton:
+        if line.upper() == "END:VCALENDAR" and not inserted:
+            for block in event_blocks:
+                output.extend(block.replace("\r\n", "\n").strip("\n").split("\n"))
+            inserted = True
+        output.append(line)
+    if not inserted:
+        output.append("BEGIN:VCALENDAR")
+        output.extend(block.replace("\r\n", "\n").strip("\n").split("\n") for block in event_blocks)
+        output.append("END:VCALENDAR")
+    flat: list[str] = []
+    for item in output:
+        if isinstance(item, list):
+            flat.extend(item)
+        else:
+            flat.append(item)
+    return "\r\n".join(flat) + "\r\n"
+
+
+def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_uid: str | None = None) -> dict[str, Any]:
+    path, calendar_dir = calendar_file_path(ctxid, filename)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    skeleton, existing = split_calendar_event_blocks(text)
+    uid, block = build_vevent(event)
+    target_uid = str(old_uid or event.get("uid") or "").strip()
+    replaced = False
+    blocks: list[str] = []
+    for existing_uid, lines in existing:
+        if target_uid and existing_uid == target_uid:
+            if not replaced:
+                blocks.append(block)
+                replaced = True
+            continue
+        blocks.append("\r\n".join(lines))
+    if not replaced:
+        blocks.append(block)
+    new_text = render_calendar_with_events(skeleton, blocks)
+    with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
+        tmp.write(new_text)
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(path)
+    return {
+        "ok": True,
+        "ctxid": validate_context_id(ctxid),
+        "file": file_info(path, calendar_dir),
+        "content": new_text,
+        "events": list_ics_events_from_text(new_text),
+        "saved_event_uid": uid,
+    }
+
+
+def delete_calendar_event(ctxid: str, filename: str, uid: str) -> dict[str, Any]:
+    clean_uid = str(uid or "").strip()
+    if not clean_uid:
+        raise ValueError("uid is required")
+    path, calendar_dir = calendar_file_path(ctxid, filename)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    skeleton, existing = split_calendar_event_blocks(text)
+    removed = False
+    blocks: list[str] = []
+    for existing_uid, lines in existing:
+        if existing_uid == clean_uid:
+            removed = True
+            continue
+        blocks.append("\r\n".join(lines))
+    if not removed:
+        raise ValueError("event not found")
+    new_text = render_calendar_with_events(skeleton, blocks)
+    with NamedTemporaryFile("w", encoding="utf-8", newline="", dir=str(calendar_dir), delete=False) as tmp:
+        tmp.write(new_text)
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(path)
+    return {
+        "ok": True,
+        "ctxid": validate_context_id(ctxid),
+        "file": file_info(path, calendar_dir),
+        "content": new_text,
+        "events": list_ics_events_from_text(new_text),
+        "deleted_event_uid": clean_uid,
+    }

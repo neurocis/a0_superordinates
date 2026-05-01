@@ -6,8 +6,12 @@ from helpers.api import ApiHandler, Request
 from usr.plugins.a0_superordinates.helpers.agent_calendar import (
     add_subscription,
     create_local_calendar,
+    delete_calendar_event,
     list_calendar_stack,
+    read_calendar_file,
     remove_subscription,
+    save_calendar_file,
+    upsert_calendar_event,
 )
 
 
@@ -34,6 +38,34 @@ class AgentCalendar(ApiHandler):
                 payload = list_calendar_stack(ctxid)
                 payload["created"] = created
                 return payload
+
+            if action == "read_ics":
+                return read_calendar_file(
+                    ctxid=ctxid,
+                    filename=str(input.get("filename") or input.get("relative_path") or ""),
+                )
+
+            if action == "save_ics":
+                return save_calendar_file(
+                    ctxid=ctxid,
+                    filename=str(input.get("filename") or input.get("relative_path") or ""),
+                    content=str(input.get("content") or ""),
+                )
+
+            if action == "upsert_event":
+                return upsert_calendar_event(
+                    ctxid=ctxid,
+                    filename=str(input.get("filename") or input.get("relative_path") or ""),
+                    event=input.get("event") if isinstance(input.get("event"), dict) else {},
+                    old_uid=input.get("old_uid"),
+                )
+
+            if action == "delete_event":
+                return delete_calendar_event(
+                    ctxid=ctxid,
+                    filename=str(input.get("filename") or input.get("relative_path") or ""),
+                    uid=str(input.get("uid") or ""),
+                )
 
             if action == "add_subscription":
                 subscription = add_subscription(

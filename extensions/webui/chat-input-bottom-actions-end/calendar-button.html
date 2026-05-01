@@ -4,8 +4,8 @@
     display: inline-flex;
     align-items: stretch;
     --a0-calendar-panel-margin: clamp(0.5rem, 1.5vw, 1.25rem);
-    --a0-calendar-panel-width: min(960px, calc(100vw - 2rem));
-    --a0-calendar-panel-max-height: min(420px, 42vh);
+    --a0-calendar-panel-width: min(1120px, calc(100vw - 2rem));
+    --a0-calendar-panel-max-height: min(620px, 66vh);
     --a0-calendar-tab-offset-left: 0px;
   }
 
@@ -45,10 +45,10 @@
     right: auto;
     bottom: calc(100% - 1px);
     z-index: 10001;
-    width: var(--a0-calendar-panel-width, min(960px, calc(100vw - 2rem)));
+    width: var(--a0-calendar-panel-width, min(1120px, calc(100vw - 2rem)));
     max-width: calc(100vw - 1rem);
     height: var(--a0-calendar-panel-height, auto);
-    max-height: var(--a0-calendar-panel-max-height, min(420px, 42vh));
+    max-height: var(--a0-calendar-panel-max-height, min(620px, 66vh));
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -189,13 +189,130 @@
     margin-top: 0.6rem;
   }
 
-  .a0-agent-calendar-input-row input {
+  .a0-agent-calendar-input-row input,
+  .a0-agent-calendar-editor input,
+  .a0-agent-calendar-editor textarea {
     min-width: 0;
     padding: 0.48rem 0.55rem;
     border: 1px solid var(--border-color, rgba(255,255,255,0.16));
     border-radius: 0.42rem;
     background: var(--background-secondary, rgba(255,255,255,0.04));
     color: inherit;
+    font: inherit;
+  }
+
+  .a0-agent-calendar-editor {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border-color, rgba(255,255,255,0.12));
+    padding-top: 0.85rem;
+  }
+
+  .a0-agent-calendar-editor-toolbar {
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.65rem;
+  }
+
+  .a0-agent-calendar-editor-title {
+    min-width: 0;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .a0-agent-calendar-editor-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
+    gap: 0.8rem;
+    align-items: start;
+  }
+
+  .a0-agent-calendar-event-list {
+    max-height: 230px;
+    overflow: auto;
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .a0-agent-calendar-event-row {
+    text-align: left;
+    width: 100%;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.12));
+    border-radius: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    background: color-mix(in srgb, currentColor 4%, transparent);
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .a0-agent-calendar-event-row:hover,
+  .a0-agent-calendar-event-row.a0-agent-calendar-event-row-active {
+    background: color-mix(in srgb, currentColor 11%, transparent);
+  }
+
+  .a0-agent-calendar-event-title {
+    font-weight: 650;
+    overflow-wrap: anywhere;
+  }
+
+  .a0-agent-calendar-event-meta {
+    margin-top: 0.18rem;
+    opacity: 0.68;
+    font-size: 0.78rem;
+  }
+
+  .a0-agent-calendar-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .a0-agent-calendar-form-field {
+    display: grid;
+    gap: 0.24rem;
+    font-size: 0.82rem;
+  }
+
+  .a0-agent-calendar-form-field-full {
+    grid-column: 1 / -1;
+  }
+
+  .a0-agent-calendar-form-field label {
+    opacity: 0.78;
+  }
+
+  .a0-agent-calendar-form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.25rem;
+  }
+
+  .a0-agent-calendar-form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.45rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    margin-top: 0.15rem;
+  }
+
+  .a0-agent-calendar-raw-editor {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 0.45rem;
+    margin-top: 0.65rem;
+  }
+
+  .a0-agent-calendar-raw-editor textarea {
+    width: 100%;
+    min-height: 180px;
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.78rem;
+    line-height: 1.35;
   }
 
   .a0-agent-calendar-content-grid .a0-agent-calendar-input-row {
@@ -247,7 +364,9 @@
 
   @media (max-width: 860px) {
     .a0-agent-calendar-content-grid,
-    .a0-agent-calendar-list.a0-agent-calendar-files-list {
+    .a0-agent-calendar-list.a0-agent-calendar-files-list,
+    .a0-agent-calendar-editor-grid,
+    .a0-agent-calendar-form-grid {
       grid-template-columns: 1fr;
     }
   }
@@ -342,7 +461,11 @@
                       · <span x-text="`${file.todos || 0} todos`"></span>
                     </div>
                   </div>
-                  <div class="a0-agent-calendar-muted">local</div>
+                  <div class="a0-agent-calendar-actions">
+                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.openIcsFile(file)">
+                      Edit
+                    </button>
+                  </div>
                 </div>
               </template>
             </div>
@@ -380,6 +503,89 @@
               </button>
             </div>
           </div>
+
+          <template x-if="$store.agentCalendar.selectedFileName">
+            <div class="a0-agent-calendar-section a0-agent-calendar-editor">
+              <div class="a0-agent-calendar-editor-toolbar">
+                <div class="a0-agent-calendar-editor-title">
+                  Editing <span x-text="$store.agentCalendar.selectedFileName"></span>
+                </div>
+                <div class="a0-agent-calendar-actions">
+                  <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.newEvent()">New event</button>
+                  <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.rawEditorVisible = !$store.agentCalendar.rawEditorVisible">
+                    <span x-text="$store.agentCalendar.rawEditorVisible ? 'Hide raw ICS' : 'Raw ICS'"></span>
+                  </button>
+                  <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.closeIcsFile()">Close</button>
+                </div>
+              </div>
+
+              <div class="a0-agent-calendar-editor-grid">
+                <div>
+                  <div class="a0-agent-calendar-muted" x-show="$store.agentCalendar.selectedEvents.length === 0">No VEVENT entries in this file yet.</div>
+                  <div class="a0-agent-calendar-event-list">
+                    <template x-for="event in $store.agentCalendar.selectedEvents" :key="event.uid || `${event.summary}-${event.dtstart}`">
+                      <button type="button" class="a0-agent-calendar-event-row" :class="event.uid && event.uid === $store.agentCalendar.eventForm.uid ? 'a0-agent-calendar-event-row-active' : ''" @click="$store.agentCalendar.editEvent(event)">
+                        <div class="a0-agent-calendar-event-title" x-text="event.summary || '(No title)'"></div>
+                        <div class="a0-agent-calendar-event-meta">
+                          <span x-text="event.start_date || event.dtstart || 'No date'"></span>
+                          <span x-show="!event.all_day && event.start_time" x-text="` ${event.start_time}`"></span>
+                          <span x-show="event.location"> · </span><span x-show="event.location" x-text="event.location"></span>
+                        </div>
+                      </button>
+                    </template>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="a0-agent-calendar-form-grid">
+                    <div class="a0-agent-calendar-form-field a0-agent-calendar-form-field-full">
+                      <label>Summary</label>
+                      <input type="text" x-model="$store.agentCalendar.eventForm.summary" placeholder="Event title">
+                    </div>
+                    <div class="a0-agent-calendar-form-field">
+                      <label>Start date</label>
+                      <input type="date" x-model="$store.agentCalendar.eventForm.start_date">
+                    </div>
+                    <div class="a0-agent-calendar-form-field">
+                      <label>Start time</label>
+                      <input type="time" x-model="$store.agentCalendar.eventForm.start_time" :disabled="$store.agentCalendar.eventForm.all_day">
+                    </div>
+                    <div class="a0-agent-calendar-form-field">
+                      <label>End date</label>
+                      <input type="date" x-model="$store.agentCalendar.eventForm.end_date">
+                    </div>
+                    <div class="a0-agent-calendar-form-field">
+                      <label>End time</label>
+                      <input type="time" x-model="$store.agentCalendar.eventForm.end_time" :disabled="$store.agentCalendar.eventForm.all_day">
+                    </div>
+                    <label class="a0-agent-calendar-form-check">
+                      <input type="checkbox" x-model="$store.agentCalendar.eventForm.all_day">
+                      <span>All day</span>
+                    </label>
+                    <div class="a0-agent-calendar-form-field">
+                      <label>Location</label>
+                      <input type="text" x-model="$store.agentCalendar.eventForm.location" placeholder="Optional">
+                    </div>
+                    <div class="a0-agent-calendar-form-field a0-agent-calendar-form-field-full">
+                      <label>Description</label>
+                      <textarea rows="3" x-model="$store.agentCalendar.eventForm.description" placeholder="Optional details"></textarea>
+                    </div>
+                    <div class="a0-agent-calendar-form-actions">
+                      <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.saveEvent()">Save event</button>
+                      <button type="button" class="a0-agent-calendar-small-button" x-show="$store.agentCalendar.eventForm.uid" @click="$store.agentCalendar.deleteEvent($store.agentCalendar.eventForm.uid)">Delete event</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="a0-agent-calendar-raw-editor" x-show="$store.agentCalendar.rawEditorVisible">
+                  <textarea x-model="$store.agentCalendar.selectedFileContent" spellcheck="false"></textarea>
+                  <div class="a0-agent-calendar-actions" style="justify-content: flex-end;">
+                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.saveRawContent()">Save raw ICS</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </template>
     </div>
@@ -449,6 +655,13 @@
       calendarDir: "",
       files: [],
       subscriptions: [],
+      selectedFileName: "",
+      selectedFile: null,
+      selectedFileContent: "",
+      selectedEvents: [],
+      rawEditorVisible: false,
+      eventForm: {},
+      originalEventUid: "",
       newSubscriptionName: "",
       newSubscriptionUrl: "",
       calendarTabWidth: "7rem",
@@ -730,7 +943,10 @@
             ? Math.max(0, Math.round(panelBottom - referenceUnliftedBottom))
             : 0;
           const desiredComposerGap = Math.max(2, Math.round(margin * 0.35));
-          const baseHeight = Math.round(Math.min(220, Math.max(140, viewportHeight * 0.18)));
+          const editorOpen = Boolean(this.selectedFileName);
+          const baseHeight = editorOpen
+            ? Math.round(Math.min(560, Math.max(360, viewportHeight * 0.58)))
+            : Math.round(Math.min(220, Math.max(140, viewportHeight * 0.18)));
           const desiredHeight = Math.max(baseHeight, originalComposerGap + desiredComposerGap);
 
           // The panel is anchored to the bottom action row and opens upward.
@@ -783,6 +999,75 @@
         const name = String(this.agentName || "").trim();
         const ctxid = String(this.ctxid || "").trim();
         return name && name !== ctxid ? name : "Agent";
+      },
+
+      todayIsoDate() {
+        return new Date().toISOString().slice(0, 10);
+      },
+
+      defaultEventForm() {
+        const today = this.todayIsoDate();
+        return {
+          uid: "",
+          summary: "",
+          description: "",
+          location: "",
+          start_date: today,
+          start_time: "09:00",
+          end_date: today,
+          end_time: "10:00",
+          all_day: false,
+        };
+      },
+
+      normalizeEventForm(event = {}) {
+        const today = this.todayIsoDate();
+        return {
+          uid: String(event.uid || ""),
+          summary: String(event.summary || ""),
+          description: String(event.description || ""),
+          location: String(event.location || ""),
+          start_date: String(event.start_date || today),
+          start_time: String(event.start_time || "09:00").slice(0, 5),
+          end_date: String(event.end_date || event.start_date || today),
+          end_time: String(event.end_time || event.start_time || "10:00").slice(0, 5),
+          all_day: Boolean(event.all_day),
+        };
+      },
+
+      applyFileResult(result) {
+        if (!result || result.ok === false) {
+          this.error = result?.error || "Calendar file API returned an error.";
+          return;
+        }
+        this.selectedFile = result.file || this.selectedFile;
+        this.selectedFileName = this.selectedFile?.name || this.selectedFileName;
+        this.selectedFileContent = result.content || "";
+        this.selectedEvents = Array.isArray(result.events) ? result.events : [];
+        this.error = "";
+        if (!this.eventForm || !Object.keys(this.eventForm).length) this.newEvent();
+        if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
+      },
+
+      closeIcsFile() {
+        this.selectedFileName = "";
+        this.selectedFile = null;
+        this.selectedFileContent = "";
+        this.selectedEvents = [];
+        this.rawEditorVisible = false;
+        this.eventForm = {};
+        this.originalEventUid = "";
+        if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
+      },
+
+      newEvent() {
+        this.eventForm = this.defaultEventForm();
+        this.originalEventUid = "";
+      },
+
+      editEvent(event) {
+        this.eventForm = this.normalizeEventForm(event);
+        this.originalEventUid = String(event?.uid || "");
       },
 
       async toggleCalendar() {
@@ -843,6 +1128,7 @@
         this.calendarDir = result.calendar_dir || "";
         this.files = Array.isArray(result.files) ? result.files : [];
         this.subscriptions = Array.isArray(result.subscriptions) ? result.subscriptions : [];
+        if (this.selectedFileName && !this.files.some((file) => file?.name === this.selectedFileName)) this.closeIcsFile();
         this.error = "";
         if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
       },
@@ -862,6 +1148,103 @@
         } catch (error) {
           console.error("[Agent Calendar] Failed to create .ics file", error);
           this.error = String(error?.message || error || "Failed to create .ics file");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async openIcsFile(file) {
+        if (!file?.name) return;
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "read_ics",
+            ctxid: this.ctxid || selectedContextId(),
+            filename: file.name,
+          });
+          this.applyFileResult(result);
+          if (!this.eventForm || !Object.keys(this.eventForm).length) this.newEvent();
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to open .ics file", error);
+          this.error = String(error?.message || error || "Failed to open .ics file");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async saveRawContent() {
+        if (!this.selectedFileName) return;
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "save_ics",
+            ctxid: this.ctxid || selectedContextId(),
+            filename: this.selectedFileName,
+            content: this.selectedFileContent,
+          });
+          this.applyFileResult(result);
+          await this.refresh();
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to save raw .ics file", error);
+          this.error = String(error?.message || error || "Failed to save raw .ics file");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async saveEvent() {
+        if (!this.selectedFileName) {
+          this.error = "Open a local .ics file first.";
+          return;
+        }
+        if (!String(this.eventForm?.start_date || "").trim()) {
+          this.error = "Start date is required.";
+          return;
+        }
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "upsert_event",
+            ctxid: this.ctxid || selectedContextId(),
+            filename: this.selectedFileName,
+            old_uid: this.originalEventUid,
+            event: this.eventForm,
+          });
+          this.applyFileResult(result);
+          const savedUid = result?.saved_event_uid || this.eventForm?.uid || "";
+          const saved = this.selectedEvents.find((event) => event.uid === savedUid);
+          if (saved) this.editEvent(saved);
+          await this.refresh();
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to save event", error);
+          this.error = String(error?.message || error || "Failed to save event");
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async deleteEvent(uid) {
+        const cleanUid = String(uid || "").trim();
+        if (!this.selectedFileName || !cleanUid) return;
+        if (!window.confirm("Delete this event from the .ics file?")) return;
+        this.loading = true;
+        this.error = "";
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "delete_event",
+            ctxid: this.ctxid || selectedContextId(),
+            filename: this.selectedFileName,
+            uid: cleanUid,
+          });
+          this.applyFileResult(result);
+          this.newEvent();
+          await this.refresh();
+        } catch (error) {
+          console.error("[Agent Calendar] Failed to delete event", error);
+          this.error = String(error?.message || error || "Failed to delete event");
         } finally {
           this.loading = false;
         }

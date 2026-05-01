@@ -104,6 +104,44 @@ Input: `{"context": "<ctxid>"}` → Returns full hierarchy tree
 - **Alpine store**: `$store.superordinates` with auto-refresh (5s)
 - **Profile badges** and expand/collapse for nested hierarchies
 
+## Agent Calendar / ICS Editing
+
+On the `feat/agent-ics` branch, the plugin also adds a **Calendar** button to the chat input action bar.
+
+Each agent context has a writable calendar folder on the webserver:
+
+```text
+/a0/usr/chats/<ctxid>/calendar/
+```
+
+The Calendar panel can:
+
+- List local `.ics` files for the selected agent context
+- Create a new local `.ics` file
+- Add or remove remote ICS subscription links
+- Open a local `.ics` file in the browser
+- Add, edit, and delete `VEVENT` entries through a form
+- Edit and save raw ICS text when needed
+
+The backing API is:
+
+```text
+POST /api/plugins/a0_superordinates/agent_calendar
+```
+
+Supported actions include:
+
+- `list`
+- `create_ics`
+- `read_ics`
+- `save_ics`
+- `upsert_event`
+- `delete_event`
+- `add_subscription`
+- `remove_subscription`
+
+For safety, file operations are constrained to sanitized `.ics` filenames inside the selected context's calendar directory.
+
 ## Installation
 
 ### From Plugin Hub
