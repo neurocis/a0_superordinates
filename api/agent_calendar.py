@@ -71,10 +71,12 @@ from usr.plugins.a0_superordinates.helpers.agent_caldav import (
     get_caldav_account,
     delete_caldav_event,
     get_caldav_event,
+    get_caldav_sync_status,
     list_caldav_accounts,
     list_caldav_collections,
     list_caldav_events,
     remove_caldav_account,
+    resolve_caldav_sync_conflict,
     select_caldav_collection,
     sync_caldav_ics_files,
     test_caldav_account,
@@ -232,6 +234,20 @@ class AgentCalendar(ApiHandler):
                 return sync_caldav_ics_files(
                     ctxid=ctxid,
                     account_id=str(input.get("account_id") or input.get("id") or ""),
+                )
+
+            if action in {"get_caldav_sync_status", "sync_caldav_status"}:
+                return get_caldav_sync_status(
+                    ctxid=ctxid,
+                    account_id=str(input.get("account_id") or input.get("id") or ""),
+                )
+
+            if action == "resolve_caldav_sync_conflict":
+                return resolve_caldav_sync_conflict(
+                    ctxid=ctxid,
+                    uid=str(input.get("uid") or ""),
+                    component_kind=str(input.get("component_kind") or input.get("kind") or ""),
+                    strategy=str(input.get("strategy") or ""),
                 )
 
             # ----- CalDAV event CRUD -----

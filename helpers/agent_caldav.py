@@ -861,19 +861,21 @@ def _remote_sync_items(cal_obj) -> tuple[dict[str, dict[str, Any]], dict[str, An
                 continue
             modified = _remote_object_modified_datetime(ev, component["lines"]) or datetime.fromtimestamp(0, timezone.utc)
             uid = str(component["uid"])
-            existing = out.get(uid)
+            kind = str(component.get("kind") or "VEVENT").upper()
+            item_key = f"{uid}::{kind}"
+            existing = out.get(item_key)
             if existing and existing.get("modified") and existing["modified"] >= modified:
                 continue
             item = {
                 "uid": uid,
-                "kind": component["kind"],
+                "kind": kind,
                 "summary": component.get("summary") or "",
                 "href": str(getattr(ev, "url", "") or ""),
                 "etag": str(getattr(ev, "etag", "") or ""),
                 "ics": component["ics"],
                 "modified": modified,
             }
-            out[uid] = item
+            out[item_key] = item
             diagnostics["parsed"] = len(out)
             if len(diagnostics["sample_summaries"]) < 8:
                 diagnostics["sample_summaries"].append({
@@ -886,139 +888,39 @@ def _remote_sync_items(cal_obj) -> tuple[dict[str, dict[str, Any]], dict[str, An
             diagnostics["skipped_parse_errors"] += 1
             log.warning("caldav sync: skipping remote object: %s", exc)
             continue
-    diagnostics["remote_uids"] = len(out)
+    diagnostics["remote_uids"] = len({str(item.get("uid") or "") for item in out.values()})
+    diagnostics["remote_components"] = len(out)
     return out, diagnostics
 
 
 def sync_caldav_ics_files(ctxid: str, account_id: str | None = None) -> dict[str, Any]:
     """Bidirectionally sync selected CalDAV collection and local one-component ICS files.
 
-    Components are matched by UID.  When a UID exists on both sides, the side with
-    the later modified timestamp wins: local file mtime for local ICS files and
-    CalDAV object LAST-MODIFIED/DTSTAMP/CREATED (or object metadata when exposed)
-    for remote objects.  Missing local items are downloaded; missing remote items
-    are uploaded.
+    The implementation is ledger-backed in helpers.agent_calendar_sync.  This
+    wrapper preserves the existing public helper/API name used by the WebUI.
     """
-    cal = _calendar_helpers()
-    clean_ctxid = cal.validate_context_id(ctxid)
-    registry, account = _find_account(clean_ctxid, account_id)
-    actions: list[dict[str, Any]] = []
-    errors: list[str] = []
-    uploaded = downloaded = skipped = 0
-    calendar_dir = cal.context_calendar_dir(clean_ctxid, create=True)
+    from . import agent_calendar_sync
 
-    try:
-        cal_obj = _calendar_object(account)
-        local_items = _local_sync_items(clean_ctxid)
-        remote_items, remote_scan = _remote_sync_items(cal_obj)
-        all_uids = sorted(set(local_items) | set(remote_items))
+    return agent_calendar_sync.sync_context(ctxid, account_id)
 
-        for uid in all_uids:
-            local = local_items.get(uid)
-            remote = remote_items.get(uid)
-            try:
-                if local and remote:
-                    local_modified = local["modified"]
-                    remote_modified = remote["modified"]
-                    delta = local_modified.timestamp() - remote_modified.timestamp()
-                    if abs(delta) <= 1:
-                        skipped += 1
-                        actions.append({"uid": uid, "action": "skipped", "reason": "same modified date"})
-                        continue
-                    if delta > 0:
-                        result = upsert_caldav_event(clean_ctxid, str(account.get("id") or ""), {"ics": local["ics"]}, href=remote.get("href") or "")
-                        uploaded += 1
-                        actions.append({
-                            "uid": uid,
-                            "action": "uploaded",
-                            "filename": local["filename"],
-                            "href": result.get("href") or remote.get("href") or "",
-                            "local_modified": local_modified.isoformat().replace("+00:00", "Z"),
-                            "remote_modified": remote_modified.isoformat().replace("+00:00", "Z"),
-                        })
-                    else:
-                        _write_local_ics(local["path"], remote["ics"], remote_modified)
-                        downloaded += 1
-                        actions.append({
-                            "uid": uid,
-                            "action": "downloaded",
-                            "filename": local["filename"],
-                            "href": remote.get("href") or "",
-                            "local_modified": local_modified.isoformat().replace("+00:00", "Z"),
-                            "remote_modified": remote_modified.isoformat().replace("+00:00", "Z"),
-                        })
-                    continue
 
-                if local and not remote:
-                    result = upsert_caldav_event(clean_ctxid, str(account.get("id") or ""), {"ics": local["ics"]}, href="")
-                    uploaded += 1
-                    actions.append({
-                        "uid": uid,
-                        "action": "uploaded",
-                        "filename": local["filename"],
-                        "href": result.get("href") or "",
-                        "reason": "missing on CalDAV",
-                    })
-                    continue
+def get_caldav_sync_status(ctxid: str, account_id: str | None = None) -> dict[str, Any]:
+    """Return persisted CalDAV/local ICS sync status for the selected collection."""
+    from . import agent_calendar_sync
 
-                if remote and not local:
-                    filename = _filename_for_component(uid, remote.get("summary") or "")
-                    path = _unique_local_sync_path(calendar_dir, filename)
-                    _write_local_ics(path, remote["ics"], remote["modified"])
-                    downloaded += 1
-                    actions.append({
-                        "uid": uid,
-                        "action": "downloaded",
-                        "filename": path.name,
-                        "href": remote.get("href") or "",
-                        "reason": "missing locally",
-                    })
-                    continue
-            except Exception as exc:
-                errors.append(f"{uid}: {exc}")
-                actions.append({"uid": uid, "action": "error", "error": str(exc)})
+    return {"ok": True, "sync_status": agent_calendar_sync.get_status(ctxid, account_id)}
 
-        account["status"] = "ok" if not errors else "error"
-        account["last_error"] = "; ".join(errors)[:1000]
-        account["last_verified"] = cal.iso_now()
-        _save_with_indicator(clean_ctxid, registry)
-        payload = cal.list_calendar_stack(clean_ctxid)
-        payload["ok"] = not errors
-        payload["sync"] = {
-            "ok": not errors,
-            "uploaded": uploaded,
-            "downloaded": downloaded,
-            "skipped": skipped,
-            "errors": errors,
-            "actions": actions,
-            "local_count": len(local_items),
-            "remote_count": len(remote_items),
-            "scanned_collection": account.get("selected_collection_name") or account.get("selected_collection_url") or "",
-            "remote_scan": remote_scan,
-        }
-        if errors:
-            payload["error"] = "; ".join(errors)
-        return payload
-    except Exception as exc:
-        account["status"] = "error"
-        account["last_error"] = str(exc)
-        save_caldav_registry(clean_ctxid, registry)
-        payload = cal.list_calendar_stack(clean_ctxid)
-        payload["ok"] = False
-        payload["error"] = str(exc)
-        payload["sync"] = {
-            "ok": False,
-            "uploaded": uploaded,
-            "downloaded": downloaded,
-            "skipped": skipped,
-            "errors": [str(exc)],
-            "actions": actions,
-            "local_count": 0,
-            "remote_count": 0,
-            "scanned_collection": account.get("selected_collection_name") or account.get("selected_collection_url") or "",
-            "remote_scan": {},
-        }
-        return payload
+
+def resolve_caldav_sync_conflict(
+    ctxid: str,
+    uid: str = "",
+    component_kind: str = "",
+    strategy: str = "",
+) -> dict[str, Any]:
+    """Resolve a ledger conflict using a conservative user-selected strategy."""
+    from . import agent_calendar_sync
+
+    return agent_calendar_sync.resolve_conflict(ctxid, uid=uid, component_kind=component_kind, strategy=strategy)
 
 
 def _caldav_object_by_href(cal_obj, href: str, kind: str = ""):

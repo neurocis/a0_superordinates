@@ -636,6 +636,11 @@ def list_calendar_stack(ctxid: str) -> dict[str, Any]:
     except Exception:
         caldav_account = None
         caldav_accounts = []
+    try:
+        from . import agent_calendar_sync  # late import to avoid circular dep
+        caldav_sync_status = agent_calendar_sync.get_status(clean_ctxid)
+    except Exception:
+        caldav_sync_status = None
     has_calendar = persist_calendar_indicator(clean_ctxid)
     return {
         "ok": True,
@@ -645,6 +650,8 @@ def list_calendar_stack(ctxid: str) -> dict[str, Any]:
         "files": files,
         "caldav_account": caldav_account,
         "caldav_accounts": caldav_accounts,
+        "caldav_sync_status": caldav_sync_status,
+        "sync_status": caldav_sync_status,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
     }

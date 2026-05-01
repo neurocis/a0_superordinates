@@ -819,6 +819,7 @@
               </button>
             </div>
             <div class="a0-agent-calendar-row-meta" x-show="$store.agentCalendar.lastSyncSummary" x-text="$store.agentCalendar.lastSyncSummary"></div>
+            <div class="a0-agent-calendar-row-meta" x-show="$store.agentCalendar.caldavSyncStatusText()" x-text="$store.agentCalendar.caldavSyncStatusText()"></div>
           </div>
 
         </div>
@@ -1123,6 +1124,7 @@
       collectionRefreshInflight: false,
       error: "",
       lastSyncSummary: "",
+      caldavSyncStatus: null,
       ctxid: "",
       agentName: "",
       calendarDir: "",
@@ -1848,6 +1850,7 @@
         if (selectedName && selectedName !== this.ctxid) this.agentName = selectedName;
         window.requestAnimationFrame(() => this.syncPanelPlacement());
         await this.refresh();
+        if (this.caldavAccount?.selected_collection_url) this.refreshCaldavSyncStatus();
         window.requestAnimationFrame(() => this.syncPanelPlacement());
       },
 
@@ -1902,6 +1905,7 @@
         this.caldavAccount = account;
         this.caldavAccounts = account ? [account] : [];
         this.selectedCaldavCollectionUrl = String(account?.selected_collection_url || "");
+        this.caldavSyncStatus = result?.caldav_sync_status || result?.sync_status || this.caldavSyncStatus || null;
         this.hydrateCaldavFormFromAccount();
         this.notifyCalendarIndicatorChanged(result);
         if (this.selectedSource === "local" && this.selectedFileName && !this.files.some((file) => file?.name === this.selectedFileName)) this.closeIcsFile();
@@ -2208,6 +2212,46 @@
         }
       },
 
+      formatSyncAge(seconds) {
+        if (seconds === null || seconds === undefined || Number.isNaN(Number(seconds))) return "never";
+        const sec = Math.max(0, Number(seconds || 0));
+        if (sec < 60) return `${Math.round(sec)}s ago`;
+        const min = Math.round(sec / 60);
+        if (min < 60) return `${min}m ago`;
+        const hours = Math.floor(min / 60);
+        const rem = min % 60;
+        return rem ? `${hours}h ${rem}m ago` : `${hours}h ago`;
+      },
+
+      caldavSyncStatusText() {
+        const status = this.caldavSyncStatus || null;
+        if (!this.caldavAccount || !status) return "";
+        const state = String(status.state || "");
+        const conflicts = Number(status.conflict_count || 0);
+        if (state === "syncing" || status.syncing) return "Syncing CalDAV/local ICS files…";
+        if (conflicts > 0 || state === "conflict") return `CalDAV sync conflict: ${conflicts} item${conflicts === 1 ? "" : "s"} need resolution`;
+        if (state === "never") return "CalDAV/local ICS sync has not run yet";
+        if (state === "error") return `CalDAV sync error: ${status.last_error || "last sync failed"}`;
+        const age = this.formatSyncAge(status.age_seconds);
+        if (state === "stale" || status.stale) return `Stale CalDAV sync: last synced ${age}`;
+        if (state === "warning") return `CalDAV sync warning: last synced ${age}`;
+        if (status.last_success_at) return `CalDAV/local ICS synced ${age}`;
+        return "";
+      },
+
+      async refreshCaldavSyncStatus() {
+        if (!this.caldavAccount || !this.caldavAccount.selected_collection_url) return;
+        try {
+          const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
+            action: "get_caldav_sync_status",
+            ctxid: this.ctxid || selectedContextId(),
+          });
+          this.caldavSyncStatus = result?.sync_status || result?.caldav_sync_status || this.caldavSyncStatus || null;
+        } catch (error) {
+          console.warn("[Agent Calendar] Failed to refresh CalDAV sync status", error);
+        }
+      },
+
       syncSummaryText(sync) {
         const data = sync || {};
         const remoteScan = data.remote_scan || {};
@@ -2217,6 +2261,9 @@
           `local ${Number(data.local_count || 0)}`,
           `downloaded ${Number(data.downloaded || 0)}`,
           `uploaded ${Number(data.uploaded || 0)}`,
+          `deleted local ${Number(data.deleted_local || 0)}`,
+          `deleted remote ${Number(data.deleted_remote || 0)}`,
+          `conflicts ${Number(data.conflicts || 0)}`,
           `skipped ${Number(data.skipped || 0)}`,
         ];
         if (Number(remoteScan.date_search_listed || 0)) bits.push(`date-search ${Number(remoteScan.date_search_listed || 0)}`);
@@ -2243,6 +2290,7 @@
           });
           this.applyResult(result);
           const sync = result?.sync || {};
+          this.caldavSyncStatus = result?.sync_status || result?.caldav_sync_status || this.caldavSyncStatus || null;
           this.lastSyncSummary = this.syncSummaryText(sync);
           if (sync.ok === false || result?.ok === false) {
             this.error = result?.error || (Array.isArray(sync.errors) ? sync.errors.join("; ") : "CalDAV/ICS sync failed.");
