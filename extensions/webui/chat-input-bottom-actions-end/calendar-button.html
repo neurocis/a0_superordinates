@@ -865,11 +865,12 @@
     const cleanUrl = safeHttpUrl(url);
     if (!cleanUrl) throw new Error("Configure a valid WebUI Calendar URL first.");
 
-    const [{ store: rightCanvas }, { store: browserPage }] = await Promise.all([
-      import("/components/canvas/right-canvas-store.js"),
-      import("/plugins/_browser/webui/browser-store.js"),
-    ]);
+    const rightCanvas = window.Alpine?.store?.("rightCanvas") || null;
+    if (!rightCanvas?.open) {
+      throw new Error("Built-in canvas browser is unavailable.");
+    }
 
+    const { store: browserPage } = await import("/plugins/_browser/webui/browser-store.js");
     const contextId = selectedContextId();
     const opened = await rightCanvas.open("browser", {
       contextId,
