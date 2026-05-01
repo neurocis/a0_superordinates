@@ -754,13 +754,19 @@
                         x-text="$store.agentCalendar.caldavStatusGlyph()"></span>
                   <h3 class="a0-agent-calendar-section-header">CalDAV Account</h3>
                 </div>
-                <button type="button"
-                        class="a0-agent-calendar-small-button"
-                        :disabled="$store.agentCalendar.loading || !$store.agentCalendar.caldavAccount || !$store.agentCalendar.caldavAccount.selected_collection_url"
-                        title="Sync local ICS files with the selected CalDAV collection by latest modified date"
-                        @click="$store.agentCalendar.syncCaldavIcsFiles()">
-                  Sync ICS Files
-                </button>
+                <div class="a0-agent-calendar-actions" style="justify-content:flex-end; align-items:center; gap:0.45rem;">
+                  <span class="a0-agent-calendar-row-meta" style="white-space: nowrap; opacity: 0.92;"
+                        x-show="$store.agentCalendar.caldavSyncStatusText()"
+                        x-text="$store.agentCalendar.caldavSyncStatusText()"></span>
+                  <button type="button"
+                          class="a0-agent-calendar-small-button a0-agent-calendar-icon-button"
+                          :disabled="$store.agentCalendar.loading || !$store.agentCalendar.caldavAccount || !$store.agentCalendar.caldavAccount.selected_collection_url"
+                          title="Sync"
+                          aria-label="Sync"
+                          @click="$store.agentCalendar.syncCaldavIcsFiles()">
+                    <i class="ti ti-refresh"></i>
+                  </button>
+                </div>
               </div>
               <div class="a0-agent-calendar-caldav-web-row">
                 <button type="button"
@@ -773,7 +779,6 @@
                 <input type="url" placeholder="WebUI Calendar URL (optional)" x-model="$store.agentCalendar.newCaldav.webui_calendar_url">
               </div>
             </div>
-
             <div class="a0-agent-calendar-input-row a0-agent-calendar-caldav-form">
               <div class="a0-agent-calendar-caldav-server-collection">
                 <input type="url" placeholder="CalDAV server URL, e.g. https://caldav.example.com" x-model="$store.agentCalendar.newCaldav.server_url">
@@ -805,7 +810,6 @@
               </button>
             </div>
             <div class="a0-agent-calendar-row-meta" x-show="$store.agentCalendar.lastSyncSummary" x-text="$store.agentCalendar.lastSyncSummary"></div>
-            <div class="a0-agent-calendar-row-meta" x-show="$store.agentCalendar.caldavSyncStatusText()" x-text="$store.agentCalendar.caldavSyncStatusText()"></div>
           </div>
 
         </div>
@@ -2214,14 +2218,14 @@
         if (!this.caldavAccount || !status) return "";
         const state = String(status.state || "");
         const conflicts = Number(status.conflict_count || 0);
-        if (state === "syncing" || status.syncing) return "Syncing CalDAV/local ICS files…";
-        if (conflicts > 0 || state === "conflict") return `CalDAV sync conflict: ${conflicts} item${conflicts === 1 ? "" : "s"} need resolution`;
-        if (state === "never") return "CalDAV/local ICS sync has not run yet";
-        if (state === "error") return `CalDAV sync error: ${status.last_error || "last sync failed"}`;
+        if (state === "syncing" || status.syncing) return "Syncing…";
+        if (conflicts > 0 || state === "conflict") return `Conflicts: ${conflicts} item${conflicts === 1 ? "" : "s"} need resolution`;
+        if (state === "never") return "Not synced yet";
+        if (state === "error") return `Sync error: ${status.last_error || "last sync failed"}`;
         const age = this.formatSyncAge(status.age_seconds);
-        if (state === "stale" || status.stale) return `Stale CalDAV sync: last synced ${age}`;
-        if (state === "warning") return `CalDAV sync warning: last synced ${age}`;
-        if (status.last_success_at) return `CalDAV/local ICS synced ${age}`;
+        if (state === "stale" || status.stale) return `Last synced ${age}`;
+        if (state === "warning") return `Last synced ${age}`;
+        if (status.last_success_at) return `Last synced ${age}`;
         return "";
       },
 
