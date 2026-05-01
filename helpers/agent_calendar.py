@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -325,6 +325,232 @@ def count_ics_components(path: Path) -> dict[str, int]:
     return counts
 
 
+def _parse_ui_date_time(date_value: str = "", time_value: str = "", all_day: bool = False) -> datetime | None:
+    """Convert UI-style YYYY-MM-DD/HH:MM values to a naive datetime for sorting.
+
+    The calendar UI stores parsed ICS timestamps as local-ish date/time strings
+    without timezone conversion.  Keep the same representation here so the list
+    ordering/display is consistent with the editor fields.
+    """
+    clean_date = str(date_value or "").strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", clean_date):
+        return None
+    clean_time = "00:00" if all_day else (str(time_value or "").strip() or "00:00")
+    if not re.match(r"^\d{2}:\d{2}$", clean_time):
+        clean_time = "00:00"
+    try:
+        return datetime.strptime(f"{clean_date} {clean_time}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
+
+
+def _parse_rrule_until_datetime(value: str, all_day: bool = False) -> datetime | None:
+    clean = str(value or "").strip()
+    if not clean:
+        return None
+    try:
+        if re.match(r"^\d{8}$", clean):
+            return datetime.strptime(clean, "%Y%m%d")
+        if clean.endswith("Z"):
+            clean = clean[:-1]
+        if re.match(r"^\d{8}T\d{6}$", clean):
+            return datetime.strptime(clean, "%Y%m%dT%H%M%S")
+    except ValueError:
+        return None
+    return None
+
+
+def _add_months(dt: datetime, months: int) -> datetime:
+    month_index = dt.month - 1 + months
+    year = dt.year + month_index // 12
+    month = month_index % 12 + 1
+    month_days = [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    day = min(dt.day, month_days[month - 1])
+    return dt.replace(year=year, month=month, day=day)
+
+
+def _next_simple_rrule_occurrence(start: datetime, rrule: str, *, all_day: bool = False, now: datetime | None = None) -> datetime | None:
+    """Return the closest occurrence >= now for common RRULEs.
+
+    This intentionally handles the recurrence shapes the editor can generate
+    (FREQ + INTERVAL + COUNT/UNTIL) plus simple provider-created rules.  More
+    complex BY* rules fall back to bounded iteration so the list still gets a
+    sensible approximate next date instead of pinning old recurring events in
+    the past.
+    """
+    if not start:
+        return None
+    now = now or datetime.now()
+    parts = parse_rrule_parts(rrule)
+    freq = str(parts.get("FREQ") or "").upper()
+    if not freq:
+        return None
+    try:
+        interval = max(1, int(parts.get("INTERVAL") or "1"))
+    except ValueError:
+        interval = 1
+    try:
+        count_limit = int(parts.get("COUNT") or "0") or None
+    except ValueError:
+        count_limit = None
+    until = _parse_rrule_until_datetime(parts.get("UNTIL", ""), all_day=all_day)
+
+    if start >= now:
+        if until is None or start <= until:
+            return start
+        return None
+
+    def within_limits(candidate: datetime, index: int) -> bool:
+        if count_limit is not None and index > count_limit:
+            return False
+        if until is not None and candidate > until:
+            return False
+        return True
+
+    # Fast-forward simple fixed-length frequencies.
+    step_seconds = {
+        "MINUTELY": 60,
+        "HOURLY": 3600,
+        "DAILY": 86400,
+        "WEEKLY": 7 * 86400,
+    }.get(freq)
+    if step_seconds:
+        delta_seconds = max(0, (now - start).total_seconds())
+        step = step_seconds * interval
+        jumps = int(delta_seconds // step)
+        candidate_index = jumps + 1
+        candidate = start + timedelta(seconds=step * jumps)
+        if candidate < now:
+            candidate_index += 1
+            candidate = start + timedelta(seconds=step * (candidate_index - 1))
+        if within_limits(candidate, candidate_index):
+            return candidate
+        return None
+
+    if freq in {"MONTHLY", "YEARLY"}:
+        months_per_step = interval if freq == "MONTHLY" else interval * 12
+        # Approximate a fast-forward, then correct by bounded stepping.
+        month_delta = (now.year - start.year) * 12 + (now.month - start.month)
+        jumps = max(0, month_delta // months_per_step)
+        candidate_index = jumps + 1
+        candidate = _add_months(start, months_per_step * jumps)
+        while candidate < now and candidate_index < 10000:
+            candidate_index += 1
+            candidate = _add_months(candidate, months_per_step)
+        if within_limits(candidate, candidate_index):
+            return candidate
+        return None
+
+    # Fallback for uncommon FREQ values: bounded daily iteration.
+    candidate = start
+    for index in range(1, 3660):
+        if candidate >= now:
+            return candidate if within_limits(candidate, index) else None
+        candidate = candidate + timedelta(days=max(1, interval))
+    return None
+
+
+def _next_rdate_occurrence(event_lines: list[str], *, all_day: bool = False, now: datetime | None = None) -> datetime | None:
+    now = now or datetime.now()
+    candidates: list[datetime] = []
+    for line in property_lines_from_event_lines(event_lines, "RDATE"):
+        _name, params, value = split_content_line(line)
+        for raw_part in str(value or "").split(","):
+            parsed = parse_ics_datetime_for_ui(raw_part.strip(), params)
+            candidate = _parse_ui_date_time(parsed.get("date", ""), parsed.get("time", ""), bool(parsed.get("all_day") or all_day))
+            if candidate and candidate >= now:
+                candidates.append(candidate)
+    return min(candidates) if candidates else None
+
+
+def _exdate_occurrences(event_lines: list[str], *, all_day: bool = False) -> set[str]:
+    values: set[str] = set()
+    for line in property_lines_from_event_lines(event_lines, "EXDATE"):
+        _name, params, value = split_content_line(line)
+        for raw_part in str(value or "").split(","):
+            parsed = parse_ics_datetime_for_ui(raw_part.strip(), params)
+            candidate = _parse_ui_date_time(parsed.get("date", ""), parsed.get("time", ""), bool(parsed.get("all_day") or all_day))
+            if candidate:
+                values.add(candidate.isoformat(timespec="minutes"))
+    return values
+
+
+def _closest_future_occurrence(event_lines: list[str], parsed_component: dict[str, Any]) -> datetime | None:
+    start = _parse_ui_date_time(
+        parsed_component.get("start_date") or parsed_component.get("due_date") or "",
+        parsed_component.get("start_time") or parsed_component.get("due_time") or "",
+        bool(parsed_component.get("all_day")),
+    )
+    if not start:
+        return None
+    if not parsed_component.get("is_recurring"):
+        return start
+
+    now = datetime.now()
+    candidates: list[datetime] = []
+    rrule_values = property_values_from_event_lines(event_lines, "RRULE")
+    if rrule_values:
+        candidate = _next_simple_rrule_occurrence(start, rrule_values[0], all_day=bool(parsed_component.get("all_day")), now=now)
+        if candidate:
+            candidates.append(candidate)
+    rdate_candidate = _next_rdate_occurrence(event_lines, all_day=bool(parsed_component.get("all_day")), now=now)
+    if rdate_candidate:
+        candidates.append(rdate_candidate)
+    if not candidates and start >= now:
+        candidates.append(start)
+
+    excluded = _exdate_occurrences(event_lines, all_day=bool(parsed_component.get("all_day")))
+    filtered = [item for item in candidates if item.isoformat(timespec="minutes") not in excluded]
+    return min(filtered) if filtered else None
+
+
+def _component_lines_for_first_item(text: str, kind: str) -> list[str]:
+    target_begin = f"BEGIN:{kind.upper()}"
+    target_end = f"END:{kind.upper()}"
+    current: list[str] | None = None
+    for line in unfold_ics_lines(text):
+        upper = line.upper()
+        if upper == target_begin:
+            current = [line]
+            continue
+        if current is not None:
+            current.append(line)
+            if upper == target_end:
+                return current
+    return []
+
+
+def display_datetime_from_component(component: dict[str, Any], component_lines: list[str]) -> dict[str, Any]:
+    """Return display/sort datetime metadata for a parsed VEVENT/VTODO."""
+    kind = str(component.get("component_kind") or component.get("kind") or "").lower()
+    if kind == "todo":
+        source_date = component.get("due_date") or component.get("start_date") or ""
+        source_time = component.get("due_time") or component.get("start_time") or ""
+    else:
+        source_date = component.get("start_date") or ""
+        source_time = component.get("start_time") or ""
+    base = _parse_ui_date_time(source_date, source_time, bool(component.get("all_day")))
+    occurrence = _closest_future_occurrence(component_lines, component) if component.get("is_recurring") else base
+    chosen = occurrence or base
+    if not chosen:
+        return {
+            "display_start_date": "",
+            "display_start_time": "",
+            "display_start_label": "No date",
+            "sort_start": "9999-12-31T23:59:59",
+            "next_occurrence": "",
+        }
+    display_time = "" if component.get("all_day") else chosen.strftime("%H:%M")
+    label = chosen.strftime("%Y-%m-%d") + ((" " + display_time) if display_time else "")
+    return {
+        "display_start_date": chosen.strftime("%Y-%m-%d"),
+        "display_start_time": display_time,
+        "display_start_label": label,
+        "sort_start": chosen.isoformat(timespec="minutes"),
+        "next_occurrence": chosen.isoformat(timespec="minutes") if component.get("is_recurring") else "",
+    }
+
+
 def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     stat = path.stat()
     components = count_ics_components(path)
@@ -332,21 +558,34 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     component_uid = ""
     is_recurring = False
     component_kind = ""
+    display_meta = {
+        "display_start_date": "",
+        "display_start_time": "",
+        "display_start_label": "No date",
+        "sort_start": "9999-12-31T23:59:59",
+        "next_occurrence": "",
+    }
     try:
         text = path.read_text(encoding="utf-8", errors="ignore")
         events = list_ics_events_from_text(text)
         todos = list_ics_todos_from_text(text)
         head: dict[str, Any] | None = None
+        component_lines: list[str] = []
         if events:
             head = events[0] or {}
+            head["component_kind"] = "event"
             component_kind = "event"
+            component_lines = _component_lines_for_first_item(text, "VEVENT")
         elif todos:
             head = todos[0] or {}
+            head["component_kind"] = "todo"
             component_kind = "todo"
+            component_lines = _component_lines_for_first_item(text, "VTODO")
         if head is not None:
             summary = str(head.get("summary") or "").strip()
             component_uid = str(head.get("uid") or "").strip()
             is_recurring = bool(head.get("is_recurring"))
+            display_meta = display_datetime_from_component(head, component_lines)
     except Exception:
         pass
     return {
@@ -363,6 +602,7 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
         "todo_summary": summary if component_kind == "todo" else "",
         "todo_uid": component_uid if component_kind == "todo" else "",
         "is_recurring": is_recurring,
+        **display_meta,
         **components,
     }
 
@@ -370,7 +610,10 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
 def list_calendar_stack(ctxid: str) -> dict[str, Any]:
     clean_ctxid = validate_context_id(ctxid)
     calendar_dir = context_calendar_dir(clean_ctxid, create=True)
-    files = [file_info(path, calendar_dir) for path in local_ics_file_paths(clean_ctxid)]
+    files = sorted(
+        [file_info(path, calendar_dir) for path in local_ics_file_paths(clean_ctxid)],
+        key=lambda item: (str(item.get("sort_start") or "9999-12-31T23:59:59"), str(item.get("summary") or item.get("name") or "").lower()),
+    )
     try:
         from . import agent_caldav  # late import to avoid circular dep
         caldav_account = agent_caldav.get_caldav_account(clean_ctxid)
@@ -413,7 +656,10 @@ def delete_local_calendar(ctxid: str, filename: str) -> dict[str, Any]:
     deleted_name = path.name
     path.unlink()
     has_calendar = persist_calendar_indicator(ctxid)
-    files = [file_info(item, calendar_dir) for item in local_ics_file_paths(ctxid)]
+    files = sorted(
+        [file_info(item, calendar_dir) for item in local_ics_file_paths(ctxid)],
+        key=lambda item: (str(item.get("sort_start") or "9999-12-31T23:59:59"), str(item.get("summary") or item.get("name") or "").lower()),
+    )
     try:
         from . import agent_caldav  # late import to avoid circular dep
         caldav_account = agent_caldav.get_caldav_account(ctxid)

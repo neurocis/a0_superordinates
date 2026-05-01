@@ -141,7 +141,7 @@
   }
 
   .a0-agent-calendar-list.a0-agent-calendar-files-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: start;
   }
 
@@ -166,6 +166,34 @@
     gap: 0.45rem;
     font-weight: 600;
     overflow-wrap: anywhere;
+  }
+
+  .a0-agent-calendar-file-headline {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .a0-agent-calendar-file-date {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    font-weight: 400;
+    opacity: 0.72;
+    white-space: nowrap;
+  }
+
+  .a0-agent-calendar-file-summary {
+    min-width: 0;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .a0-agent-calendar-recurrence-icon {
+    flex: 0 0 auto;
+    opacity: 0.82;
+    font-size: 0.88rem;
   }
 
   .a0-agent-calendar-row-meta {
@@ -463,6 +491,12 @@
     }
   }
 
+  @media (max-width: 1180px) {
+    .a0-agent-calendar-list.a0-agent-calendar-files-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   @media (max-width: 860px) {
     .a0-agent-calendar-content-grid,
     .a0-agent-calendar-list.a0-agent-calendar-files-list,
@@ -563,20 +597,21 @@
             </template>
 
             <div class="a0-agent-calendar-list a0-agent-calendar-files-list">
-              <template x-for="file in $store.agentCalendar.files" :key="file.relative_path">
+              <template x-for="file in $store.agentCalendar.sortedIcsFiles()" :key="file.relative_path">
                 <div class="a0-agent-calendar-row">
                   <div class="a0-agent-calendar-row-main">
-                    <div class="a0-agent-calendar-row-name">
-                      <i class="ti ti-file-type-ics" aria-hidden="true"></i>
-                      <span x-text="file.name"></span>
+                    <div class="a0-agent-calendar-file-headline">
+                      <span class="a0-agent-calendar-file-date" x-text="$store.agentCalendar.fileStartLabel(file)"></span>
+                      <span x-show="file.component_kind === 'event'">📅</span>
+                      <span x-show="file.component_kind === 'todo'">☑</span>
+                      <template x-if="file.is_recurring">
+                        <i class="ti ti-repeat a0-agent-calendar-recurrence-icon" title="Recurrent" aria-label="Recurrent"></i>
+                      </template>
+                      <span class="a0-agent-calendar-file-summary" x-text="$store.agentCalendar.fileSummary(file)"></span>
                     </div>
                     <div class="a0-agent-calendar-row-meta">
-                      <span x-show="file.component_kind === 'event'">📅 </span>
-                      <span x-show="file.component_kind === 'todo'">☑ </span>
-                      <span x-text="(file.summary || file.event_summary || file.todo_summary) || '(empty)'"></span>
-                      <template x-if="file.is_recurring">
-                        <span> · Repeats</span>
-                      </template>
+                      <i class="ti ti-file-type-ics" aria-hidden="true"></i>
+                      <span x-text="file.name"></span>
                     </div>
                   </div>
                   <div class="a0-agent-calendar-actions">
@@ -969,6 +1004,27 @@
       placementCleanupTimer: null,
       _ctxRefreshInflight: "",
       _ctxLastSeen: null,
+
+      fileSummary(file) {
+        return String(file?.summary || file?.event_summary || file?.todo_summary || "(empty)");
+      },
+
+      fileStartLabel(file) {
+        return String(file?.display_start_label || file?.start_label || "No date");
+      },
+
+      fileSortKey(file) {
+        return String(file?.sort_start || file?.display_start || file?.modified || "9999-12-31T23:59:59");
+      },
+
+      sortedIcsFiles() {
+        return [...(this.files || [])].sort((a, b) => {
+          const ak = this.fileSortKey(a);
+          const bk = this.fileSortKey(b);
+          if (ak !== bk) return ak.localeCompare(bk);
+          return this.fileSummary(a).localeCompare(this.fileSummary(b)) || String(a?.name || "").localeCompare(String(b?.name || ""));
+        });
+      },
 
       calendarAnchor() {
         return document.querySelector(".a0-agent-calendar-tab-anchor");
