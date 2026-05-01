@@ -311,15 +311,32 @@
     opacity: 0.75;
   }
 
-  .a0-agent-calendar-caldav-form {
-    grid-column: 1 / -1;
-    grid-template-columns: 1fr !important;
+  .a0-agent-calendar-caldav-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.6rem;
   }
 
-  .a0-agent-calendar-url-action-row {
+  .a0-agent-calendar-caldav-header-row .a0-agent-calendar-section-header {
+    margin-bottom: 0;
+  }
+
+  .a0-agent-calendar-caldav-web-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
+    align-items: center;
+    flex: 0 1 30%;
+    width: 30%;
+    max-width: 30%;
+    min-width: 0;
+  }
+
+  .a0-agent-calendar-caldav-form {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(220px, 1.5fr) minmax(160px, 0.9fr) minmax(180px, 0.9fr) auto !important;
     align-items: center;
   }
 
@@ -374,8 +391,21 @@
     .a0-agent-calendar-content-grid,
     .a0-agent-calendar-list.a0-agent-calendar-files-list,
     .a0-agent-calendar-editor-grid,
-    .a0-agent-calendar-form-grid {
-      grid-template-columns: 1fr;
+    .a0-agent-calendar-form-grid,
+    .a0-agent-calendar-caldav-form {
+      grid-template-columns: 1fr !important;
+    }
+
+    .a0-agent-calendar-caldav-header-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .a0-agent-calendar-caldav-web-row {
+      flex-basis: auto;
+      max-width: none;
+      min-width: 0;
+      width: 100%;
     }
   }
 
@@ -487,11 +517,9 @@
           </div>
 
           <div class="a0-agent-calendar-section">
-            <h3 class="a0-agent-calendar-section-header">CalDAV Account</h3>
-
-            <div class="a0-agent-calendar-input-row a0-agent-calendar-caldav-form">
-              <input type="url" placeholder="CalDAV server URL, e.g. https://caldav.example.com" x-model="$store.agentCalendar.newCaldav.server_url">
-              <div class="a0-agent-calendar-url-action-row">
+            <div class="a0-agent-calendar-caldav-header-row">
+              <h3 class="a0-agent-calendar-section-header">CalDAV Account</h3>
+              <div class="a0-agent-calendar-caldav-web-row">
                 <input type="url" placeholder="WebUI Calendar URL (optional)" x-model="$store.agentCalendar.newCaldav.webui_calendar_url">
                 <button type="button"
                         class="a0-agent-calendar-small-button"
@@ -501,6 +529,10 @@
                   Open My Calendar
                 </button>
               </div>
+            </div>
+
+            <div class="a0-agent-calendar-input-row a0-agent-calendar-caldav-form">
+              <input type="url" placeholder="CalDAV server URL, e.g. https://caldav.example.com" x-model="$store.agentCalendar.newCaldav.server_url">
               <input type="text" placeholder="Username" autocomplete="username" x-model="$store.agentCalendar.newCaldav.username">
               <input type="password" placeholder="Password / App password" autocomplete="new-password" x-model="$store.agentCalendar.newCaldav.password" @keydown.enter="$store.agentCalendar.addCaldavAccount()">
               <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.addCaldavAccount()">
