@@ -373,8 +373,10 @@ def list_calendar_stack(ctxid: str) -> dict[str, Any]:
     files = [file_info(path, calendar_dir) for path in local_ics_file_paths(clean_ctxid)]
     try:
         from . import agent_caldav  # late import to avoid circular dep
-        caldav_accounts = agent_caldav.list_caldav_accounts(clean_ctxid)
+        caldav_account = agent_caldav.get_caldav_account(clean_ctxid)
+        caldav_accounts = [caldav_account] if caldav_account else []
     except Exception:
+        caldav_account = None
         caldav_accounts = []
     has_calendar = persist_calendar_indicator(clean_ctxid)
     return {
@@ -383,6 +385,7 @@ def list_calendar_stack(ctxid: str) -> dict[str, Any]:
         "agent_name": get_agent_display_name(clean_ctxid),
         "calendar_dir": str(calendar_dir),
         "files": files,
+        "caldav_account": caldav_account,
         "caldav_accounts": caldav_accounts,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,
@@ -413,8 +416,10 @@ def delete_local_calendar(ctxid: str, filename: str) -> dict[str, Any]:
     files = [file_info(item, calendar_dir) for item in local_ics_file_paths(ctxid)]
     try:
         from . import agent_caldav  # late import to avoid circular dep
-        caldav_accounts = agent_caldav.list_caldav_accounts(ctxid)
+        caldav_account = agent_caldav.get_caldav_account(ctxid)
+        caldav_accounts = [caldav_account] if caldav_account else []
     except Exception:
+        caldav_account = None
         caldav_accounts = []
     return {
         "ok": True,
@@ -422,6 +427,7 @@ def delete_local_calendar(ctxid: str, filename: str) -> dict[str, Any]:
         "calendar_dir": str(calendar_dir),
         "deleted": deleted_name,
         "files": files,
+        "caldav_account": caldav_account,
         "caldav_accounts": caldav_accounts,
         "has_calendar": has_calendar,
         "calendar_indicator": has_calendar,

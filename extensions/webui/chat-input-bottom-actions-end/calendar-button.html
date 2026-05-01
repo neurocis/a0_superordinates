@@ -475,41 +475,56 @@
           </div>
 
           <div class="a0-agent-calendar-section">
-            <h3 class="a0-agent-calendar-section-header">CalDAV Accounts</h3>
+            <h3 class="a0-agent-calendar-section-header">CalDAV Account</h3>
 
-            <template x-if="$store.agentCalendar.caldavAccounts.length === 0">
-              <div class="a0-agent-calendar-muted">No CalDAV accounts yet.</div>
+            <template x-if="!$store.agentCalendar.caldavAccount">
+              <div class="a0-agent-calendar-muted">No CalDAV account configured for this Agent.</div>
             </template>
 
-            <div class="a0-agent-calendar-list">
-              <template x-for="acc in $store.agentCalendar.caldavAccounts" :key="acc.id">
+            <template x-if="$store.agentCalendar.caldavAccount">
+              <div class="a0-agent-calendar-list">
                 <div class="a0-agent-calendar-row">
                   <div class="a0-agent-calendar-row-main">
                     <div class="a0-agent-calendar-row-name">
                       <i class="ti ti-server" aria-hidden="true"></i>
-                      <span x-text="acc.label || acc.server_url"></span>
+                      <span x-text="$store.agentCalendar.caldavAccount.label || $store.agentCalendar.caldavAccount.server_url"></span>
                       <span class="a0-agent-calendar-row-status"
-                            x-show="acc.status"
-                            x-text="acc.status === 'ok' ? '✓' : (acc.status === 'error' ? '⚠' : '?')"
-                            :title="acc.last_error || acc.status"></span>
+                            x-show="$store.agentCalendar.caldavAccount.status"
+                            x-text="$store.agentCalendar.caldavAccount.status === 'ok' ? '✓' : ($store.agentCalendar.caldavAccount.status === 'error' ? '⚠' : '?')"
+                            :title="$store.agentCalendar.caldavAccount.last_error || $store.agentCalendar.caldavAccount.status"></span>
                     </div>
                     <div class="a0-agent-calendar-row-meta">
-                      <span x-text="(acc.username ? acc.username + '@' : '') + acc.server_url"></span>
-                      <template x-if="acc.selected_collection_name">
-                        <span> · <span x-text="acc.selected_collection_name"></span></span>
+                      <div>
+                        <strong>CalDAV server:</strong>
+                        <span x-text="($store.agentCalendar.caldavAccount.username ? $store.agentCalendar.caldavAccount.username + '@' : '') + $store.agentCalendar.caldavAccount.server_url"></span>
+                      </div>
+                      <template x-if="$store.agentCalendar.caldavAccount.webui_calendar_url">
+                        <div>
+                          <strong>Calendar Web URL:</strong>
+                          <a :href="$store.agentCalendar.caldavAccount.webui_calendar_url"
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             x-text="$store.agentCalendar.caldavAccount.webui_calendar_url"></a>
+                        </div>
                       </template>
-                      <template x-if="acc.last_error">
-                        <span class="a0-agent-calendar-row-error"> · <span x-text="acc.last_error"></span></span>
+                      <template x-if="$store.agentCalendar.caldavAccount.selected_collection_name">
+                        <div>
+                          <strong>Selected collection:</strong>
+                          <span x-text="$store.agentCalendar.caldavAccount.selected_collection_name"></span>
+                        </div>
+                      </template>
+                      <template x-if="$store.agentCalendar.caldavAccount.last_error">
+                        <div class="a0-agent-calendar-row-error" x-text="$store.agentCalendar.caldavAccount.last_error"></div>
                       </template>
                     </div>
-                    <template x-if="Array.isArray(acc.collections) && acc.collections.length > 1">
+                    <template x-if="Array.isArray($store.agentCalendar.caldavAccount.collections) && $store.agentCalendar.caldavAccount.collections.length > 0">
                       <div class="a0-agent-calendar-input-row">
                         <select class="a0-agent-calendar-small-button"
-                                @change="$store.agentCalendar.selectCaldavCollection(acc.id, $event.target.value)">
-                          <option value="" :selected="!acc.selected_collection_url">Select collection…</option>
-                          <template x-for="col in acc.collections" :key="col.url">
+                                @change="$store.agentCalendar.selectCaldavCollection($event.target.value)">
+                          <option value="" :selected="!$store.agentCalendar.caldavAccount.selected_collection_url">Select collection…</option>
+                          <template x-for="col in $store.agentCalendar.caldavAccount.collections" :key="col.url">
                             <option :value="col.url"
-                                    :selected="col.url === acc.selected_collection_url"
+                                    :selected="col.url === $store.agentCalendar.caldavAccount.selected_collection_url"
                                     x-text="col.display_name || col.name || col.url"></option>
                           </template>
                         </select>
@@ -517,31 +532,50 @@
                     </template>
                   </div>
                   <div class="a0-agent-calendar-actions">
-                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.testCaldavAccount(acc.id)">
+                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.testCaldavAccount()">
                       Test
                     </button>
-                    <template x-if="acc.selected_collection_url">
-                      <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.openCaldavCollection(acc.id)">
-                        Open
+                    <template x-if="$store.agentCalendar.caldavAccount.webui_calendar_url">
+                      <a class="a0-agent-calendar-small-button"
+                         :href="$store.agentCalendar.caldavAccount.webui_calendar_url"
+                         target="_blank"
+                         rel="noopener noreferrer">
+                        Open Calendar
+                      </a>
+                    </template>
+                    <template x-if="$store.agentCalendar.caldavAccount.selected_collection_url">
+                      <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.openCaldavCollection()">
+                        Open Collection
                       </button>
                     </template>
-                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.removeCaldavAccount(acc.id)">
+                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.beginEditCaldavAccount()">
+                      Edit/Reconfigure
+                    </button>
+                    <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.removeCaldavAccount()">
                       Remove
                     </button>
                   </div>
                 </div>
-              </template>
-            </div>
+              </div>
+            </template>
 
-            <div class="a0-agent-calendar-input-row a0-agent-calendar-caldav-form">
-              <input type="text" placeholder="Label (optional)" x-model="$store.agentCalendar.newCaldav.label">
-              <input type="url" placeholder="https://caldav.example.com" x-model="$store.agentCalendar.newCaldav.server_url">
-              <input type="text" placeholder="Username" autocomplete="username" x-model="$store.agentCalendar.newCaldav.username">
-              <input type="password" placeholder="Password / App password" autocomplete="new-password" x-model="$store.agentCalendar.newCaldav.password" @keydown.enter="$store.agentCalendar.addCaldavAccount()">
-              <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.addCaldavAccount()">
-                Add CalDAV account
-              </button>
-            </div>
+            <template x-if="!$store.agentCalendar.caldavAccount || $store.agentCalendar.editingCaldavAccount">
+              <div class="a0-agent-calendar-input-row a0-agent-calendar-caldav-form">
+                <input type="text" placeholder="Label (optional)" x-model="$store.agentCalendar.newCaldav.label">
+                <input type="url" placeholder="CalDAV server URL, e.g. https://caldav.example.com" x-model="$store.agentCalendar.newCaldav.server_url">
+                <input type="url" placeholder="WebUI Calendar URL (optional)" x-model="$store.agentCalendar.newCaldav.webui_calendar_url">
+                <input type="text" placeholder="Username" autocomplete="username" x-model="$store.agentCalendar.newCaldav.username">
+                <input type="password" placeholder="Password / App password" autocomplete="new-password" x-model="$store.agentCalendar.newCaldav.password" @keydown.enter="$store.agentCalendar.addCaldavAccount()">
+                <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.addCaldavAccount()">
+                  <span x-text="$store.agentCalendar.caldavAccount ? 'Save CalDAV account' : 'Add CalDAV account'"></span>
+                </button>
+                <template x-if="$store.agentCalendar.caldavAccount">
+                  <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.cancelEditCaldavAccount()">
+                    Cancel
+                  </button>
+                </template>
+              </div>
+            </template>
 
             <template x-if="$store.agentCalendar.selectedCaldavAccountId">
               <div class="a0-agent-calendar-caldav-events">
@@ -833,6 +867,7 @@
       agentName: "",
       calendarDir: "",
       files: [],
+      caldavAccount: null,
       caldavAccounts: [],
       caldavEvents: [],
       selectedCaldavAccountId: "",
@@ -847,7 +882,8 @@
       componentKind: "event",
       originalEventUid: "",
       originalTodoUid: "",
-      newCaldav: { label: "", server_url: "", username: "", password: "" },
+      newCaldav: { label: "", server_url: "", webui_calendar_url: "", username: "", password: "" },
+      editingCaldavAccount: false,
       calendarTabWidth: "7rem",
       calendarHostEl: null,
       calendarOutputEl: null,
@@ -1200,6 +1236,7 @@
         this.agentName = "";
         this.error = "";
         this.files = [];
+        this.caldavAccount = null;
         this.caldavAccounts = [];
         this.caldavEvents = [];
         this.selectedCaldavAccountId = "";
@@ -1498,11 +1535,13 @@
         if (resultAgentName && resultAgentName !== this.ctxid) this.agentName = resultAgentName;
         this.calendarDir = result.calendar_dir || "";
         this.files = Array.isArray(result.files) ? result.files : [];
-        this.caldavAccounts = Array.isArray(result.caldav_accounts) ? result.caldav_accounts : [];
+        const account = result.caldav_account || (Array.isArray(result.caldav_accounts) ? result.caldav_accounts[0] : null) || null;
+        this.caldavAccount = account;
+        this.caldavAccounts = account ? [account] : [];
         this.notifyCalendarIndicatorChanged(result);
         if (this.selectedSource === "local" && this.selectedFileName && !this.files.some((file) => file?.name === this.selectedFileName)) this.closeIcsFile();
-        if (this.selectedSource === "caldav" && this.selectedCaldavAccountId &&
-            !this.caldavAccounts.some((acc) => String(acc?.id || "") === String(this.selectedCaldavAccountId))) {
+        if (this.selectedSource === "caldav" && (!this.caldavAccount ||
+            (this.selectedCaldavAccountId && String(this.caldavAccount?.id || "") !== String(this.selectedCaldavAccountId)))) {
           this.closeCaldavCollection();
         }
         this.error = "";
@@ -1673,42 +1712,70 @@
         }
       },
 
+      _emptyCaldavForm() {
+        return { label: "", server_url: "", webui_calendar_url: "", username: "", password: "" };
+      },
+
+      beginEditCaldavAccount() {
+        const acc = this.caldavAccount || {};
+        this.newCaldav = {
+          label: String(acc.label || ""),
+          server_url: String(acc.server_url || ""),
+          webui_calendar_url: String(acc.webui_calendar_url || ""),
+          username: String(acc.username || ""),
+          password: "",
+        };
+        this.editingCaldavAccount = true;
+      },
+
+      cancelEditCaldavAccount() {
+        this.newCaldav = this._emptyCaldavForm();
+        this.editingCaldavAccount = false;
+      },
+
       async addCaldavAccount() {
         const url = String(this.newCaldav?.server_url || "").trim();
+        const webUrl = String(this.newCaldav?.webui_calendar_url || "").trim();
         const user = String(this.newCaldav?.username || "").trim();
         const pass = String(this.newCaldav?.password || "");
         if (!url || !user || !pass) {
-          this.error = "Server URL, username, and password are required.";
+          this.error = "CalDAV server URL, username, and password are required.";
+          return;
+        }
+        if (webUrl && !/^https?:\/\//i.test(webUrl)) {
+          this.error = "WebUI Calendar URL must start with http:// or https://.";
           return;
         }
         this.loading = true;
         this.error = "";
         try {
           const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
-            action: "add_caldav_account",
+            action: "set_caldav_account",
             ctxid: this.ctxid || selectedContextId(),
             label: String(this.newCaldav?.label || "").trim(),
             server_url: url,
+            webui_calendar_url: webUrl,
             username: user,
             password: pass,
           });
           this.applyResult(result);
           if (!this.error) {
-            const added = result?.added;
-            this.newCaldav = { label: "", server_url: "", username: "", password: "" };
-            // Auto-test the new account so the user sees collection discovery immediately.
-            if (added?.id) await this.testCaldavAccount(added.id);
+            const account = result?.caldav_account || result?.set || result?.added;
+            this.newCaldav = this._emptyCaldavForm();
+            this.editingCaldavAccount = false;
+            // Auto-test the configured singleton so the user sees collection discovery immediately.
+            if (account?.id) await this.testCaldavAccount();
           }
         } catch (error) {
-          console.error("[Agent Calendar] Failed to add CalDAV account", error);
-          this.error = String(error?.message || error || "Failed to add CalDAV account");
+          console.error("[Agent Calendar] Failed to configure CalDAV account", error);
+          this.error = String(error?.message || error || "Failed to configure CalDAV account");
         } finally {
           this.loading = false;
         }
       },
 
-      async removeCaldavAccount(id) {
-        if (!id) return;
+      async removeCaldavAccount() {
+        if (!this.caldavAccount) return;
         if (!window.confirm("Remove this CalDAV account?")) return;
         this.loading = true;
         this.error = "";
@@ -1716,9 +1783,10 @@
           const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
             action: "remove_caldav_account",
             ctxid: this.ctxid || selectedContextId(),
-            account_id: id,
           });
-          if (this.selectedCaldavAccountId === id) this.closeCaldavCollection();
+          this.closeCaldavCollection();
+          this.newCaldav = this._emptyCaldavForm();
+          this.editingCaldavAccount = false;
           this.applyResult(result);
         } catch (error) {
           console.error("[Agent Calendar] Failed to remove CalDAV account", error);
@@ -1728,15 +1796,14 @@
         }
       },
 
-      async testCaldavAccount(id) {
-        if (!id) return;
+      async testCaldavAccount() {
+        if (!this.caldavAccount) return;
         this.loading = true;
         this.error = "";
         try {
           const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
             action: "test_caldav_account",
             ctxid: this.ctxid || selectedContextId(),
-            account_id: id,
           });
           this.applyResult(result);
           const test = result?.test;
@@ -1751,15 +1818,14 @@
         }
       },
 
-      async selectCaldavCollection(id, collectionUrl) {
-        if (!id || !collectionUrl) return;
+      async selectCaldavCollection(collectionUrl) {
+        if (!this.caldavAccount || !collectionUrl) return;
         this.loading = true;
         this.error = "";
         try {
           const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
             action: "select_caldav_collection",
             ctxid: this.ctxid || selectedContextId(),
-            account_id: id,
             collection_url: collectionUrl,
           });
           this.applyResult(result);
@@ -1772,18 +1838,20 @@
       },
 
       _findCaldavAccount(id) {
-        return this.caldavAccounts.find((a) => String(a?.id || "") === String(id || "")) || null;
+        const acc = this.caldavAccount || null;
+        if (!acc) return null;
+        if (!id || String(acc?.id || "") === String(id || "")) return acc;
+        return null;
       },
 
       async openCaldavCollection(id) {
-        if (!id) return;
         const acc = this._findCaldavAccount(id);
         if (!acc) return;
         if (!acc.selected_collection_url) {
           this.error = "Pick a CalDAV collection first.";
           return;
         }
-        this.selectedCaldavAccountId = String(id);
+        this.selectedCaldavAccountId = String(acc.id || "singleton");
         this.selectedCaldavCollectionLabel = acc.selected_collection_name || acc.selected_collection_url;
         this.selectedSource = "caldav";
         // Closing the local editor avoids cross-source confusion.
@@ -1803,15 +1871,13 @@
       },
 
       async refreshCaldavEvents() {
-        const id = this.selectedCaldavAccountId;
-        if (!id) return;
+        if (!this.caldavAccount) return;
         this.loading = true;
         this.error = "";
         try {
           const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
             action: "list_caldav_events",
             ctxid: this.ctxid || selectedContextId(),
-            account_id: id,
           });
           if (result?.ok) {
             this.caldavEvents = Array.isArray(result.events) ? result.events : [];
@@ -1828,7 +1894,8 @@
       },
 
       newCaldavEvent() {
-        if (!this.selectedCaldavAccountId) return;
+        if (!this.caldavAccount) return;
+        if (!this.selectedCaldavAccountId) this.selectedCaldavAccountId = String(this.caldavAccount.id || "singleton");
         this.selectedSource = "caldav";
         this.selectedFileName = `caldav:${this.selectedCaldavCollectionLabel || "new event"}`;
         this.selectedFile = { source: "caldav" };
@@ -1879,8 +1946,8 @@
       },
 
       async saveCaldavEvent() {
-        if (!this.selectedCaldavAccountId) {
-          this.error = "Select a CalDAV account first.";
+        if (!this.caldavAccount) {
+          this.error = "Configure a CalDAV account first.";
           return;
         }
         const isEvent = this.componentKind !== "todo";
@@ -1899,7 +1966,6 @@
           const body = {
             action: "upsert_caldav_event",
             ctxid: this.ctxid || selectedContextId(),
-            account_id: this.selectedCaldavAccountId,
             href: this.selectedCaldavHref || "",
           };
           if (isEvent) body.event = this.eventForm;
@@ -1921,7 +1987,7 @@
 
       async deleteCaldavEvent(ev) {
         const href = ev?.href || this.selectedCaldavHref;
-        if (!this.selectedCaldavAccountId || !href) return;
+        if (!this.caldavAccount || !href) return;
         if (!window.confirm("Delete this CalDAV event?")) return;
         this.loading = true;
         this.error = "";
@@ -1929,7 +1995,6 @@
           const result = await callJsonApi("plugins/a0_superordinates/agent_calendar", {
             action: "delete_caldav_event",
             ctxid: this.ctxid || selectedContextId(),
-            account_id: this.selectedCaldavAccountId,
             href,
           });
           if (result?.ok) {

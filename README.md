@@ -118,7 +118,7 @@ The Calendar panel can:
 
 - List local `.ics` files for the selected agent context
 - Create a new local `.ics` file
-- Register CalDAV accounts (server URL, username, password) per agent context, discover their calendar collections, and pick an active collection
+- Configure one CalDAV account/link per agent context (server URL, username, password, optional WebUI Calendar URL), discover its calendar collections, and pick an active collection
 - Open a local `.ics` file in the browser
 - Add, edit, and delete `VEVENT` / `VTODO` entries through a form (against either a local file or a CalDAV collection)
 - Create and edit recurring events with `RRULE`, `RDATE`, and `EXDATE`
@@ -138,8 +138,8 @@ Supported actions include:
 - `save_ics`
 - `upsert_event` / `delete_event`
 - `upsert_todo` / `delete_todo`
-- `list_caldav_accounts`
-- `add_caldav_account` / `remove_caldav_account`
+- `get_caldav_account` / `set_caldav_account` (backward-compatible `list_caldav_accounts` / `add_caldav_account` aliases return or replace the singleton)
+- `remove_caldav_account`
 - `test_caldav_account` / `list_caldav_collections`
 - `select_caldav_collection`
 - `list_caldav_events` / `get_caldav_event`
@@ -151,17 +151,17 @@ Recurring event support includes simple minute/hour/day/week/month/year controls
 
 Local `.ics` files are stored as **single-component resources**: each file contains at most one `VEVENT` *or* one `VTODO`. Saving a raw ICS payload with multiple components is rejected; create a separate `.ics` file per component instead. The Calendar editor lets you switch the file between Event and Todo modes; saving rewrites the file as the selected component type.
 
-When an Agent has at least one local `.ics` file or at least one CalDAV account with an active (selected) collection, the plugin persists and reconciles a `has_calendar` indicator for that Agent. The Superordinates sidebar suffixes that Agent's display name with `📅`; the icon is removed automatically when the last calendar source is deleted.
+When an Agent has at least one local `.ics` file or its singleton CalDAV account has an active (selected) collection, the plugin persists and reconciles a `has_calendar` indicator for that Agent. The Superordinates sidebar suffixes that Agent's display name with `📅`; the icon is removed automatically when the last calendar source is deleted.
 
-### CalDAV accounts
+### CalDAV account
 
-Each Agent context can register one or more CalDAV accounts. Accounts are stored at:
+Each Agent context can register zero or one CalDAV account/link. Reconfiguring CalDAV replaces the existing account for that Agent rather than adding another account. The singleton account is stored at:
 
 ```text
 /a0/usr/chats/<ctxid>/calendar/caldav.json
 ```
 
-Each account holds a label, server URL, username, password, the discovered list of collections, and the URL/name of the currently selected collection. Discovery and event CRUD use the maintained [`caldav`](https://pypi.org/project/caldav/) PyPI client. The structured Event/Todo editor saves to the active CalDAV collection via PUT/DELETE.
+The account holds a label, CalDAV server URL, username, password, optional `webui_calendar_url`, the discovered list of collections, and the URL/name of the currently selected collection. The `WebUI Calendar URL` is a separate browser-facing link for opening the provider's calendar UI; it must be `http://` or `https://` when provided. Discovery and event CRUD use the maintained [`caldav`](https://pypi.org/project/caldav/) PyPI client. The structured Event/Todo editor saves to the active CalDAV collection via PUT/DELETE.
 
 Provider notes:
 

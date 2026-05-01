@@ -68,6 +68,7 @@ from usr.plugins.a0_superordinates.helpers.agent_calendar import (
 )
 from usr.plugins.a0_superordinates.helpers.agent_caldav import (
     add_caldav_account,
+    get_caldav_account,
     delete_caldav_event,
     get_caldav_event,
     list_caldav_accounts,
@@ -159,21 +160,27 @@ class AgentCalendar(ApiHandler):
                 )
 
             # ----- CalDAV account lifecycle -----
-            if action == "list_caldav_accounts":
+            if action in {"get_caldav_account", "list_caldav_accounts"}:
                 payload = list_calendar_stack(ctxid)
-                payload["caldav_accounts"] = list_caldav_accounts(ctxid)
+                account = get_caldav_account(ctxid)
+                payload["caldav_account"] = account
+                payload["caldav_accounts"] = [account] if account else []
                 return payload
 
-            if action == "add_caldav_account":
-                added = add_caldav_account(
+            if action in {"set_caldav_account", "add_caldav_account"}:
+                account = add_caldav_account(
                     ctxid=ctxid,
                     label=str(input.get("label") or ""),
                     server_url=str(input.get("server_url") or input.get("url") or ""),
                     username=str(input.get("username") or ""),
                     password=str(input.get("password") or ""),
+                    webui_calendar_url=str(input.get("webui_calendar_url") or ""),
                 )
                 payload = list_calendar_stack(ctxid)
-                payload["added"] = added
+                payload["caldav_account"] = account
+                payload["caldav_accounts"] = [account] if account else []
+                payload["added"] = account
+                payload["set"] = account
                 return payload
 
             if action == "remove_caldav_account":
@@ -182,6 +189,8 @@ class AgentCalendar(ApiHandler):
                     account_id=str(input.get("account_id") or input.get("id") or ""),
                 )
                 payload = list_calendar_stack(ctxid)
+                payload["caldav_account"] = None
+                payload["caldav_accounts"] = []
                 payload["removed"] = removed
                 return payload
 

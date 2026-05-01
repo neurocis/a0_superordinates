@@ -1,13 +1,13 @@
 """CalDAV client helpers for per-agent CalDAV accounts.
 
 This module replaces the old ICS-subscription logic.  Each Agent context can
-register one or more CalDAV accounts, discover their calendar collections,
-select an active collection, and read/write events on it via PUT/DELETE.
+register one CalDAV account, discover its calendar collections, select an
+active collection, and read/write events on it via PUT/DELETE.
 
-Accounts are persisted in ``/a0/usr/chats/<ctxid>/calendar/caldav.json``.
+The singleton account is persisted in ``/a0/usr/chats/<ctxid>/calendar/caldav.json``.
 Passwords are stored in plaintext alongside the account record because Agent
-Zero does not yet expose a per-context secret store; rotate or remove accounts
-if this is a concern.  Discovery and event operations use the ``caldav`` PyPI
+Zero does not yet expose a per-context secret store; rotate or remove the
+account if this is a concern.  Discovery and event operations use the ``caldav`` PyPI
 library, which builds on ``requests``/``niquests``, ``lxml``, ``vobject`` and
 ``icalendar``.
 
@@ -55,10 +55,10 @@ def caldav_path(ctxid: str, create: bool = True) -> Path:
 
 
 def _empty_registry() -> dict[str, Any]:
-    return {"version": REGISTRY_VERSION, "accounts": []}
+    return {"version": REGISTRY_VERSION, "account": None}
 
 
-def _normalize_account(entry: dict[str, Any]) -> dict[str, Any] | None:
+def _normalize_account(entry: dict[str, Any] | None) -> dict[str, Any] | None:
     if not isinstance(entry, dict):
         return None
     if not entry.get("id") or not entry.get("server_url"):
@@ -67,6 +67,10 @@ def _normalize_account(entry: dict[str, Any]) -> dict[str, Any] | None:
     entry.setdefault("username", "")
     entry.setdefault("password", "")
     entry.setdefault("kind", "caldav")
+    entry["webui_calendar_url"] = normalize_webui_calendar_url(
+        entry.get("webui_calendar_url") or "",
+        reject_unsafe=False,
+    )
     entry.setdefault("collections", [])
     entry.setdefault("selected_collection_url", "")
     entry.setdefault("selected_collection_name", "")
@@ -74,6 +78,25 @@ def _normalize_account(entry: dict[str, Any]) -> dict[str, Any] | None:
     entry.setdefault("last_error", "")
     entry.setdefault("last_verified", "")
     return entry
+
+
+def _first_legacy_account(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the first valid account from old multi-account data.
+
+    Requirement: per agent/context there is exactly zero or one CalDAV account.
+    Older list-shaped data is tolerated defensively and normalized to the first
+    valid account so stale/malformed registries do not crash the UI/API.
+    """
+    direct = _normalize_account(data.get("account") if isinstance(data, dict) else None)
+    if direct is not None:
+        return direct
+    accounts = data.get("accounts") if isinstance(data, dict) else None
+    if isinstance(accounts, list):
+        for entry in accounts:
+            normalized = _normalize_account(entry)
+            if normalized is not None:
+                return normalized
+    return None
 
 
 def load_caldav_registry(ctxid: str, create: bool = False) -> dict[str, Any]:
@@ -86,66 +109,75 @@ def load_caldav_registry(ctxid: str, create: bool = False) -> dict[str, Any]:
         data = {}
     if not isinstance(data, dict):
         data = {}
-    accounts_in = data.get("accounts")
-    if not isinstance(accounts_in, list):
-        accounts_in = []
-    accounts: list[dict[str, Any]] = []
-    for entry in accounts_in:
-        cleaned = _normalize_account(entry)
-        if cleaned is not None:
-            accounts.append(cleaned)
-    return {"version": int(data.get("version") or REGISTRY_VERSION), "accounts": accounts}
+    return {
+        "version": int(data.get("version") or REGISTRY_VERSION),
+        "account": _first_legacy_account(data),
+    }
 
 
 def save_caldav_registry(ctxid: str, registry: dict[str, Any]) -> None:
     path = caldav_path(ctxid, create=True)
-    registry.setdefault("version", REGISTRY_VERSION)
-    registry.setdefault("accounts", [])
+    singleton = {
+        "version": int(registry.get("version") or REGISTRY_VERSION),
+        "account": _normalize_account(registry.get("account")),
+    }
     with NamedTemporaryFile("w", encoding="utf-8", dir=str(path.parent), delete=False) as tmp:
-        json.dump(registry, tmp, indent=2, sort_keys=True)
+        json.dump(singleton, tmp, indent=2, sort_keys=True)
         tmp.write("\n")
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
 
 
-def public_account(account: dict[str, Any]) -> dict[str, Any]:
+def public_account(account: dict[str, Any] | None) -> dict[str, Any] | None:
     """Return an account dict with the password stripped."""
     if not isinstance(account, dict):
-        return {}
+        return None
     public = {k: v for k, v in account.items() if k != "password"}
     public["has_password"] = bool(account.get("password"))
     return public
 
 
+def get_caldav_account(ctxid: str) -> dict[str, Any] | None:
+    return public_account(load_caldav_registry(ctxid).get("account"))
+
+
 def list_caldav_accounts(ctxid: str) -> list[dict[str, Any]]:
-    return [public_account(a) for a in load_caldav_registry(ctxid).get("accounts", [])]
+    """Backward-compatible one-item list view for older UI/API callers."""
+    account = get_caldav_account(ctxid)
+    return [account] if account else []
+
+
+def caldav_account_entry(ctxid: str) -> dict[str, Any] | None:
+    """Internal-use raw entry (with password) for indicator/connection logic."""
+    try:
+        return load_caldav_registry(ctxid, create=False).get("account")
+    except Exception:
+        return None
 
 
 def caldav_account_entries(ctxid: str) -> list[dict[str, Any]]:
-    """Internal-use raw entries (with password) for indicator/connection logic."""
-    try:
-        return load_caldav_registry(ctxid, create=False).get("accounts", [])
-    except Exception:
-        return []
+    """Backward-compatible raw one-item list for older internal callers."""
+    account = caldav_account_entry(ctxid)
+    return [account] if account else []
 
 
 def has_active_caldav_source(ctxid: str) -> bool:
-    """True if at least one account has a selected collection URL."""
-    for acc in caldav_account_entries(ctxid):
-        if isinstance(acc, dict) and str(acc.get("selected_collection_url") or "").strip():
-            return True
-    return False
+    """True if the singleton account has a selected collection URL."""
+    acc = caldav_account_entry(ctxid)
+    return bool(isinstance(acc, dict) and str(acc.get("selected_collection_url") or "").strip())
 
 
-def _find_account(ctxid: str, account_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    clean_id = str(account_id or "").strip()
-    if not clean_id:
-        raise ValueError("account_id is required")
+def _find_account(ctxid: str, account_id: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     registry = load_caldav_registry(ctxid, create=False)
-    for acc in registry.get("accounts", []):
-        if str(acc.get("id") or "") == clean_id:
-            return registry, acc
-    raise ValueError(f"caldav account not found: {clean_id}")
+    account = registry.get("account")
+    if not isinstance(account, dict):
+        raise ValueError("no CalDAV account configured")
+    clean_id = str(account_id or "").strip()
+    # The singleton API does not require an id.  If an old caller supplies one,
+    # tolerate it only when it matches the configured singleton.
+    if clean_id and clean_id != str(account.get("id") or ""):
+        raise ValueError(f"caldav account not found: {clean_id}")
+    return registry, account
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +196,24 @@ def normalize_server_url(url: str) -> str:
     return clean
 
 
+def normalize_webui_calendar_url(url: str, *, reject_unsafe: bool = True) -> str:
+    """Normalize the optional browser-facing calendar URL.
+
+    Blank is allowed.  Nonblank values must be http(s); unsafe schemes such as
+    javascript:, data:, file:, etc. are rejected for user-entered values and
+    stripped when defensively reading old/malformed persisted data.
+    """
+    clean = str(url or "").strip()
+    if not clean:
+        return ""
+    parsed = urlparse(clean)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        if reject_unsafe:
+            raise ValueError("WebUI Calendar URL must be http:// or https://")
+        return ""
+    return clean
+
+
 # ---------------------------------------------------------------------------
 # Account CRUD
 # ---------------------------------------------------------------------------
@@ -174,10 +224,12 @@ def add_caldav_account(
     server_url: str,
     username: str,
     password: str,
-) -> dict[str, Any]:
+    webui_calendar_url: str = "",
+) -> dict[str, Any] | None:
     cal = _calendar_helpers()
     cal.validate_context_id(ctxid)
     clean_url = normalize_server_url(server_url)
+    clean_webui_url = normalize_webui_calendar_url(webui_calendar_url)
     clean_label = (str(label or "").strip()) or clean_url
     clean_username = str(username or "").strip()
     clean_password = str(password or "")
@@ -186,39 +238,60 @@ def add_caldav_account(
     if not clean_password:
         raise ValueError("password is required")
 
+    previous = caldav_account_entry(ctxid) or {}
     registry = load_caldav_registry(ctxid, create=True)
-    accounts = registry.setdefault("accounts", [])
     entry = _normalize_account({
-        "id": uuid.uuid4().hex[:12],
+        "id": str(previous.get("id") or uuid.uuid4().hex[:12]),
         "label": clean_label,
         "server_url": clean_url,
         "username": clean_username,
         "password": clean_password,
+        "webui_calendar_url": clean_webui_url,
         "kind": "caldav",
-        "created": cal.iso_now(),
+        "created": previous.get("created") or cal.iso_now(),
+        "updated": cal.iso_now(),
+        # Replacing the account clears stale discovery/selection from the old
+        # provider unless the user re-tests and selects a collection again.
+        "collections": [],
+        "selected_collection_url": "",
+        "selected_collection_name": "",
+        "status": "unverified",
+        "last_error": "",
+        "last_verified": "",
     })
     assert entry is not None
-    accounts.append(entry)
+    registry["account"] = entry
     save_caldav_registry(ctxid, registry)
     cal.persist_calendar_indicator(ctxid)
     return public_account(entry)
 
 
-def remove_caldav_account(ctxid: str, account_id: str) -> bool:
+def set_caldav_account(
+    ctxid: str,
+    label: str,
+    server_url: str,
+    username: str,
+    password: str,
+    webui_calendar_url: str = "",
+) -> dict[str, Any] | None:
+    """Create or replace the singleton CalDAV account for a context."""
+    return add_caldav_account(ctxid, label, server_url, username, password, webui_calendar_url)
+
+
+def remove_caldav_account(ctxid: str, account_id: str | None = None) -> bool:
     cal = _calendar_helpers()
     cal.validate_context_id(ctxid)
-    clean_id = str(account_id or "").strip()
-    if not clean_id:
-        raise ValueError("account_id is required")
     registry = load_caldav_registry(ctxid, create=False)
-    accounts = registry.setdefault("accounts", [])
-    before = len(accounts)
-    registry["accounts"] = [a for a in accounts if str(a.get("id") or "") != clean_id]
+    account = registry.get("account")
+    if not isinstance(account, dict):
+        return False
+    clean_id = str(account_id or "").strip()
+    if clean_id and clean_id != str(account.get("id") or ""):
+        return False
+    registry["account"] = None
     save_caldav_registry(ctxid, registry)
-    removed = len(registry["accounts"]) != before
-    if removed:
-        cal.persist_calendar_indicator(ctxid)
-    return removed
+    cal.persist_calendar_indicator(ctxid)
+    return True
 
 
 def _save_with_indicator(ctxid: str, registry: dict[str, Any]) -> None:
@@ -270,7 +343,7 @@ def _serialize_collections(calendars) -> list[dict[str, Any]]:
     return out
 
 
-def test_caldav_account(ctxid: str, account_id: str) -> dict[str, Any]:
+def test_caldav_account(ctxid: str, account_id: str | None = None) -> dict[str, Any]:
     """Verify credentials and discover calendar collections."""
     cal = _calendar_helpers()
     cal.validate_context_id(ctxid)
@@ -300,11 +373,11 @@ def test_caldav_account(ctxid: str, account_id: str) -> dict[str, Any]:
         return {"ok": False, "error": str(exc), "account": public_account(account)}
 
 
-def list_caldav_collections(ctxid: str, account_id: str) -> dict[str, Any]:
+def list_caldav_collections(ctxid: str, account_id: str | None = None) -> dict[str, Any]:
     return test_caldav_account(ctxid, account_id)
 
 
-def select_caldav_collection(ctxid: str, account_id: str, collection_url: str) -> dict[str, Any]:
+def select_caldav_collection(ctxid: str, account_id: str | None = None, collection_url: str = "") -> dict[str, Any]:
     cal = _calendar_helpers()
     cal.validate_context_id(ctxid)
     registry, account = _find_account(ctxid, account_id)
@@ -377,7 +450,7 @@ def _summarize_event(ev) -> dict[str, Any]:
     }
 
 
-def list_caldav_events(ctxid: str, account_id: str) -> dict[str, Any]:
+def list_caldav_events(ctxid: str, account_id: str | None = None) -> dict[str, Any]:
     cal = _calendar_helpers()
     cal.validate_context_id(ctxid)
     registry, account = _find_account(ctxid, account_id)
@@ -411,7 +484,7 @@ def list_caldav_events(ctxid: str, account_id: str) -> dict[str, Any]:
         return {"ok": False, "error": str(exc), "account": public_account(account)}
 
 
-def get_caldav_event(ctxid: str, account_id: str, href: str) -> dict[str, Any]:
+def get_caldav_event(ctxid: str, account_id: str | None = None, href: str = "") -> dict[str, Any]:
     cal = _calendar_helpers()
     cal.validate_context_id(ctxid)
     _registry, account = _find_account(ctxid, account_id)
@@ -461,7 +534,7 @@ def _build_ics_from_payload(payload: dict[str, Any]) -> str:
 
 def upsert_caldav_event(
     ctxid: str,
-    account_id: str,
+    account_id: str | None = None,
     payload: dict[str, Any] | None = None,
     href: str | None = None,
 ) -> dict[str, Any]:
@@ -494,7 +567,7 @@ def upsert_caldav_event(
     }
 
 
-def delete_caldav_event(ctxid: str, account_id: str, href: str) -> dict[str, Any]:
+def delete_caldav_event(ctxid: str, account_id: str | None = None, href: str = "") -> dict[str, Any]:
     cal = _calendar_helpers()
     cal.validate_context_id(ctxid)
     _registry, account = _find_account(ctxid, account_id)
