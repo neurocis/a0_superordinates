@@ -497,6 +497,17 @@
           if (!el || targets.includes(el)) return;
           if (host && (el === host || host.contains(el))) return;
           if (el.closest?.(".chat-bottom-actions-bar") || el.classList?.contains("chat-bottom-actions-bar")) return;
+
+          // Avoid double-transforming nested DOM. The prompt disappeared when
+          // both `.input-row` and one of its wrappers were lifted at once.
+          for (const existing of targets) {
+            if (existing && existing.contains?.(el)) return;
+          }
+          for (let i = targets.length - 1; i >= 0; i -= 1) {
+            const existing = targets[i];
+            if (el.contains?.(existing)) targets.splice(i, 1);
+          }
+
           targets.push(el);
         };
 
@@ -532,12 +543,17 @@
 
           // Other input-section children above the bottom action row, such as
           // queue/attachment previews, should move with the prompt area too.
+          // Do not add wrappers that contain the already-selected prompt row or
+          // model/progress strip; that would nest transforms and hide the input.
           const inputSection = document.getElementById("input-section");
+          const progressBox = document.getElementById("progress-bar-box");
           if (inputSection) {
             for (const child of Array.from(inputSection.children || [])) {
               if (!child || child === host || host?.contains?.(child)) continue;
               if (child.matches?.("template, style, script")) continue;
               if (child.querySelector?.(".chat-bottom-actions-bar") || child.classList?.contains("chat-bottom-actions-bar")) continue;
+              if (reference && child !== reference && child.contains?.(reference)) continue;
+              if (progressBox && child !== progressBox && child.contains?.(progressBox)) continue;
               const rect = child.getBoundingClientRect?.();
               if (rect && rect.width >= 120 && rect.height >= 8 && rect.bottom > window.innerHeight * 0.35) add(child);
             }
