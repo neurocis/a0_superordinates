@@ -558,6 +558,11 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     component_uid = ""
     is_recurring = False
     component_kind = ""
+    component_start_date = ""
+    component_start_time = ""
+    component_due_date = ""
+    component_due_time = ""
+    component_all_day = False
     display_meta = {
         "display_start_date": "",
         "display_start_time": "",
@@ -585,6 +590,11 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
             summary = str(head.get("summary") or "").strip()
             component_uid = str(head.get("uid") or "").strip()
             is_recurring = bool(head.get("is_recurring"))
+            component_start_date = str(head.get("start_date") or "").strip()
+            component_start_time = str(head.get("start_time") or "").strip()
+            component_due_date = str(head.get("due_date") or "").strip()
+            component_due_time = str(head.get("due_time") or "").strip()
+            component_all_day = bool(head.get("all_day"))
             display_meta = display_datetime_from_component(head, component_lines)
     except Exception:
         pass
@@ -602,6 +612,11 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
         "todo_summary": summary if component_kind == "todo" else "",
         "todo_uid": component_uid if component_kind == "todo" else "",
         "is_recurring": is_recurring,
+        "start_date": component_start_date,
+        "start_time": component_start_time,
+        "due_date": component_due_date,
+        "due_time": component_due_time,
+        "all_day": component_all_day,
         **display_meta,
         **components,
     }

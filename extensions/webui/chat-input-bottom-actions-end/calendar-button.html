@@ -141,16 +141,16 @@
   }
 
   .a0-agent-calendar-list.a0-agent-calendar-files-list {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     align-items: start;
   }
 
   .a0-agent-calendar-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.8rem;
+    gap: 0.45rem;
     align-items: center;
-    padding: 0.65rem 0.75rem;
+    padding: 0.55rem 0.6rem;
     border: 1px solid var(--border-color, rgba(255,255,255,0.1));
     border-radius: 0.55rem;
     background: color-mix(in srgb, currentColor 4%, transparent);
@@ -171,7 +171,7 @@
   .a0-agent-calendar-file-headline {
     display: flex;
     align-items: baseline;
-    gap: 0.35rem;
+    gap: 0.3rem;
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -491,6 +491,12 @@
     }
   }
 
+  @media (max-width: 1480px) {
+    .a0-agent-calendar-list.a0-agent-calendar-files-list {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
   @media (max-width: 1180px) {
     .a0-agent-calendar-list.a0-agent-calendar-files-list {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -598,7 +604,7 @@
 
             <div class="a0-agent-calendar-list a0-agent-calendar-files-list">
               <template x-for="file in $store.agentCalendar.sortedIcsFiles()" :key="file.relative_path">
-                <div class="a0-agent-calendar-row">
+                <div class="a0-agent-calendar-row" :title="$store.agentCalendar.fileTooltip(file)">
                   <div class="a0-agent-calendar-row-main">
                     <div class="a0-agent-calendar-file-headline">
                       <span class="a0-agent-calendar-file-date" x-text="$store.agentCalendar.fileStartLabel(file)"></span>
@@ -608,10 +614,6 @@
                         <i class="ti ti-repeat a0-agent-calendar-recurrence-icon" title="Recurrent" aria-label="Recurrent"></i>
                       </template>
                       <span class="a0-agent-calendar-file-summary" x-text="$store.agentCalendar.fileSummary(file)"></span>
-                    </div>
-                    <div class="a0-agent-calendar-row-meta">
-                      <i class="ti ti-file-type-ics" aria-hidden="true"></i>
-                      <span x-text="file.name"></span>
                     </div>
                   </div>
                   <div class="a0-agent-calendar-actions">
@@ -1009,12 +1011,35 @@
         return String(file?.summary || file?.event_summary || file?.todo_summary || "(empty)");
       },
 
+      fileTooltip(file) {
+        const name = String(file?.name || file?.relative_path || "").trim();
+        return name || this.fileSummary(file);
+      },
+
+      normalizeFileDateLabel(dateValue, timeValue, allDay = false) {
+        const date = String(dateValue || "").trim();
+        if (!date) return "";
+        const time = allDay ? "" : String(timeValue || "").trim();
+        return time ? `${date} ${time}` : date;
+      },
+
       fileStartLabel(file) {
-        return String(file?.display_start_label || file?.start_label || "No date");
+        const explicit = String(file?.display_start_label || file?.start_label || "").trim();
+        if (explicit && explicit !== "No date") return explicit;
+        const fallback = this.normalizeFileDateLabel(
+          file?.display_start_date || file?.start_date || file?.due_date,
+          file?.display_start_time || file?.start_time || file?.due_time,
+          Boolean(file?.all_day)
+        );
+        return fallback || "No date";
       },
 
       fileSortKey(file) {
-        return String(file?.sort_start || file?.display_start || file?.modified || "9999-12-31T23:59:59");
+        const explicit = String(file?.sort_start || file?.display_start || "").trim();
+        if (explicit && explicit !== "9999-12-31T23:59:59") return explicit;
+        const date = String(file?.display_start_date || file?.start_date || file?.due_date || "9999-12-31").trim();
+        const time = String(file?.display_start_time || file?.start_time || file?.due_time || "23:59").trim() || "23:59";
+        return `${date}T${time}`;
       },
 
       sortedIcsFiles() {
