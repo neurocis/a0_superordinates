@@ -861,6 +861,16 @@
     return String(account?.webui_calendar_url ?? account?.webuiCalendarUrl ?? "");
   }
 
+  async function waitForAlpineStore(name, timeoutMs = 3000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() <= deadline) {
+      const store = window.Alpine?.store?.(name);
+      if (store) return store;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return window.Alpine?.store?.(name) || null;
+  }
+
   async function openUrlInAgentBrowser(url) {
     const cleanUrl = safeHttpUrl(url);
     if (!cleanUrl) throw new Error("Configure a valid WebUI Calendar URL first.");
@@ -870,7 +880,6 @@
       throw new Error("Built-in canvas browser is unavailable.");
     }
 
-    const { store: browserPage } = await import("/plugins/_browser/webui/browser-store.js");
     const contextId = selectedContextId();
     const opened = await rightCanvas.open("browser", {
       contextId,
@@ -879,11 +888,16 @@
     });
     if (!opened) throw new Error("Built-in canvas browser is unavailable.");
 
+    const browserPage = await waitForAlpineStore("browserPage");
+    if (!browserPage?.command) {
+      throw new Error("Built-in browser page store is unavailable.");
+    }
+
     await browserPage.command("open", {
       url: cleanUrl,
       context_id: contextId,
     });
-    return { ok: true, mechanism: "rightCanvas.browser" };
+    return { ok: true, mechanism: "rightCanvas.browserPage" };
   }
 
   function registerAgentCalendarStore() {
