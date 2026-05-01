@@ -852,8 +852,6 @@
     return "";
   }
 
-  const CAMOFOX_USER_ID = "a0-default";
-
   function safeHttpUrl(value) {
     const url = String(value || "").trim();
     return /^https?:\/\//i.test(url) ? url : "";
@@ -867,30 +865,24 @@
     const cleanUrl = safeHttpUrl(url);
     if (!cleanUrl) throw new Error("Configure a valid WebUI Calendar URL first.");
 
-    try {
-      await import("/plugins/camofox_browser/webui/camofox-store.js");
-      const tabResult = await callJsonApi("plugins/camofox_browser/camofox_proxy", {
-        method: "POST",
-        path: "/tabs",
-        body: {
-          userId: CAMOFOX_USER_ID,
-          sessionKey: "calendar-webui",
-          url: cleanUrl,
-        },
-      });
-      if (!tabResult?.ok) throw new Error(tabResult?.error || "CamoFox browser did not open the URL.");
-      const camofox = window.Alpine?.store?.("camofox");
-      if (camofox) {
-        camofox._userId = camofox._userId || CAMOFOX_USER_ID;
-        if (typeof camofox.showBrowser === "function") await camofox.showBrowser();
-      }
-      return { ok: true, mechanism: "camofox" };
-    } catch (error) {
-      console.warn("[Agent Calendar] Built-in browser open failed; falling back to window.open", error);
-      const opened = window.open(cleanUrl, "_blank", "noopener,noreferrer");
-      if (!opened) throw error;
-      return { ok: true, mechanism: "window.open" };
-    }
+    const [{ store: rightCanvas }, { store: browserPage }] = await Promise.all([
+      import("/components/canvas/right-canvas-store.js"),
+      import("/plugins/_browser/webui/browser-store.js"),
+    ]);
+
+    const contextId = selectedContextId();
+    const opened = await rightCanvas.open("browser", {
+      contextId,
+      context_id: contextId,
+      source: "agent-calendar",
+    });
+    if (!opened) throw new Error("Built-in canvas browser is unavailable.");
+
+    await browserPage.command("open", {
+      url: cleanUrl,
+      context_id: contextId,
+    });
+    return { ok: true, mechanism: "rightCanvas.browser" };
   }
 
   function registerAgentCalendarStore() {
@@ -1897,10 +1889,7 @@
         }
         this.error = "";
         try {
-          const result = await openUrlInAgentBrowser(url);
-          if (result?.mechanism === "window.open") {
-            this.error = "Built-in browser was unavailable; opened Calendar Web URL in a new browser tab instead.";
-          }
+          await openUrlInAgentBrowser(url);
         } catch (error) {
           console.error("[Agent Calendar] Failed to open Calendar Web URL", error);
           this.error = String(error?.message || error || "Failed to open Calendar Web URL");
