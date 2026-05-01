@@ -107,24 +107,6 @@
     flex: 1 1 auto;
   }
 
-  .a0-agent-calendar-section-title-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin: 0 0 0.6rem;
-  }
-
-  .a0-agent-calendar-section-title-row .a0-agent-calendar-section-header {
-    margin: 0;
-    min-width: 0;
-  }
-
-  .a0-agent-calendar-files-actions {
-    flex: 0 0 auto;
-    justify-content: flex-end;
-  }
-
   .a0-agent-calendar-section:first-child,
   .a0-agent-calendar-content-grid > .a0-agent-calendar-section {
     margin-top: 0;
@@ -251,6 +233,21 @@
     padding: 0 !important;
     border-radius: 999px;
     font-size: 0.98rem;
+    line-height: 1;
+  }
+
+  .a0-agent-calendar-file-add-button {
+    align-self: center;
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.05rem;
+    min-width: 2.05rem;
+    height: 2.05rem;
+    padding: 0 !important;
+    border-radius: 999px;
+    font-size: 1.05rem;
     line-height: 1;
   }
 
@@ -699,24 +696,6 @@
       <template x-if="!$store.agentCalendar.loading">
         <div class="a0-agent-calendar-content-grid">
           <div class="a0-agent-calendar-section">
-            <div class="a0-agent-calendar-section-title-row">
-              <h3 class="a0-agent-calendar-section-header">
-                <span x-text="$store.agentCalendar.agentDisplayName()"></span>
-                <span> ICS Files </span>
-                <span class="a0-agent-calendar-heading-context" x-show="$store.agentCalendar.ctxid" x-text="`(${$store.agentCalendar.ctxid})`"></span>
-              </h3>
-              <div class="a0-agent-calendar-actions a0-agent-calendar-files-actions">
-                <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.createLocalCalendar()">
-                  <i class="ti ti-file-plus" aria-hidden="true"></i>
-                  New ICS
-                </button>
-                <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.refresh()">
-                  <i class="ti ti-refresh" aria-hidden="true"></i>
-                  Refresh
-                </button>
-              </div>
-            </div>
-
             <template x-if="$store.agentCalendar.files.length === 0">
               <div class="a0-agent-calendar-muted a0-agent-calendar-files-list">No local .ics files yet.</div>
             </template>
@@ -755,6 +734,13 @@
                   </div>
                 </div>
               </template>
+              <button type="button"
+                      class="a0-agent-calendar-small-button a0-agent-calendar-file-add-button"
+                      title="New ICS"
+                      aria-label="New ICS"
+                      @click="$store.agentCalendar.createLocalCalendar()">
+                <i class="ti ti-plus" aria-hidden="true"></i>
+              </button>
             </div>
           </div>
 
