@@ -378,7 +378,7 @@
   }
 </style>
 
-<span class="a0-agent-calendar-tab-anchor" x-data @keydown.escape.window="$store.agentCalendar?.closeCalendar()">
+<span class="a0-agent-calendar-tab-anchor" x-data x-effect="$store.agentCalendar?.onContextChanged($store.chats?.selected || '')" @keydown.escape.window="$store.agentCalendar?.closeCalendar()">
 <button
   type="button"
   class="text-button"
@@ -762,6 +762,8 @@
       calendarOutputEl: null,
       calendarLiftEls: [],
       placementCleanupTimer: null,
+      _ctxRefreshInflight: "",
+      _ctxLastSeen: null,
 
       calendarAnchor() {
         return document.querySelector(".a0-agent-calendar-tab-anchor");
@@ -1086,6 +1088,46 @@
 
       syncTabWidth() {
         this.syncPanelPlacement();
+      },
+
+      async onContextChanged(nextCtxid) {
+        const next = String(nextCtxid || "").trim();
+        // First call: prime tracking without re-running side effects on initial mount.
+        if (this._ctxLastSeen === null) {
+          this._ctxLastSeen = next;
+          if (!this.ctxid && next) this.ctxid = next;
+          return;
+        }
+        if (next === this._ctxLastSeen) return;
+        this._ctxLastSeen = next;
+
+        // Inflight guard: if we are already refreshing for this ctxid, skip.
+        if (this._ctxRefreshInflight && this._ctxRefreshInflight === next) return;
+
+        // Reset per-agent state since the focused agent changed.
+        this.ctxid = next;
+        this.agentName = "";
+        this.error = "";
+        this.files = [];
+        this.subscriptions = [];
+        this.closeIcsFile();
+
+        if (!next) return;
+
+        // Pull a friendly name eagerly; refresh() will also re-derive from API.
+        const selectedName = selectedContextDisplayName();
+        if (selectedName && selectedName !== next) this.agentName = selectedName;
+
+        // Only re-fetch immediately when the panel is open; otherwise the next
+        // openCalendar() call will fetch fresh data for the new agent.
+        if (!this.visible) return;
+
+        this._ctxRefreshInflight = next;
+        try {
+          await this.refresh();
+        } finally {
+          if (this._ctxRefreshInflight === next) this._ctxRefreshInflight = "";
+        }
       },
 
       agentDisplayName() {
