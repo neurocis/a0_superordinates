@@ -299,6 +299,18 @@
     margin-top: 0.15rem;
   }
 
+  .a0-agent-calendar-editor-type {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.25rem 0 0.6rem 0;
+  }
+
+  .a0-agent-calendar-editor-type-label {
+    font-size: 0.78rem;
+    opacity: 0.75;
+  }
+
   .a0-agent-calendar-content-grid .a0-agent-calendar-input-row {
     grid-template-columns: minmax(100px, 0.8fr) minmax(160px, 1.2fr) auto;
   }
@@ -502,12 +514,19 @@
                   Editing <span x-text="$store.agentCalendar.selectedFileName"></span>
                 </div>
                 <div class="a0-agent-calendar-actions">
-                  <select class="a0-agent-calendar-small-button" x-model="$store.agentCalendar.componentKind" @change="$store.agentCalendar.switchComponentKind()">
-                    <option value="event">Event (VEVENT)</option>
-                    <option value="todo">Todo (VTODO)</option>
-                  </select>
                   <button type="button" class="a0-agent-calendar-small-button" @click="$store.agentCalendar.closeIcsFile()">Close</button>
                 </div>
+              </div>
+
+              <div class="a0-agent-calendar-editor-type">
+                <label class="a0-agent-calendar-editor-type-label" for="a0-agent-calendar-component-kind">Type</label>
+                <select id="a0-agent-calendar-component-kind"
+                        class="a0-agent-calendar-small-button"
+                        x-model="$store.agentCalendar.componentKind"
+                        @change="$store.agentCalendar.switchComponentKind()">
+                  <option value="event">Event (VEVENT)</option>
+                  <option value="todo">Todo (VTODO)</option>
+                </select>
               </div>
 
               <div class="a0-agent-calendar-editor-grid a0-agent-calendar-editor-grid-single">
