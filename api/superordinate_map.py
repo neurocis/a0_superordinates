@@ -306,8 +306,19 @@ class SuperordinateMap(ApiHandler):
                 scheduler_indicator if scheduler_indicator is not None else _empty_scheduler_indicators()
             )
 
+        def _has_inheritance_file(ctxid: str) -> bool:
+            try:
+                from usr.plugins.a0_superordinates.helpers.inheritance import read_inheritance_file
+
+                return bool(read_inheritance_file(ctxid).strip())
+            except Exception:
+                return False
+
         def indicator_payload(ctxid: str) -> dict[str, bool]:
-            return scheduler_indicators.get(ctxid, _empty_scheduler_indicators())
+            payload = dict(scheduler_indicators.get(ctxid, _empty_scheduler_indicators()))
+            payload["has_inheritance"] = _has_inheritance_file(ctxid)
+            payload["inheritance_indicator"] = payload["has_inheritance"]
+            return payload
 
         hierarchy_map: dict[str, dict] = {}
 

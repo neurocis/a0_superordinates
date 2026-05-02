@@ -245,24 +245,48 @@ const model = {
     return this._parseBool(entry.has_prompts ?? entry.prompt_indicator ?? entry.has_json ?? entry.json_indicator, false);
   },
 
+  hasInheritance(ctxid) {
+    if (!ctxid) return false;
+
+    const contexts = Alpine.store('chats')?.contexts;
+    if (Array.isArray(contexts)) {
+      const ctx = contexts.find(c => c?.id === ctxid);
+      const data = ctx?.data || ctx?.ctx?.data || {};
+      if (this._parseBool(ctx?.has_inheritance ?? ctx?.inheritance_indicator, false)) return true;
+      if (this._parseBool(data.has_inheritance ?? data.inheritance_indicator, false)) return true;
+    }
+
+    const entry = this.hierarchyMap[ctxid] || {};
+    return this._parseBool(entry.has_inheritance ?? entry.inheritance_indicator, false);
+  },
+
   schedulerCalendarIcon(node) {
     if (node?._hasPrompts) return '📅';
     if (node?._hasCalendar) return '🗓️';
     return '';
   },
 
+  nodeIndicatorIcons(node) {
+    const icons = [];
+    const schedulerIcon = this.schedulerCalendarIcon(node);
+    if (schedulerIcon) icons.push(schedulerIcon);
+    if (node?._hasInheritance) icons.push('📜');
+    return icons;
+  },
+
   nodeIndicatorTitle(node) {
     const parts = [];
     if (node?._hasPrompts) parts.push('Has Scheduler prompt JSON');
     else if (node?._hasCalendar) parts.push('Has Calendar');
+    if (node?._hasInheritance) parts.push('Has inheritance.md');
     if (!this.canRename(node?.id)) parts.push('StaticName enabled: renaming disabled');
     return parts.join('; ');
   },
 
   displayNameWithIndicators(node) {
     const base = String(node?.name || (node?.no ? `Chat #${node.no}` : '') || '').trim() || 'Chat';
-    const icon = this.schedulerCalendarIcon(node);
-    return icon ? `${base} ${icon}` : base;
+    const icons = this.nodeIndicatorIcons(node);
+    return icons.length ? `${base} ${icons.join(' ')}` : base;
   },
 
   _cancelStaticNameRenameIfNeeded() {
@@ -344,6 +368,7 @@ const model = {
           _staticName: this.isStaticName(node.id),
           _hasCalendar: this.hasCalendar(node.id),
           _hasPrompts: this.hasPrompts(node.id),
+          _hasInheritance: this.hasInheritance(node.id),
         });
         // Add children if expanded
         if (hasKids && this.isExpanded(node.id)) {
