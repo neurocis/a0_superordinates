@@ -806,9 +806,9 @@
                           </svg>
                         </template>
                         <span class="a0-agent-calendar-file-kind-icon a0-agent-calendar-json-sidecar-icon" x-show="$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'event'" aria-label="Event has JSON sidecar" role="img">🗓️</span>
-                        <span class="a0-agent-calendar-file-kind-icon a0-agent-calendar-json-sidecar-icon" x-show="$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'todo'" aria-label="Todo has JSON sidecar" role="img">✅</span>
+                        <span class="a0-agent-calendar-file-kind-icon a0-agent-calendar-json-sidecar-icon" x-show="$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'todo'" aria-label="Todo has JSON sidecar" role="img">☑️</span>
                         <span class="a0-agent-calendar-file-kind-icon" x-show="!$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'event'" aria-hidden="true">📅</span>
-                        <span class="a0-agent-calendar-file-kind-icon" x-show="!$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'todo'" aria-hidden="true">☑️</span>
+                        <span class="a0-agent-calendar-file-kind-icon" x-show="!$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'todo'" aria-hidden="true">✅</span>
                         <span class="a0-agent-calendar-file-date" x-text="$store.agentCalendar.fileStartLabel(file)"></span>
                         <template x-if="file.is_recurring">
                           <svg class="a0-agent-calendar-svg-icon a0-agent-calendar-recurrence-icon" viewBox="0 0 24 24" role="img" aria-label="Recurrent">
