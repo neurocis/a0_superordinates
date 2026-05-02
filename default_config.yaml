@@ -19,3 +19,15 @@ reply_wait_seconds: 5
 
 # Display name used when creating the special folder that receives closed chats/entities.
 closed_entities_folder_name: "Closed Entities"
+
+# Show the inheritance.md suffix indicator (📜) next to agent names in the Superordinates panel.
+# Default is true.
+display_inheritance_indicator: true
+
+# Show the Scheduler calendar suffix indicator (🗓️) next to agent names in the Superordinates panel
+# when a calendar exists without Scheduler prompt JSON. Default is true.
+display_calendar_indicator: true
+
+# Show the Scheduler calendar prompt suffix indicator (📅) next to agent names in the Superordinates panel
+# when Scheduler prompt JSON exists. Default is true.
+display_calendar_prompts_indicator: true

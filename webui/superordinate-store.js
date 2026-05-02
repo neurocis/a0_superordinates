@@ -8,6 +8,9 @@ const model = {
   pinnedNodes: {},       // {ctxid: bool} - pinned chats cannot be moved
   msgMeBlockedNodes: {},        // {ctxid: bool} - chats where user has explicitly BLOCKED prompt input (default: allowed)
   closedEntitiesFolderName: 'Closed Entities',
+  displayInheritanceIndicator: true,
+  displayCalendarIndicator: true,
+  displayCalendarPromptsIndicator: true,
   _closedEntitiesConfigLoaded: false,
   _closedEntitiesConfigPromise: null,
   _refreshInterval: null,
@@ -114,10 +117,25 @@ const model = {
         || response?.config?.closed_entities_folder_name
         || 'Closed Entities';
       this.closedEntitiesFolderName = this._normalizeClosedEntitiesFolderName(configuredName);
+      this.displayInheritanceIndicator = this._parseBool(
+        response?.display_inheritance_indicator ?? response?.config?.display_inheritance_indicator,
+        true
+      );
+      this.displayCalendarIndicator = this._parseBool(
+        response?.display_calendar_indicator ?? response?.config?.display_calendar_indicator,
+        true
+      );
+      this.displayCalendarPromptsIndicator = this._parseBool(
+        response?.display_calendar_prompts_indicator ?? response?.config?.display_calendar_prompts_indicator,
+        true
+      );
       this._closedEntitiesConfigLoaded = true;
     } catch (e) {
       console.error("[Superordinates] Error fetching config:", e);
       this.closedEntitiesFolderName = 'Closed Entities';
+      this.displayInheritanceIndicator = true;
+      this.displayCalendarIndicator = true;
+      this.displayCalendarPromptsIndicator = true;
       this._closedEntitiesConfigLoaded = true;
     }
   },
@@ -261,8 +279,8 @@ const model = {
   },
 
   schedulerCalendarIcon(node) {
-    if (node?._hasPrompts) return '📅';
-    if (node?._hasCalendar) return '🗓️';
+    if (node?._hasPrompts) return this.displayCalendarPromptsIndicator ? '📅' : '';
+    if (node?._hasCalendar) return this.displayCalendarIndicator ? '🗓️' : '';
     return '';
   },
 
@@ -270,15 +288,15 @@ const model = {
     const icons = [];
     const schedulerIcon = this.schedulerCalendarIcon(node);
     if (schedulerIcon) icons.push(schedulerIcon);
-    if (node?._hasInheritance) icons.push('📜');
+    if (this.displayInheritanceIndicator && node?._hasInheritance) icons.push('📜');
     return icons;
   },
 
   nodeIndicatorTitle(node) {
     const parts = [];
-    if (node?._hasPrompts) parts.push('Has Scheduler prompt JSON');
-    else if (node?._hasCalendar) parts.push('Has Calendar');
-    if (node?._hasInheritance) parts.push('Has inheritance.md');
+    if (this.displayCalendarPromptsIndicator && node?._hasPrompts) parts.push('Has Scheduler prompt JSON');
+    else if (this.displayCalendarIndicator && node?._hasCalendar) parts.push('Has Calendar');
+    if (this.displayInheritanceIndicator && node?._hasInheritance) parts.push('Has inheritance.md');
     if (!this.canRename(node?.id)) parts.push('StaticName enabled: renaming disabled');
     return parts.join('; ');
   },
