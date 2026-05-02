@@ -632,7 +632,12 @@ def display_datetime_from_component(component: dict[str, Any], component_lines: 
 
 
 def a0_prompt_start_from_sidecar(path: Path) -> str:
-    """Return full sibling sidecar ``a0_prompt.start`` text for UI display."""
+    """Return full sibling sidecar A0 prompt start text for UI display.
+
+    Current sidecars may use either ``a0_prompt.start`` or the plural
+    ``a0_prompts.start`` shape. Prefer the singular key when both are present,
+    but fall back to the plural key used by existing generated JSON sidecars.
+    """
     sidecar = path.with_suffix(".json")
     if not sidecar.is_file():
         return ""
@@ -642,15 +647,18 @@ def a0_prompt_start_from_sidecar(path: Path) -> str:
         return ""
     if not isinstance(payload, dict):
         return ""
-    a0_prompt = payload.get("a0_prompt")
-    if not isinstance(a0_prompt, dict):
-        return ""
-    start = a0_prompt.get("start")
-    if start is None:
-        return ""
-    if not isinstance(start, str):
-        start = str(start)
-    return start
+
+    prompt_sources = (payload.get("a0_prompt"), payload.get("a0_prompts"))
+    for a0_prompt in prompt_sources:
+        if not isinstance(a0_prompt, dict):
+            continue
+        start = a0_prompt.get("start")
+        if start is None:
+            continue
+        if not isinstance(start, str):
+            start = str(start)
+        return start
+    return ""
 
 
 def a0_prompt_start_preview_from_sidecar(path: Path, max_chars: int | None = None) -> str:
