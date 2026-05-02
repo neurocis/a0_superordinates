@@ -46,7 +46,7 @@
                   <template x-if="$store.superordinates.renamingId !== node.id || !$store.superordinates.canRename(node.id)">
                     <span class="chat-name sup-name-clickable"
                       :class="{ 'sup-static-name': !$store.superordinates.canRename(node.id) }"
-                      :title="node._hasCalendar ? (!$store.superordinates.canRename(node.id) ? 'Has Calendar; StaticName enabled: renaming disabled' : 'Has Calendar') : (!$store.superordinates.canRename(node.id) ? 'StaticName enabled: renaming disabled' : '')"
+                      :title="$store.superordinates.nodeIndicatorTitle(node)"
                       x-text="$store.superordinates.displayNameWithIndicators(node)"
                       @click.stop="$store.superordinates.canRename(node.id) ? $store.superordinates.handleNameClick(node.id, node.name || ('Chat #' + node.no), $event) : $store.chats.selectChat(node.id)"
                       @dblclick.stop="$store.superordinates.canRename(node.id) ? $store.superordinates.handleNameDblClick(node.id, $event) : $store.chats.selectChat(node.id)"></span>

@@ -92,8 +92,66 @@ finally:
 from usr.plugins.a0_superordinates.helpers.static_name import sync_static_name_output
 
 
-def _persist_calendar_indicator_optional(ctxid: str) -> bool | None:
-    """Return scheduler-owned calendar indicator when a0_scheduler is installed.
+def _parse_indicator_bool(value: object, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
+
+
+def _empty_scheduler_indicators() -> dict[str, bool]:
+    return {
+        "has_calendar": False,
+        "calendar_indicator": False,
+        "has_prompts": False,
+        "prompt_indicator": False,
+        "has_json": False,
+        "json_indicator": False,
+    }
+
+
+def _normalize_scheduler_indicators(result: object) -> dict[str, bool]:
+    indicators = _empty_scheduler_indicators()
+    if isinstance(result, dict):
+        has_calendar = _parse_indicator_bool(
+            result.get("has_calendar", result.get("calendar_indicator", False)),
+            False,
+        )
+        has_prompts = _parse_indicator_bool(
+            result.get(
+                "has_prompts",
+                result.get("prompt_indicator", result.get("has_json", result.get("json_indicator", False))),
+            ),
+            False,
+        )
+    else:
+        # Backward compatibility with older scheduler builds that returned only
+        # the calendar boolean.
+        has_calendar = _parse_indicator_bool(result, False)
+        has_prompts = False
+
+    indicators.update({
+        "has_calendar": has_calendar,
+        "calendar_indicator": has_calendar,
+        "has_prompts": has_prompts,
+        "prompt_indicator": has_prompts,
+        "has_json": has_prompts,
+        "json_indicator": has_prompts,
+    })
+    return indicators
+
+
+def _persist_scheduler_indicators_optional(ctxid: str) -> dict[str, bool] | None:
+    """Return scheduler-owned sidebar indicators when a0_scheduler is installed.
 
     A0 Superordinates must not hard-require the scheduler plugin.  When the
     scheduler plugin is absent, disabled, or unhealthy, map rendering fails
@@ -102,7 +160,11 @@ def _persist_calendar_indicator_optional(ctxid: str) -> bool | None:
     try:
         from usr.plugins.a0_scheduler.helpers.agent_calendar import persist_calendar_indicator
 
-        return bool(persist_calendar_indicator(ctxid))
+        try:
+            result = persist_calendar_indicator(ctxid, return_details=True)
+        except TypeError:
+            result = persist_calendar_indicator(ctxid)
+        return _normalize_scheduler_indicators(result)
     except Exception:
         return None
 
@@ -234,13 +296,18 @@ class SuperordinateMap(ApiHandler):
         # Include any context that is either a parent or a child.
         # Calendar indicators are owned by a0_scheduler and are read only via
         # an optional import.  No scheduler network sync is triggered here.
-        calendar_indicators: dict[str, bool] = {}
+        scheduler_indicators: dict[str, dict[str, bool]] = {}
         for ctxid in all_ctx_data:
-            scheduler_indicator = _persist_calendar_indicator_optional(ctxid)
-            # Calendar state is now owned by a0_scheduler. If that plugin is
+            scheduler_indicator = _persist_scheduler_indicators_optional(ctxid)
+            # Scheduler state is now owned by a0_scheduler. If that plugin is
             # absent, disabled, or unhealthy, fail closed instead of trusting
             # stale pre-extraction metadata or raising a sidebar-map 500.
-            calendar_indicators[ctxid] = bool(scheduler_indicator) if scheduler_indicator is not None else False
+            scheduler_indicators[ctxid] = (
+                scheduler_indicator if scheduler_indicator is not None else _empty_scheduler_indicators()
+            )
+
+        def indicator_payload(ctxid: str) -> dict[str, bool]:
+            return scheduler_indicators.get(ctxid, _empty_scheduler_indicators())
 
         hierarchy_map: dict[str, dict] = {}
 
@@ -249,8 +316,7 @@ class SuperordinateMap(ApiHandler):
             hierarchy_map[ctxid] = {
                 "parent": par_id,
                 "children": children_of.get(ctxid, []),
-                "has_calendar": calendar_indicators.get(ctxid, False),
-                "calendar_indicator": calendar_indicators.get(ctxid, False),
+                **indicator_payload(ctxid),
             }
 
         # Add all contexts that have children (even if they have no parent)
@@ -259,15 +325,13 @@ class SuperordinateMap(ApiHandler):
                 hierarchy_map[ctxid] = {
                     "parent": parent_of.get(ctxid),
                     "children": kids,
-                    "has_calendar": calendar_indicators.get(ctxid, False),
-                    "calendar_indicator": calendar_indicators.get(ctxid, False),
+                    **indicator_payload(ctxid),
                 }
             # If already added (context is both parent and child), ensure
             # children list is set from our derived data
             else:
                 hierarchy_map[ctxid]["children"] = kids
-                hierarchy_map[ctxid]["has_calendar"] = calendar_indicators.get(ctxid, False)
-                hierarchy_map[ctxid]["calendar_indicator"] = calendar_indicators.get(ctxid, False)
+                hierarchy_map[ctxid].update(indicator_payload(ctxid))
 
 
         # Add standalone/root contexts too so every visible chat is represented.
@@ -276,8 +340,7 @@ class SuperordinateMap(ApiHandler):
                 hierarchy_map[ctxid] = {
                     "parent": parent_of.get(ctxid),
                     "children": children_of.get(ctxid, []),
-                    "has_calendar": calendar_indicators.get(ctxid, False),
-                    "calendar_indicator": calendar_indicators.get(ctxid, False),
+                    **indicator_payload(ctxid),
                 }
 
         # Include name registry for name-based lookups
