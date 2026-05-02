@@ -104,6 +104,18 @@ Input: `{"context": "<ctxid>"}` → Returns full hierarchy tree
 - **Alpine store**: `$store.superordinates` with auto-refresh (5s)
 - **Profile badges** and expand/collapse for nested hierarchies
 
+## A0 Scheduler integration
+
+Calendar, task, local `.ics`, JSON sidecar, and CalDAV sync functionality has been extracted to the standalone `a0_scheduler` plugin / `A0_Scheduler` repository.
+
+A0 Superordinates now only consumes scheduler state optionally for sidebar calendar badges. If `a0_scheduler` is not installed or cannot be imported, the hierarchy map still loads and calendar badges fail closed.
+
+Scheduler API route:
+
+```text
+POST /api/plugins/a0_scheduler/agent_calendar
+```
+
 ## Installation
 
 ### From Plugin Hub

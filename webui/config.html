@@ -48,6 +48,51 @@
 
                 <div class="field">
                     <div class="field-label">
+                        <div class="field-title">Display inheritance.md indicator</div>
+                        <div class="field-description">
+                            Show the <code>📜</code> suffix on agents that have local <code>inheritance.md</code> content.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.display_inheritance_indicator" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Display Calendar indicator</div>
+                        <div class="field-description">
+                            Show the <code>🗓️</code> suffix on agents that have Scheduler calendar state without prompt JSON.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.display_calendar_indicator" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Display Calendar Prompt(s) indicator</div>
+                        <div class="field-description">
+                            Show the <code>📅</code> suffix on agents that have Scheduler prompt JSON.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.display_calendar_prompts_indicator" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
                         <div class="field-title">Reply wait seconds</div>
                         <div class="field-description">
                             Number of seconds <code>superordinate_message</code> waits for the target

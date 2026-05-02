@@ -4,6 +4,25 @@ from helpers.api import ApiHandler, Request, Response
 
 
 DEFAULT_CLOSED_ENTITIES_FOLDER_NAME = "Closed Entities"
+DEFAULT_DISPLAY_INHERITANCE_INDICATOR = True
+DEFAULT_DISPLAY_CALENDAR_INDICATOR = True
+DEFAULT_DISPLAY_CALENDAR_PROMPTS_INDICATOR = True
+
+
+def _parse_bool(value: object, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
 
 
 class SuperordinateConfig(ApiHandler):
@@ -30,11 +49,32 @@ class SuperordinateConfig(ApiHandler):
             or DEFAULT_CLOSED_ENTITIES_FOLDER_NAME
         ).strip() or DEFAULT_CLOSED_ENTITIES_FOLDER_NAME
 
+        display_inheritance_indicator = _parse_bool(
+            config.get("display_inheritance_indicator"),
+            DEFAULT_DISPLAY_INHERITANCE_INDICATOR,
+        )
+        display_calendar_indicator = _parse_bool(
+            config.get("display_calendar_indicator"),
+            DEFAULT_DISPLAY_CALENDAR_INDICATOR,
+        )
+        display_calendar_prompts_indicator = _parse_bool(
+            config.get("display_calendar_prompts_indicator"),
+            DEFAULT_DISPLAY_CALENDAR_PROMPTS_INDICATOR,
+        )
+
+        normalized_config = {
+            **config,
+            "closed_entities_folder_name": closed_name,
+            "display_inheritance_indicator": display_inheritance_indicator,
+            "display_calendar_indicator": display_calendar_indicator,
+            "display_calendar_prompts_indicator": display_calendar_prompts_indicator,
+        }
+
         return {
             "ok": True,
             "closed_entities_folder_name": closed_name,
-            "config": {
-                **config,
-                "closed_entities_folder_name": closed_name,
-            },
+            "display_inheritance_indicator": display_inheritance_indicator,
+            "display_calendar_indicator": display_calendar_indicator,
+            "display_calendar_prompts_indicator": display_calendar_prompts_indicator,
+            "config": normalized_config,
         }

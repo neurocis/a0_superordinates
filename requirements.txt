@@ -1,0 +1,2 @@
+# A0 Superordinates currently has no external Python package dependencies.
+# CalDAV/ICS dependencies moved to the standalone a0_scheduler plugin.

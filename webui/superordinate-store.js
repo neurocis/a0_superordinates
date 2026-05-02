@@ -8,6 +8,9 @@ const model = {
   pinnedNodes: {},       // {ctxid: bool} - pinned chats cannot be moved
   msgMeBlockedNodes: {},        // {ctxid: bool} - chats where user has explicitly BLOCKED prompt input (default: allowed)
   closedEntitiesFolderName: 'Closed Entities',
+  displayInheritanceIndicator: true,
+  displayCalendarIndicator: true,
+  displayCalendarPromptsIndicator: true,
   _closedEntitiesConfigLoaded: false,
   _closedEntitiesConfigPromise: null,
   _refreshInterval: null,
@@ -114,10 +117,25 @@ const model = {
         || response?.config?.closed_entities_folder_name
         || 'Closed Entities';
       this.closedEntitiesFolderName = this._normalizeClosedEntitiesFolderName(configuredName);
+      this.displayInheritanceIndicator = this._parseBool(
+        response?.display_inheritance_indicator ?? response?.config?.display_inheritance_indicator,
+        true
+      );
+      this.displayCalendarIndicator = this._parseBool(
+        response?.display_calendar_indicator ?? response?.config?.display_calendar_indicator,
+        true
+      );
+      this.displayCalendarPromptsIndicator = this._parseBool(
+        response?.display_calendar_prompts_indicator ?? response?.config?.display_calendar_prompts_indicator,
+        true
+      );
       this._closedEntitiesConfigLoaded = true;
     } catch (e) {
       console.error("[Superordinates] Error fetching config:", e);
       this.closedEntitiesFolderName = 'Closed Entities';
+      this.displayInheritanceIndicator = true;
+      this.displayCalendarIndicator = true;
+      this.displayCalendarPromptsIndicator = true;
       this._closedEntitiesConfigLoaded = true;
     }
   },
@@ -215,6 +233,80 @@ const model = {
     return !this.isStaticName(ctxid);
   },
 
+  hasCalendar(ctxid) {
+    if (!ctxid) return false;
+
+    const contexts = Alpine.store('chats')?.contexts;
+    if (Array.isArray(contexts)) {
+      const ctx = contexts.find(c => c?.id === ctxid);
+      const data = ctx?.data || ctx?.ctx?.data || {};
+      if (this._parseBool(ctx?.has_calendar ?? ctx?.calendar_indicator, false)) return true;
+      if (this._parseBool(data.has_calendar ?? data.calendar_indicator, false)) return true;
+    }
+
+    const entry = this.hierarchyMap[ctxid] || {};
+    return this._parseBool(entry.has_calendar ?? entry.calendar_indicator, false);
+  },
+
+  hasPrompts(ctxid) {
+    if (!ctxid) return false;
+
+    const contexts = Alpine.store('chats')?.contexts;
+    if (Array.isArray(contexts)) {
+      const ctx = contexts.find(c => c?.id === ctxid);
+      const data = ctx?.data || ctx?.ctx?.data || {};
+      if (this._parseBool(ctx?.has_prompts ?? ctx?.prompt_indicator ?? ctx?.has_json ?? ctx?.json_indicator, false)) return true;
+      if (this._parseBool(data.has_prompts ?? data.prompt_indicator ?? data.has_json ?? data.json_indicator, false)) return true;
+    }
+
+    const entry = this.hierarchyMap[ctxid] || {};
+    return this._parseBool(entry.has_prompts ?? entry.prompt_indicator ?? entry.has_json ?? entry.json_indicator, false);
+  },
+
+  hasInheritance(ctxid) {
+    if (!ctxid) return false;
+
+    const contexts = Alpine.store('chats')?.contexts;
+    if (Array.isArray(contexts)) {
+      const ctx = contexts.find(c => c?.id === ctxid);
+      const data = ctx?.data || ctx?.ctx?.data || {};
+      if (this._parseBool(ctx?.has_inheritance ?? ctx?.inheritance_indicator, false)) return true;
+      if (this._parseBool(data.has_inheritance ?? data.inheritance_indicator, false)) return true;
+    }
+
+    const entry = this.hierarchyMap[ctxid] || {};
+    return this._parseBool(entry.has_inheritance ?? entry.inheritance_indicator, false);
+  },
+
+  schedulerCalendarIcon(node) {
+    if (node?._hasPrompts) return this.displayCalendarPromptsIndicator ? '📅' : '';
+    if (node?._hasCalendar) return this.displayCalendarIndicator ? '🗓️' : '';
+    return '';
+  },
+
+  nodeIndicatorIcons(node) {
+    const icons = [];
+    const schedulerIcon = this.schedulerCalendarIcon(node);
+    if (schedulerIcon) icons.push(schedulerIcon);
+    if (this.displayInheritanceIndicator && node?._hasInheritance) icons.push('📜');
+    return icons;
+  },
+
+  nodeIndicatorTitle(node) {
+    const parts = [];
+    if (this.displayCalendarPromptsIndicator && node?._hasPrompts) parts.push('Has Scheduler prompt JSON');
+    else if (this.displayCalendarIndicator && node?._hasCalendar) parts.push('Has Calendar');
+    if (this.displayInheritanceIndicator && node?._hasInheritance) parts.push('Has inheritance.md');
+    if (!this.canRename(node?.id)) parts.push('StaticName enabled: renaming disabled');
+    return parts.join('; ');
+  },
+
+  displayNameWithIndicators(node) {
+    const base = String(node?.name || (node?.no ? `Chat #${node.no}` : '') || '').trim() || 'Chat';
+    const icons = this.nodeIndicatorIcons(node);
+    return icons.length ? `${base} ${icons.join(' ')}` : base;
+  },
+
   _cancelStaticNameRenameIfNeeded() {
     if (this.renamingId && !this.canRename(this.renamingId)) {
       this.renamingId = null;
@@ -292,6 +384,9 @@ const model = {
           _isExpanded: hasKids && this.isExpanded(node.id),
           _isUnseen: !!this._finishedUnseen[node.id],
           _staticName: this.isStaticName(node.id),
+          _hasCalendar: this.hasCalendar(node.id),
+          _hasPrompts: this.hasPrompts(node.id),
+          _hasInheritance: this.hasInheritance(node.id),
         });
         // Add children if expanded
         if (hasKids && this.isExpanded(node.id)) {

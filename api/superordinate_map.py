@@ -16,10 +16,157 @@ Fixes applied:
 
 import json
 import os
+import sys
+from pathlib import Path
 
-from agent import AgentContext
-from helpers.api import ApiHandler, Request, Response
+
+# Import Agent Zero framework modules defensively.  This plugin has a local
+# helpers/ package, and when the plugin directory is the current/early sys.path
+# entry it can shadow /a0/helpers.  agent.py imports top-level helpers.dotenv,
+# so map API discovery can otherwise fail before returning JSON.
+_FRAMEWORK_ROOT = Path("/a0").resolve()
+_PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+_PLUGIN_HELPERS = (_PLUGIN_ROOT / "helpers").resolve()
+_ORIGINAL_SYS_PATH = list(sys.path)
+
+
+def _path_resolves_to_plugin_root(entry: str) -> bool:
+    try:
+        candidate = Path(entry or os.getcwd()).resolve()
+    except Exception:
+        return False
+    if candidate == _PLUGIN_ROOT:
+        return True
+    try:
+        # Any user-plugin root on sys.path can expose a top-level helpers/
+        # package that shadows Agent Zero's framework /a0/helpers package.
+        return candidate.parent == Path("/a0/usr/plugins").resolve()
+    except Exception:
+        return False
+
+
+def _module_file_is_plugin_helper(module: object) -> bool:
+    try:
+        module_file = Path(str(getattr(module, "__file__", "") or "/")).resolve()
+    except Exception:
+        return False
+    try:
+        framework_helpers = (_FRAMEWORK_ROOT / "helpers").resolve()
+        if module_file == framework_helpers / "__init__.py" or module_file.is_relative_to(framework_helpers):
+            return False
+    except Exception:
+        pass
+    try:
+        if module_file == _PLUGIN_HELPERS / "__init__.py" or module_file.is_relative_to(_PLUGIN_HELPERS):
+            return True
+    except Exception:
+        pass
+    try:
+        user_plugins = Path("/a0/usr/plugins").resolve()
+        return module_file.is_relative_to(user_plugins) and "helpers" in module_file.parts
+    except Exception:
+        return False
+
+
+try:
+    for _name in list(sys.modules):
+        if _name == "helpers" or _name.startswith("helpers."):
+            if _module_file_is_plugin_helper(sys.modules[_name]):
+                sys.modules.pop(_name, None)
+
+    _framework_root_str = str(_FRAMEWORK_ROOT)
+    sys.path = [
+        p for p in sys.path
+        if p != _framework_root_str and not _path_resolves_to_plugin_root(p)
+    ]
+    sys.path.insert(0, _framework_root_str)
+
+    # Import a framework helpers submodule first so sys.modules["helpers"] is
+    # definitely /a0/helpers before agent.py imports models.py, which imports
+    # top-level helpers.dotenv.
+    from helpers.api import ApiHandler, Request, Response
+    from agent import AgentContext
+finally:
+    sys.path = _ORIGINAL_SYS_PATH
+
 from usr.plugins.a0_superordinates.helpers.static_name import sync_static_name_output
+
+
+def _parse_indicator_bool(value: object, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return default
+
+
+def _empty_scheduler_indicators() -> dict[str, bool]:
+    return {
+        "has_calendar": False,
+        "calendar_indicator": False,
+        "has_prompts": False,
+        "prompt_indicator": False,
+        "has_json": False,
+        "json_indicator": False,
+    }
+
+
+def _normalize_scheduler_indicators(result: object) -> dict[str, bool]:
+    indicators = _empty_scheduler_indicators()
+    if isinstance(result, dict):
+        has_calendar = _parse_indicator_bool(
+            result.get("has_calendar", result.get("calendar_indicator", False)),
+            False,
+        )
+        has_prompts = _parse_indicator_bool(
+            result.get(
+                "has_prompts",
+                result.get("prompt_indicator", result.get("has_json", result.get("json_indicator", False))),
+            ),
+            False,
+        )
+    else:
+        # Backward compatibility with older scheduler builds that returned only
+        # the calendar boolean.
+        has_calendar = _parse_indicator_bool(result, False)
+        has_prompts = False
+
+    indicators.update({
+        "has_calendar": has_calendar,
+        "calendar_indicator": has_calendar,
+        "has_prompts": has_prompts,
+        "prompt_indicator": has_prompts,
+        "has_json": has_prompts,
+        "json_indicator": has_prompts,
+    })
+    return indicators
+
+
+def _persist_scheduler_indicators_optional(ctxid: str) -> dict[str, bool] | None:
+    """Return scheduler-owned sidebar indicators when a0_scheduler is installed.
+
+    A0 Superordinates must not hard-require the scheduler plugin.  When the
+    scheduler plugin is absent, disabled, or unhealthy, map rendering fails
+    closed for badges instead of raising a 500 or trusting stale metadata.
+    """
+    try:
+        from usr.plugins.a0_scheduler.helpers.agent_calendar import persist_calendar_indicator
+
+        try:
+            result = persist_calendar_indicator(ctxid, return_details=True)
+        except TypeError:
+            result = persist_calendar_indicator(ctxid)
+        return _normalize_scheduler_indicators(result)
+    except Exception:
+        return None
 
 
 
@@ -147,6 +294,32 @@ class SuperordinateMap(ApiHandler):
 
         # Phase 3: Assemble the final hierarchy map.
         # Include any context that is either a parent or a child.
+        # Calendar indicators are owned by a0_scheduler and are read only via
+        # an optional import.  No scheduler network sync is triggered here.
+        scheduler_indicators: dict[str, dict[str, bool]] = {}
+        for ctxid in all_ctx_data:
+            scheduler_indicator = _persist_scheduler_indicators_optional(ctxid)
+            # Scheduler state is now owned by a0_scheduler. If that plugin is
+            # absent, disabled, or unhealthy, fail closed instead of trusting
+            # stale pre-extraction metadata or raising a sidebar-map 500.
+            scheduler_indicators[ctxid] = (
+                scheduler_indicator if scheduler_indicator is not None else _empty_scheduler_indicators()
+            )
+
+        def _has_inheritance_file(ctxid: str) -> bool:
+            try:
+                from usr.plugins.a0_superordinates.helpers.inheritance import read_inheritance_file
+
+                return bool(read_inheritance_file(ctxid).strip())
+            except Exception:
+                return False
+
+        def indicator_payload(ctxid: str) -> dict[str, bool]:
+            payload = dict(scheduler_indicators.get(ctxid, _empty_scheduler_indicators()))
+            payload["has_inheritance"] = _has_inheritance_file(ctxid)
+            payload["inheritance_indicator"] = payload["has_inheritance"]
+            return payload
+
         hierarchy_map: dict[str, dict] = {}
 
         # Add all contexts that have a parent
@@ -154,6 +327,7 @@ class SuperordinateMap(ApiHandler):
             hierarchy_map[ctxid] = {
                 "parent": par_id,
                 "children": children_of.get(ctxid, []),
+                **indicator_payload(ctxid),
             }
 
         # Add all contexts that have children (even if they have no parent)
@@ -162,11 +336,13 @@ class SuperordinateMap(ApiHandler):
                 hierarchy_map[ctxid] = {
                     "parent": parent_of.get(ctxid),
                     "children": kids,
+                    **indicator_payload(ctxid),
                 }
             # If already added (context is both parent and child), ensure
             # children list is set from our derived data
             else:
                 hierarchy_map[ctxid]["children"] = kids
+                hierarchy_map[ctxid].update(indicator_payload(ctxid))
 
 
         # Add standalone/root contexts too so every visible chat is represented.
@@ -175,6 +351,7 @@ class SuperordinateMap(ApiHandler):
                 hierarchy_map[ctxid] = {
                     "parent": parent_of.get(ctxid),
                     "children": children_of.get(ctxid, []),
+                    **indicator_payload(ctxid),
                 }
 
         # Include name registry for name-based lookups
