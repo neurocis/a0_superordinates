@@ -1,0 +1,373 @@
+<script type="module">
+  import { store } from "/plugins/a0_superordinates/webui/inheritance-store.js";
+</script>
+
+<span
+  class="a0-sup-inheritance-tab-anchor"
+  x-data
+  x-effect="$store.superordinateInheritance?.onContextChanged($store.chats?.selected || '')"
+  @keydown.escape.window="$store.superordinateInheritance?.close()"
+>
+  <button
+    type="button"
+    class="text-button"
+    :class="$store.superordinateInheritance?.visible ? 'a0-sup-inheritance-toggle-open' : ''"
+    title="Inheritance"
+    @click.prevent.stop="$store.superordinateInheritance.toggle()"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 3v18"></path>
+      <path d="M7 8l5-5 5 5"></path>
+      <path d="M5 14h4a3 3 0 0 1 3 3"></path>
+      <path d="M19 14h-4a3 3 0 0 0-3 3"></path>
+    </svg>
+    <p>Inheritance</p>
+  </button>
+
+  <div
+    x-cloak
+    x-show="$store.superordinateInheritance && $store.superordinateInheritance.visible"
+    x-transition:enter="a0-sup-inheritance-slide-enter-active"
+    x-transition:enter-start="a0-sup-inheritance-slide-enter-from"
+    x-transition:enter-end="a0-sup-inheritance-slide-enter-to"
+    x-transition:leave="a0-sup-inheritance-slide-leave-active"
+    x-transition:leave-start="a0-sup-inheritance-slide-leave-from"
+    x-transition:leave-end="a0-sup-inheritance-slide-leave-to"
+    class="a0-sup-inheritance-panel"
+    role="dialog"
+    aria-label="Superordinate Inheritance"
+    @click.stop
+  >
+    <div class="a0-sup-inheritance-header">
+      <div>
+        <div class="a0-sup-inheritance-title">Inheritance</div>
+        <div class="a0-sup-inheritance-subtitle" x-text="$store.superordinateInheritance.chainLabel()"></div>
+      </div>
+      <div class="a0-sup-inheritance-actions">
+        <button type="button" class="a0-sup-inheritance-small-button" @click="$store.superordinateInheritance.refresh({ force: true })" :disabled="$store.superordinateInheritance.loading || $store.superordinateInheritance.saving">Refresh</button>
+        <button type="button" class="a0-sup-inheritance-small-button" @click="$store.superordinateInheritance.close()">Close</button>
+      </div>
+    </div>
+
+    <template x-if="$store.superordinateInheritance.loading">
+      <div class="a0-sup-inheritance-muted">Loading inheritance…</div>
+    </template>
+
+    <template x-if="$store.superordinateInheritance.error">
+      <div class="a0-sup-inheritance-error" x-text="$store.superordinateInheritance.error"></div>
+    </template>
+
+    <template x-if="!$store.superordinateInheritance.loading">
+      <div class="a0-sup-inheritance-grid">
+        <section class="a0-sup-inheritance-section">
+          <div class="a0-sup-inheritance-section-header">
+            <h3>Inherited information</h3>
+            <span>Read-only, root → focused agent</span>
+          </div>
+
+          <template x-if="$store.superordinateInheritance.entries.length === 0">
+            <div class="a0-sup-inheritance-muted">No inheritance.md content found in this agent's hierarchy.</div>
+          </template>
+
+          <div class="a0-sup-inheritance-entry-list">
+            <template x-for="(entry, index) in $store.superordinateInheritance.entries" :key="entry.context_id">
+              <article class="a0-sup-inheritance-entry" :class="entry.context_id === $store.superordinateInheritance.ctxid ? 'is-local' : ''">
+                <div class="a0-sup-inheritance-entry-head">
+                  <strong x-text="$store.superordinateInheritance.entryTitle(entry, index)"></strong>
+                  <span x-show="entry.context_id === $store.superordinateInheritance.ctxid">focused agent</span>
+                </div>
+                <div class="a0-sup-inheritance-attribution">
+                  <span>Context:</span> <code x-text="entry.context_id"></code>
+                  <span>Source:</span> <code x-text="entry.path"></code>
+                </div>
+                <pre class="a0-sup-inheritance-readonly" x-text="entry.text"></pre>
+              </article>
+            </template>
+          </div>
+        </section>
+
+        <section class="a0-sup-inheritance-section">
+          <div class="a0-sup-inheritance-section-header">
+            <h3>Focused agent inheritance.md</h3>
+            <span x-text="$store.superordinateInheritance.path"></span>
+          </div>
+
+          <textarea
+            class="a0-sup-inheritance-editor"
+            spellcheck="false"
+            x-model="$store.superordinateInheritance.draftText"
+            placeholder="# Superordinate Inheritance&#10;&#10;Add Markdown this focused agent should inherit itself and pass to descendants."
+          ></textarea>
+
+          <div class="a0-sup-inheritance-save-row">
+            <div class="a0-sup-inheritance-muted" x-show="$store.superordinateInheritance.hasUnsavedChanges()">Unsaved changes</div>
+            <div class="a0-sup-inheritance-muted" x-show="!$store.superordinateInheritance.hasUnsavedChanges()">Saved</div>
+            <button
+              type="button"
+              class="a0-sup-inheritance-save-button"
+              @click="$store.superordinateInheritance.save()"
+              :disabled="$store.superordinateInheritance.saving || !$store.superordinateInheritance.hasUnsavedChanges()"
+            >
+              <span x-text="$store.superordinateInheritance.saving ? 'Saving…' : 'Save'"></span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </template>
+  </div>
+</span>
+
+<style>
+  .a0-sup-inheritance-tab-anchor {
+    display: contents;
+    --a0-sup-inheritance-panel-margin: 1rem;
+  }
+
+  .a0-sup-inheritance-toggle-open {
+    background-color: var(--color-background-hover) !important;
+    opacity: 1 !important;
+  }
+
+  .a0-sup-inheritance-panel {
+    position: fixed;
+    left: var(--a0-sup-inheritance-panel-margin);
+    right: var(--a0-sup-inheritance-panel-margin);
+    bottom: calc(var(--a0-sup-inheritance-panel-margin) + 3.25rem);
+    z-index: 1200;
+    max-height: min(74vh, 760px);
+    min-height: 360px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    color: var(--color-text);
+    background: var(--color-panel, var(--color-bg));
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+    padding: 1rem;
+  }
+
+  .a0-sup-inheritance-slide-enter-active,
+  .a0-sup-inheritance-slide-leave-active {
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .a0-sup-inheritance-slide-enter-from,
+  .a0-sup-inheritance-slide-leave-to {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  .a0-sup-inheritance-slide-enter-to,
+  .a0-sup-inheritance-slide-leave-from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .a0-sup-inheritance-header,
+  .a0-sup-inheritance-save-row,
+  .a0-sup-inheritance-section-header,
+  .a0-sup-inheritance-entry-head,
+  .a0-sup-inheritance-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .a0-sup-inheritance-header {
+    justify-content: space-between;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  .a0-sup-inheritance-title {
+    font-weight: 700;
+    font-size: 1rem;
+  }
+
+  .a0-sup-inheritance-subtitle {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    opacity: 0.7;
+  }
+
+  .a0-sup-inheritance-grid {
+    min-height: 0;
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+    gap: 1rem;
+    padding-top: 1rem;
+  }
+
+  .a0-sup-inheritance-section {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: color-mix(in srgb, var(--color-panel, #111) 92%, white 8%);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 0.8rem;
+    overflow: hidden;
+  }
+
+  .a0-sup-inheritance-section-header {
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .a0-sup-inheritance-section-header h3 {
+    margin: 0;
+    font-size: 0.86rem;
+  }
+
+  .a0-sup-inheritance-section-header span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    opacity: 0.62;
+  }
+
+  .a0-sup-inheritance-entry-list {
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-right: 0.25rem;
+  }
+
+  .a0-sup-inheritance-entry {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.7rem;
+    background: color-mix(in srgb, var(--color-panel, #111) 88%, black 12%);
+  }
+
+  .a0-sup-inheritance-entry.is-local {
+    border-color: color-mix(in srgb, var(--color-primary, #6aa9ff) 55%, var(--color-border));
+  }
+
+  .a0-sup-inheritance-entry-head {
+    justify-content: space-between;
+    margin-bottom: 0.45rem;
+    font-size: 0.8rem;
+  }
+
+  .a0-sup-inheritance-entry-head span {
+    font-size: 0.64rem;
+    opacity: 0.66;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .a0-sup-inheritance-attribution {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.25rem 0.5rem;
+    margin-bottom: 0.55rem;
+    font-size: 0.66rem;
+    opacity: 0.7;
+  }
+
+  .a0-sup-inheritance-attribution code {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .a0-sup-inheritance-readonly,
+  .a0-sup-inheritance-editor {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-panel, #111) 78%, black 22%);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+  }
+
+  .a0-sup-inheritance-readonly {
+    margin: 0;
+    max-height: 280px;
+    overflow: auto;
+    padding: 0.7rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .a0-sup-inheritance-editor {
+    min-height: 0;
+    flex: 1;
+    resize: none;
+    padding: 0.8rem;
+    outline: none;
+  }
+
+  .a0-sup-inheritance-editor:focus {
+    border-color: color-mix(in srgb, var(--color-primary, #6aa9ff) 70%, var(--color-border));
+  }
+
+  .a0-sup-inheritance-save-row {
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .a0-sup-inheritance-small-button,
+  .a0-sup-inheritance-save-button {
+    border: 1px solid var(--color-border);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    font-size: 0.72rem;
+    padding: 0.38rem 0.65rem;
+  }
+
+  .a0-sup-inheritance-save-button {
+    background: var(--color-primary, #4361ee);
+    border-color: var(--color-primary, #4361ee);
+    color: white;
+    min-width: 76px;
+  }
+
+  .a0-sup-inheritance-small-button:hover:not(:disabled),
+  .a0-sup-inheritance-save-button:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  .a0-sup-inheritance-small-button:disabled,
+  .a0-sup-inheritance-save-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .a0-sup-inheritance-muted {
+    font-size: 0.74rem;
+    opacity: 0.64;
+  }
+
+  .a0-sup-inheritance-error {
+    margin-top: 0.75rem;
+    padding: 0.7rem;
+    border: 1px solid color-mix(in srgb, red 45%, var(--color-border));
+    border-radius: 8px;
+    color: #ff8a8a;
+    background: rgba(255, 0, 0, 0.08);
+  }
+
+  @media (max-width: 900px) {
+    .a0-sup-inheritance-panel {
+      left: 0.5rem;
+      right: 0.5rem;
+      bottom: 4rem;
+      max-height: 78vh;
+    }
+    .a0-sup-inheritance-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
