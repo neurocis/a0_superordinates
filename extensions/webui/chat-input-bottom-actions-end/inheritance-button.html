@@ -65,16 +65,15 @@
             <span>Read-only, root → focused agent</span>
           </div>
 
-          <template x-if="$store.superordinateInheritance.entries.length === 0">
-            <div class="a0-sup-inheritance-muted">No inheritance.md content found in this agent's hierarchy.</div>
+          <template x-if="$store.superordinateInheritance.inheritedEntries().length === 0">
+            <div class="a0-sup-inheritance-muted">No ancestor inheritance.md content found above this focused agent.</div>
           </template>
 
           <div class="a0-sup-inheritance-entry-list">
-            <template x-for="(entry, index) in $store.superordinateInheritance.entries" :key="entry.context_id">
-              <article class="a0-sup-inheritance-entry" :class="entry.context_id === $store.superordinateInheritance.ctxid ? 'is-local' : ''">
+            <template x-for="(entry, index) in $store.superordinateInheritance.inheritedEntries()" :key="entry.context_id">
+              <article class="a0-sup-inheritance-entry">
                 <div class="a0-sup-inheritance-entry-head">
                   <strong x-text="$store.superordinateInheritance.entryTitle(entry, index)"></strong>
-                  <span x-show="entry.context_id === $store.superordinateInheritance.ctxid">focused agent</span>
                 </div>
                 <div class="a0-sup-inheritance-attribution">
                   <span>Context:</span> <code x-text="entry.context_id"></code>
