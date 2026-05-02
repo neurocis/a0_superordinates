@@ -215,7 +215,7 @@
     white-space: normal;
     word-break: normal;
     overflow-wrap: normal;
-    hyphens: manual;
+    hyphens: none;
   }
 
   .a0-agent-calendar-file-json-preview {
@@ -229,7 +229,7 @@
     white-space: normal;
     word-break: normal;
     overflow-wrap: normal;
-    hyphens: manual;
+    hyphens: none;
   }
 
   .a0-agent-calendar-recurrence-icon {
@@ -833,7 +833,7 @@
                           </svg>
                         </template>
                       </div>
-                      <span class="a0-agent-calendar-file-summary" x-text="$store.agentCalendar.fileSummarySoft(file)"></span>
+                      <span class="a0-agent-calendar-file-summary" x-text="$store.agentCalendar.fileSummaryDisplay(file)"></span>
                       <span class="a0-agent-calendar-file-json-preview" x-show="$store.agentCalendar.fileJsonPromptPreview(file)" x-text="$store.agentCalendar.fileJsonPromptPreview(file)"></span>
                     </div>
                   </div>
@@ -1299,12 +1299,18 @@
         return String(file?.a0_prompt_start_preview || file?.json_prompt_start_preview || "");
       },
 
-      softHyphenateText(value) {
-        return String(value || "").replace(/\S+/gu, (token) => Array.from(token).join("\u00ad"));
+      truncateLongTokens(value, maxTokenChars = 32) {
+        const parsedLimit = Number.parseInt(maxTokenChars, 10);
+        const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 32;
+        return String(value || "").replace(/\S+/gu, (token) => {
+          const chars = Array.from(token);
+          if (chars.length <= limit) return token;
+          return `${chars.slice(0, limit).join("")}...`;
+        });
       },
 
-      fileSummarySoft(file) {
-        return this.softHyphenateText(this.fileSummary(file));
+      fileSummaryDisplay(file) {
+        return this.truncateLongTokens(this.fileSummary(file));
       },
 
       fileTooltip(file) {
