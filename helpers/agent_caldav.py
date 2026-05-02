@@ -641,20 +641,24 @@ def _a0_description_values_from_ics_text(text: str) -> list[str]:
 
 def _raw_decode_a0_json_payload(candidate: str) -> Any | None:
     decoder = json.JSONDecoder()
-    try:
-        payload, _end = decoder.raw_decode(candidate)
-        return payload
-    except json.JSONDecodeError:
-        pass
+    candidates = [candidate]
+    seen = {candidate}
 
     # Some providers/user inputs may preserve JSON as quote-escaped text, e.g.
-    # !{\"a0_name\":...}.  Try the conservative de-escaped variant as a fallback.
-    if '\"' in candidate:
+    # !{\"a0_name\":...}. Local Event/ToDo saves escape DESCRIPTION
+    # backslashes again, so the parser may see !{\\"a0_name\\":...}.
+    # Try a conservative quote-deescaped variant before giving up.
+    deescaped = re.sub(r'\\+"', '"', candidate)
+    if deescaped not in seen:
+        candidates.append(deescaped)
+        seen.add(deescaped)
+
+    for item in candidates:
         try:
-            payload, _end = decoder.raw_decode(candidate.replace('\"', '"'))
+            payload, _end = decoder.raw_decode(item)
             return payload
         except json.JSONDecodeError:
-            return None
+            continue
     return None
 
 

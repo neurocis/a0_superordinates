@@ -655,6 +655,22 @@ def a0_prompt_start_preview_from_sidecar(path: Path, max_chars: int = 32) -> str
     return start[:max_chars] + ("..." if len(start) > max_chars else "")
 
 
+def maintain_a0_description_json_sidecar(path: Path, text: str | None = None) -> Path | None:
+    """Synchronize sibling A0 JSON sidecar for an ICS file after local writes.
+
+    The implementation lives in ``agent_caldav`` because CalDAV sync was the
+    first consumer of embedded A0 DESCRIPTION JSON.  Import it lazily here so
+    local Event/ToDo save actions can share the same escaped-marker parsing and
+    stale-sidecar deletion behavior without introducing a module import cycle.
+    """
+    try:
+        from . import agent_caldav  # type: ignore  # late import avoids cycle
+
+        return agent_caldav.extract_a0_description_json_sidecar(path, text)
+    except Exception:
+        return None
+
+
 def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     stat = path.stat()
     components = count_ics_components(path)
@@ -870,6 +886,7 @@ def save_calendar_file(ctxid: str, filename: str, content: str) -> dict[str, Any
         tmp.write(final_text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
+    maintain_a0_description_json_sidecar(path, final_text)
     has_calendar = persist_calendar_indicator(ctxid)
     events = list_ics_events_from_text(final_text)
     todos = list_ics_todos_from_text(final_text)
@@ -1656,6 +1673,7 @@ def upsert_calendar_event(ctxid: str, filename: str, event: dict[str, Any], old_
         tmp.write(new_text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
+    maintain_a0_description_json_sidecar(path, new_text)
     has_calendar = persist_calendar_indicator(ctxid)
     events = list_ics_events_from_text(new_text)
     todos = list_ics_todos_from_text(new_text)
@@ -1757,6 +1775,7 @@ def upsert_calendar_todo(ctxid: str, filename: str, todo: dict[str, Any], old_ui
         tmp.write(new_text)
         tmp_path = Path(tmp.name)
     tmp_path.replace(path)
+    maintain_a0_description_json_sidecar(path, new_text)
     has_calendar = persist_calendar_indicator(ctxid)
     events = list_ics_events_from_text(new_text)
     todos = list_ics_todos_from_text(new_text)
