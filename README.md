@@ -104,78 +104,17 @@ Input: `{"context": "<ctxid>"}` → Returns full hierarchy tree
 - **Alpine store**: `$store.superordinates` with auto-refresh (5s)
 - **Profile badges** and expand/collapse for nested hierarchies
 
-## Agent Calendar (Local ICS + CalDAV)
+## A0 Scheduler integration
 
-On the `feat/agent-ics` branch, the plugin adds a **Calendar** button to the chat input action bar.
+Calendar, task, local `.ics`, JSON sidecar, and CalDAV sync functionality has been extracted to the standalone `a0_scheduler` plugin / `A0_Scheduler` repository.
 
-Each agent context has a writable calendar folder on the webserver:
+A0 Superordinates now only consumes scheduler state optionally for sidebar calendar badges. If `a0_scheduler` is not installed or cannot be imported, the hierarchy map still loads and calendar badges fail closed.
 
-```text
-/a0/usr/chats/<ctxid>/calendar/
-```
-
-The Calendar panel can:
-
-- List local `.ics` files for the selected agent context
-- Create a new local `.ics` file
-- Configure one CalDAV account/link per agent context (server URL, username, password, optional WebUI Calendar URL), discover its calendar collections, and pick an active collection
-- Open a local `.ics` file in the browser
-- Add, edit, and delete `VEVENT` / `VTODO` entries through a form (against either a local file or a CalDAV collection)
-- Create and edit recurring events with `RRULE`, `RDATE`, and `EXDATE`
-- Preserve existing recurrence metadata and non-form event properties during form edits
-
-The backing API is:
+Scheduler API route:
 
 ```text
-POST /api/plugins/a0_superordinates/agent_calendar
+POST /api/plugins/a0_scheduler/agent_calendar
 ```
-
-Supported actions include:
-
-- `list`
-- `create_ics`
-- `read_ics`
-- `save_ics`
-- `upsert_event` / `delete_event`
-- `upsert_todo` / `delete_todo`
-- `get_caldav_account` / `set_caldav_account` (backward-compatible `list_caldav_accounts` / `add_caldav_account` aliases return or replace the singleton)
-- `remove_caldav_account`
-- `test_caldav_account` / `list_caldav_collections`
-- `select_caldav_collection`
-- `list_caldav_events` / `get_caldav_event`
-- `upsert_caldav_event` / `delete_caldav_event`
-
-For safety, file operations are constrained to sanitized `.ics` filenames inside the selected context's calendar directory.
-
-Recurring event support includes simple minute/hour/day/week/month/year controls, custom `RRULE` editing, and advanced `RDATE`/`EXDATE` textareas. Existing complex recurrence rules and non-form `VEVENT` metadata such as attendees, alarms, URLs, and `X-*` properties are preserved when editing ordinary form fields.
-
-Local `.ics` files are stored as **single-component resources**: each file contains at most one `VEVENT` *or* one `VTODO`. Saving a raw ICS payload with multiple components is rejected; create a separate `.ics` file per component instead. The Calendar editor lets you switch the file between Event and Todo modes; saving rewrites the file as the selected component type.
-
-When an Agent has at least one local `.ics` file or its singleton CalDAV account has an active (selected) collection, the plugin persists and reconciles a `has_calendar` indicator for that Agent. The Superordinates sidebar suffixes that Agent's display name with `📅`; the icon is removed automatically when the last calendar source is deleted.
-
-### CalDAV account
-
-Each Agent context can register zero or one CalDAV account/link. Reconfiguring CalDAV replaces the existing account for that Agent rather than adding another account. The singleton account is stored at:
-
-```text
-/a0/usr/chats/<ctxid>/calendar/caldav.json
-```
-
-The account holds a label, CalDAV server URL, username, password, optional `webui_calendar_url`, the discovered list of collections, and the URL/name of the currently selected collection. The `WebUI Calendar URL` is a separate browser-facing link for opening the provider's calendar UI; it must be `http://` or `https://` when provided. Discovery and event CRUD use the maintained [`caldav`](https://pypi.org/project/caldav/) PyPI client. The structured Event/Todo editor saves to the active CalDAV collection via PUT/DELETE.
-
-Provider notes:
-
-- **Google**: typically requires an app password or OAuth; plain account passwords usually fail.
-- **iCloud**: requires an app-specific password; use `https://caldav.icloud.com` as the server URL.
-- **Nextcloud / Radicale / SOGo**: use the canonical CalDAV entry point (for Nextcloud, `https://<host>/remote.php/dav`).
-
-### Deprecation: ICS Subscription Links
-
-The previous "Web ICS Subscription Links" feature has been removed in favor of CalDAV accounts. Existing `subscriptions.json` files are silently ignored on read; nothing is migrated automatically because CalDAV (read/write) and one-way ICS subscriptions are semantically different. Recreate the corresponding feeds as CalDAV accounts where applicable.
-
-### Security note
-
-CalDAV passwords are currently stored in plaintext alongside the account record. Rotate or remove accounts if this is a concern.
 
 ## Installation
 
