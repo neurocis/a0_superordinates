@@ -3,13 +3,39 @@
   <script type="module" src="/plugins/a0_superordinates/webui/superordinate-store.js"></script>
 </head>
 <body>
-  <div x-data="{ _flatTree: [] }" x-move-after="#chats-section"
+  <div x-data="{ _flatTree: [], showSuperordinatesAttribution: false }" x-move-after="#chats-section"
     x-effect="_flatTree = $store.superordinates?.getFlatTree($store.chats?.contexts) || []; $store.superordinates?._cancelStaticNameRenameIfNeeded()"
+    @keydown.escape.window="showSuperordinatesAttribution = false"
     class="superordinate-section">
     <template x-if="$store.superordinates && $store.chats">
       <div class="superordinate-inner">
-        <div class="section-header-row">
-          <h3 class="section-header">Superordinates</h3>
+        <div class="section-header-row superordinate-header-row">
+          <div class="superordinate-attribution-wrap">
+            <button
+              type="button"
+              class="section-header superordinate-attribution-trigger"
+              @click.stop="showSuperordinatesAttribution = !showSuperordinatesAttribution"
+              @keydown.enter.prevent.stop="showSuperordinatesAttribution = !showSuperordinatesAttribution"
+              @keydown.space.prevent.stop="showSuperordinatesAttribution = !showSuperordinatesAttribution"
+              aria-label="Superordinates attribution"
+              :aria-expanded="showSuperordinatesAttribution.toString()"
+              aria-controls="superordinates-attribution-popup"
+              title="Superordinates attribution"
+            >Superordinates ⓘ</button>
+            <div
+              x-cloak
+              x-show="showSuperordinatesAttribution"
+              x-transition.opacity.duration.120ms
+              id="superordinates-attribution-popup"
+              class="superordinate-attribution-popup"
+              role="dialog"
+              aria-label="Superordinates attribution"
+              @click.outside="showSuperordinatesAttribution = false"
+              @click.stop
+            >
+              Built with care by neurocis.ai in Canada Eh!
+            </div>
+          </div>
           <button class="btn-icon-action chat-list-action-btn" @click="$store.superordinates.newChat()" aria-label="Onboard" title="Onboard">
             <span class="material-symbols-outlined">chat_add_on</span>
           </button>
@@ -86,6 +112,55 @@
 </html>
 
 <style>
+  /* ── Superordinates attribution popup ───────────────────── */
+  .superordinate-header-row {
+    position: relative;
+  }
+
+  .superordinate-attribution-wrap {
+    position: relative;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .superordinate-attribution-trigger {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    text-align: left;
+  }
+
+  .superordinate-attribution-trigger:hover,
+  .superordinate-attribution-trigger:focus-visible {
+    color: var(--color-primary, #6aa9ff);
+    outline: none;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .superordinate-attribution-popup {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    z-index: 1200;
+    width: max-content;
+    max-width: min(18rem, calc(100vw - 2rem));
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.55rem;
+    background: var(--color-panel, var(--color-bg));
+    color: var(--color-text);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+
   /* ── Status indicator dots ────────────────────────────── */
   .sup-running-dot,
   .sup-unseen-dot {
