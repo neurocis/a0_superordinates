@@ -6,6 +6,7 @@ from agent import AgentContext, UserMessage
 from initialize import initialize_agent
 from helpers import guids, projects
 from helpers.state_monitor_integration import mark_dirty_all
+from usr.plugins.a0_superordinates.helpers.inheritance import ensure_inheritance_file
 
 # Human-friendly name pools, keyed by first letter of profile
 NAME_POOLS = {
@@ -90,6 +91,8 @@ class SuperordinateSpawn(Tool):
         new_context.data["sup_profile"] = profile
         new_context.data["sup_name"] = name
         set_static_name(new_context, static_name)
+        # Ensure every spawned Superordinate has its single local inheritance file.
+        ensure_inheritance_file(new_ctxid)
         # Spawned superagents start with Promptable disabled / Msgs-Only.
         # Keep this scoped to the spawn tool so other creation flows are unaffected.
         new_context.data["sup_msgme_blocked"] = True
