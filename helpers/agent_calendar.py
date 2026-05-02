@@ -634,6 +634,7 @@ def display_datetime_from_component(component: dict[str, Any], component_lines: 
 def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     stat = path.stat()
     components = count_ics_components(path)
+    has_json_sidecar = path.with_suffix(".json").is_file()
     summary = ""
     component_uid = ""
     is_recurring = False
@@ -682,6 +683,8 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
         "name": path.name,
         "kind": "ics_file",
         "relative_path": path.relative_to(base_dir).as_posix(),
+        "has_json_sidecar": has_json_sidecar,
+        "has_json": has_json_sidecar,
         "size": stat.st_size,
         "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat().replace("+00:00", "Z"),
         "component_kind": component_kind,
