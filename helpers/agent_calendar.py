@@ -631,12 +631,29 @@ def display_datetime_from_component(component: dict[str, Any], component_lines: 
     }
 
 
+def _a0_prompt_text_value(value: Any) -> str:
+    """Return only the text value from a prompt field container."""
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        value = value.get("value")
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (bool, int, float)):
+        return str(value)
+    return ""
+
+
 def a0_prompt_start_from_sidecar(path: Path) -> str:
     """Return full sibling sidecar A0 prompt start text for UI display.
 
     Current sidecars may use either ``a0_prompt.start`` or the plural
-    ``a0_prompts.start`` shape. Prefer the singular key when both are present,
-    but fall back to the plural key used by existing generated JSON sidecars.
+    ``a0_prompts.start`` shape. Some prompt containers may also store the text
+    under ``start.value``. Prefer the singular key when both are present, but
+    fall back to the plural key used by existing generated JSON sidecars. Only
+    the prompt text value is returned; enclosing dict containers are ignored.
     """
     sidecar = path.with_suffix(".json")
     if not sidecar.is_file():
@@ -652,12 +669,9 @@ def a0_prompt_start_from_sidecar(path: Path) -> str:
     for a0_prompt in prompt_sources:
         if not isinstance(a0_prompt, dict):
             continue
-        start = a0_prompt.get("start")
-        if start is None:
-            continue
-        if not isinstance(start, str):
-            start = str(start)
-        return start
+        start = _a0_prompt_text_value(a0_prompt.get("start"))
+        if start:
+            return start
     return ""
 
 
