@@ -68,7 +68,9 @@
               @keydown.space.prevent.stop="openSuperordinatesConfig()"
               aria-label="Open A0 Superordinates settings"
               title="Open A0 Superordinates settings"
-            >⚙</button>
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">settings</span>
+            </button>
           </div>
           <button class="btn-icon-action chat-list-action-btn" @click="$store.superordinates.newChat()" aria-label="Onboard" title="Onboard">
             <span class="material-symbols-outlined">chat_add_on</span>
@@ -229,9 +231,14 @@
     padding: 0;
     margin: 0;
     font: inherit;
-    font-size: 0.95rem;
     line-height: 1;
     opacity: 0.78;
+  }
+
+  .superordinate-config-trigger .material-symbols-outlined {
+    font-size: 1.1rem;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+    line-height: 1;
   }
 
   .superordinate-config-trigger:hover,
