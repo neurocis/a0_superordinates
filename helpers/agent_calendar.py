@@ -631,10 +631,35 @@ def display_datetime_from_component(component: dict[str, Any], component_lines: 
     }
 
 
+def a0_prompt_start_preview_from_sidecar(path: Path, max_chars: int = 32) -> str:
+    """Return a short preview of sibling sidecar ``a0_prompt.start`` text."""
+    sidecar = path.with_suffix(".json")
+    if not sidecar.is_file():
+        return ""
+    try:
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    a0_prompt = payload.get("a0_prompt")
+    if not isinstance(a0_prompt, dict):
+        return ""
+    start = a0_prompt.get("start")
+    if start is None:
+        return ""
+    if not isinstance(start, str):
+        start = str(start)
+    if not start:
+        return ""
+    return start[:max_chars] + ("..." if len(start) > max_chars else "")
+
+
 def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     stat = path.stat()
     components = count_ics_components(path)
     has_json_sidecar = path.with_suffix(".json").is_file()
+    a0_prompt_start_preview = a0_prompt_start_preview_from_sidecar(path) if has_json_sidecar else ""
     summary = ""
     component_uid = ""
     is_recurring = False
@@ -685,6 +710,8 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
         "relative_path": path.relative_to(base_dir).as_posix(),
         "has_json_sidecar": has_json_sidecar,
         "has_json": has_json_sidecar,
+        "a0_prompt_start_preview": a0_prompt_start_preview,
+        "json_prompt_start_preview": a0_prompt_start_preview,
         "size": stat.st_size,
         "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat().replace("+00:00", "Z"),
         "component_kind": component_kind,
