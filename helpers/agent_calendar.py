@@ -267,46 +267,18 @@ def sanitize_calendar_filename(name: str) -> str:
     return value
 
 
+def _a0_calendar_filename_token() -> str:
+    """Return the random token suffix used for newly-created local ICS files."""
+    return secrets.token_hex(12)
+
+
 def unique_calendar_filename_from_summary(
     ctxid: str,
     summary: str,
     fallback: str = "calendar",
     max_stem_length: int = 80,
 ) -> str:
-    """Return an unused local .ics filename derived from an item summary."""
-    calendar_dir = context_calendar_dir(ctxid, create=True)
-    base_summary = str(summary or "").strip() or fallback
-    safe_name = sanitize_calendar_filename(base_summary)
-    parsed = Path(safe_name)
-    suffix = parsed.suffix or ".ics"
-    stem = parsed.stem.strip(" ._-") or fallback
-    if len(stem) > max_stem_length:
-        stem = stem[:max_stem_length].rstrip(" ._-") or fallback
-
-    candidate = sanitize_calendar_filename(f"{stem}{suffix}")
-    if not (calendar_dir / candidate).exists():
-        return candidate
-
-    for index in range(2, 1000):
-        candidate = sanitize_calendar_filename(f"{stem}-{index}{suffix}")
-        if not (calendar_dir / candidate).exists():
-            return candidate
-
-    raise ValueError("could not allocate a unique calendar filename")
-
-
-def _a0_task_filename_token() -> str:
-    """Return the random token suffix used for newly-created local VTODO files."""
-    return secrets.token_hex(12)
-
-
-def unique_todo_filename_from_summary(
-    ctxid: str,
-    summary: str,
-    fallback: str = "todo",
-    max_stem_length: int = 80,
-) -> str:
-    """Return an unused local VTODO .ics filename with an A0 random token suffix."""
+    """Return an unused local .ics filename with an A0 random token suffix."""
     calendar_dir = context_calendar_dir(ctxid, create=True)
     base_summary = str(summary or "").strip() or fallback
     safe_name = sanitize_calendar_filename(base_summary)
@@ -317,12 +289,32 @@ def unique_todo_filename_from_summary(
         stem = stem[:max_stem_length].rstrip(" ._-") or fallback
 
     for _attempt in range(1000):
-        token = _a0_task_filename_token()
+        token = _a0_calendar_filename_token()
         candidate = sanitize_calendar_filename(f"{stem}-A0_{token}{suffix}")
         if not (calendar_dir / candidate).exists():
             return candidate
 
-    raise ValueError("could not allocate a unique task calendar filename")
+    raise ValueError("could not allocate a unique calendar filename")
+
+
+def _a0_task_filename_token() -> str:
+    """Backward-compatible alias for the shared local ICS random token helper."""
+    return _a0_calendar_filename_token()
+
+
+def unique_todo_filename_from_summary(
+    ctxid: str,
+    summary: str,
+    fallback: str = "todo",
+    max_stem_length: int = 80,
+) -> str:
+    """Return an unused local VTODO .ics filename with an A0 random token suffix."""
+    return unique_calendar_filename_from_summary(
+        ctxid,
+        summary,
+        fallback=fallback,
+        max_stem_length=max_stem_length,
+    )
 
 
 def calendar_file_path_for_upsert(
@@ -345,10 +337,10 @@ def calendar_file_path_for_upsert(
         return path, calendar_dir, path.read_text(encoding="utf-8", errors="replace")
 
     calendar_dir = context_calendar_dir(ctxid, create=True)
-    if task_filename_token:
-        safe_name = unique_todo_filename_from_summary(ctxid, summary, fallback=fallback)
-    else:
-        safe_name = unique_calendar_filename_from_summary(ctxid, summary, fallback=fallback)
+    # Brand-new local files (VEVENT and VTODO alike) get an A0 random suffix.
+    # The task_filename_token flag is retained for older callers but no longer
+    # changes behavior; existing edits pass filename above and keep their path.
+    safe_name = unique_calendar_filename_from_summary(ctxid, summary, fallback=fallback)
     path = calendar_dir / safe_name
     title = Path(safe_name).stem.replace("_", " ").strip() or "Agent Calendar"
     return path, calendar_dir, build_empty_calendar(title)

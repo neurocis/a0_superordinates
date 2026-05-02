@@ -680,13 +680,23 @@ def extract_a0_description_json_from_ics(text: str) -> Any | None:
 
 
 def extract_a0_description_json_sidecar(path: Path, text: str | None = None) -> Path | None:
-    """Write ``<same-stem>.json`` beside an ICS file when DESCRIPTION embeds A0 JSON."""
+    """Synchronize the ``<same-stem>.json`` sidecar for embedded A0 DESCRIPTION JSON.
+
+    A valid DESCRIPTION marker writes the decoded JSON object to the sibling
+    sidecar.  Missing markers, invalid/truncated JSON, or read/write failures do
+    not crash sync; when no valid payload is found, any stale sibling sidecar is
+    removed so remote CalDAV edits are reflected locally.
+    """
+    sidecar = path.with_suffix(".json")
     try:
         source_text = text if text is not None else path.read_text(encoding="utf-8", errors="replace")
         payload = extract_a0_description_json_from_ics(source_text)
         if payload is None:
+            try:
+                sidecar.unlink(missing_ok=True)
+            except Exception as exc:
+                log.warning("caldav sync: failed to remove stale A0 JSON sidecar for %s: %s", path, exc)
             return None
-        sidecar = path.with_suffix(".json")
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile("w", encoding="utf-8", dir=str(sidecar.parent), delete=False) as tmp:
             json.dump(payload, tmp, ensure_ascii=False, indent=2)
@@ -696,6 +706,10 @@ def extract_a0_description_json_sidecar(path: Path, text: str | None = None) -> 
         return sidecar
     except Exception as exc:
         log.warning("caldav sync: failed to extract A0 JSON sidecar for %s: %s", path, exc)
+        try:
+            sidecar.unlink(missing_ok=True)
+        except Exception:
+            pass
         return None
 
 
