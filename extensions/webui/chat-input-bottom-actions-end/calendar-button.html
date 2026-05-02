@@ -796,7 +796,7 @@
                   <div class="a0-agent-calendar-row-main">
                     <div class="a0-agent-calendar-file-headline">
                       <div class="a0-agent-calendar-file-date-line">
-                        <template x-if="$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) !== 'todo'">
+                        <template x-if="$store.agentCalendar.fileHasJsonSidecar(file) && !['event', 'todo'].includes($store.agentCalendar.fileComponentKind(file))">
                           <svg class="a0-agent-calendar-svg-icon a0-agent-calendar-file-kind-icon a0-agent-calendar-json-sidecar-icon" viewBox="0 0 24 24" role="img" aria-label="Has JSON sidecar">
                             <rect x="3" y="4" width="18" height="17" rx="2" ry="2"></rect>
                             <path d="M16 2v4"></path>
@@ -805,6 +805,7 @@
                             <path d="M8 15l2.5 2.5L16 12"></path>
                           </svg>
                         </template>
+                        <span class="a0-agent-calendar-file-kind-icon a0-agent-calendar-json-sidecar-icon" x-show="$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'event'" aria-label="Event has JSON sidecar" role="img">🗓️</span>
                         <span class="a0-agent-calendar-file-kind-icon a0-agent-calendar-json-sidecar-icon" x-show="$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'todo'" aria-label="Todo has JSON sidecar" role="img">✅</span>
                         <span class="a0-agent-calendar-file-kind-icon" x-show="!$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'event'" aria-hidden="true">📅</span>
                         <span class="a0-agent-calendar-file-kind-icon" x-show="!$store.agentCalendar.fileHasJsonSidecar(file) && $store.agentCalendar.fileComponentKind(file) === 'todo'" aria-hidden="true">☑️</span>
