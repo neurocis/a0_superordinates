@@ -28,6 +28,17 @@
       },
       closeSuperordinatesLicense() {
         this.showSuperordinatesLicense = false;
+      },
+      async openSuperordinatesConfig() {
+        try {
+          const module = await import('/components/plugins/plugin-settings-store.js');
+          const pluginSettingsStore = module?.store || window.Alpine?.store?.('pluginSettings');
+          if (!pluginSettingsStore?.openConfig) throw new Error('Plugin settings store is unavailable.');
+          await pluginSettingsStore.openConfig('a0_superordinates');
+        } catch (error) {
+          console.error('[Superordinates] Failed to open config modal:', error);
+          window.showErrorNotification?.(error, 'Failed to open A0 Superordinates config');
+        }
       }
     }"
     x-move-after="#chats-section"
@@ -49,6 +60,15 @@
               aria-controls="superordinates-license-modal"
               title="Built w/care by neurocis.ai in Canada."
             >Superordinates ⓘ</button>
+            <button
+              type="button"
+              class="superordinate-config-trigger"
+              @click.stop="openSuperordinatesConfig()"
+              @keydown.enter.prevent.stop="openSuperordinatesConfig()"
+              @keydown.space.prevent.stop="openSuperordinatesConfig()"
+              aria-label="Open A0 Superordinates settings"
+              title="Open A0 Superordinates settings"
+            >⚙</button>
           </div>
           <button class="btn-icon-action chat-list-action-btn" @click="$store.superordinates.newChat()" aria-label="Onboard" title="Onboard">
             <span class="material-symbols-outlined">chat_add_on</span>
@@ -171,6 +191,7 @@
     min-width: 0;
     display: inline-flex;
     align-items: center;
+    gap: 0.25rem;
   }
 
   .superordinate-license-trigger {
@@ -191,6 +212,34 @@
     outline: none;
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  .superordinate-config-trigger {
+    appearance: none;
+    width: 1.45rem;
+    height: 1.45rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-size: 0.95rem;
+    line-height: 1;
+    opacity: 0.78;
+  }
+
+  .superordinate-config-trigger:hover,
+  .superordinate-config-trigger:focus-visible {
+    color: var(--color-primary, #6aa9ff);
+    background: var(--color-background-hover);
+    opacity: 1;
+    outline: none;
   }
 
   .superordinate-license-modal-backdrop {
