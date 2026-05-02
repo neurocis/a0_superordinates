@@ -3,42 +3,92 @@
   <script type="module" src="/plugins/a0_superordinates/webui/superordinate-store.js"></script>
 </head>
 <body>
-  <div x-data="{ _flatTree: [], showSuperordinatesAttribution: false }" x-move-after="#chats-section"
+  <div
+    x-data="{
+      _flatTree: [],
+      showSuperordinatesLicense: false,
+      superordinatesLicenseText: '',
+      superordinatesLicenseLoading: false,
+      superordinatesLicenseError: '',
+      async openSuperordinatesLicense() {
+        this.showSuperordinatesLicense = true;
+        if (this.superordinatesLicenseText || this.superordinatesLicenseLoading) return;
+        this.superordinatesLicenseLoading = true;
+        this.superordinatesLicenseError = '';
+        try {
+          const response = await fetch('/plugins/a0_superordinates/LICENSE', { cache: 'no-cache' });
+          if (!response.ok) throw new Error(`Failed to load LICENSE (${response.status})`);
+          this.superordinatesLicenseText = await response.text();
+        } catch (error) {
+          this.superordinatesLicenseError = error?.message || 'Failed to load LICENSE.';
+          this.superordinatesLicenseText = 'MIT License\n\nCopyright (c) 2025 neurocis\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the &quot;Software&quot;), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.';
+        } finally {
+          this.superordinatesLicenseLoading = false;
+        }
+      },
+      closeSuperordinatesLicense() {
+        this.showSuperordinatesLicense = false;
+      }
+    }"
+    x-move-after="#chats-section"
     x-effect="_flatTree = $store.superordinates?.getFlatTree($store.chats?.contexts) || []; $store.superordinates?._cancelStaticNameRenameIfNeeded()"
-    @keydown.escape.window="showSuperordinatesAttribution = false"
+    @keydown.escape.window="closeSuperordinatesLicense()"
     class="superordinate-section">
     <template x-if="$store.superordinates && $store.chats">
       <div class="superordinate-inner">
         <div class="section-header-row superordinate-header-row">
-          <div class="superordinate-attribution-wrap">
+          <div class="superordinate-license-wrap">
             <button
               type="button"
-              class="section-header superordinate-attribution-trigger"
-              @click.stop="showSuperordinatesAttribution = !showSuperordinatesAttribution"
-              @keydown.enter.prevent.stop="showSuperordinatesAttribution = !showSuperordinatesAttribution"
-              @keydown.space.prevent.stop="showSuperordinatesAttribution = !showSuperordinatesAttribution"
-              aria-label="Superordinates attribution"
-              :aria-expanded="showSuperordinatesAttribution.toString()"
-              aria-controls="superordinates-attribution-popup"
+              class="section-header superordinate-license-trigger"
+              @click.stop="openSuperordinatesLicense()"
+              @keydown.enter.prevent.stop="openSuperordinatesLicense()"
+              @keydown.space.prevent.stop="openSuperordinatesLicense()"
+              aria-label="Open Superordinates license"
+              :aria-expanded="showSuperordinatesLicense.toString()"
+              aria-controls="superordinates-license-modal"
               title="Built w/care by neurocis.ai in Canada."
             >Superordinates ⓘ</button>
-            <div
-              x-cloak
-              x-show="showSuperordinatesAttribution"
-              x-transition.opacity.duration.120ms
-              id="superordinates-attribution-popup"
-              class="superordinate-attribution-popup"
-              role="dialog"
-              aria-label="Superordinates attribution"
-              @click.outside="showSuperordinatesAttribution = false"
-              @click.stop
-            >
-              Built with care by neurocis.ai in Canada Eh!
-            </div>
           </div>
           <button class="btn-icon-action chat-list-action-btn" @click="$store.superordinates.newChat()" aria-label="Onboard" title="Onboard">
             <span class="material-symbols-outlined">chat_add_on</span>
           </button>
+        </div>
+        <div
+          x-cloak
+          x-show="showSuperordinatesLicense"
+          x-transition.opacity.duration.140ms
+          id="superordinates-license-modal"
+          class="superordinate-license-modal-backdrop"
+          role="presentation"
+          @click.self="closeSuperordinatesLicense()"
+        >
+          <div
+            class="superordinate-license-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="superordinates-license-modal-title"
+            @click.stop
+          >
+            <div class="superordinate-license-modal-header">
+              <div>
+                <h2 id="superordinates-license-modal-title">A0 Superordinates LICENSE</h2>
+                <p>Built w/care by neurocis.ai in Canada.</p>
+              </div>
+              <button
+                type="button"
+                class="superordinate-license-modal-close"
+                @click="closeSuperordinatesLicense()"
+                aria-label="Close Superordinates license"
+                title="Close"
+              >×</button>
+            </div>
+            <div class="superordinate-license-modal-body">
+              <div class="superordinate-license-loading" x-show="superordinatesLicenseLoading">Loading LICENSE…</div>
+              <div class="superordinate-license-error" x-show="superordinatesLicenseError" x-text="superordinatesLicenseError"></div>
+              <pre class="superordinate-license-text" x-text="superordinatesLicenseText"></pre>
+            </div>
+          </div>
         </div>
         <ul class="config-list chats-config-list superordinate-tree"
           x-show="$store.chats.contexts.length > 0"
@@ -112,19 +162,18 @@
 </html>
 
 <style>
-  /* ── Superordinates attribution popup ───────────────────── */
+  /* ── Superordinates LICENSE modal ─────────────────────── */
   .superordinate-header-row {
     position: relative;
   }
 
-  .superordinate-attribution-wrap {
-    position: relative;
+  .superordinate-license-wrap {
     min-width: 0;
     display: inline-flex;
     align-items: center;
   }
 
-  .superordinate-attribution-trigger {
+  .superordinate-license-trigger {
     appearance: none;
     border: 0;
     background: transparent;
@@ -136,29 +185,107 @@
     text-align: left;
   }
 
-  .superordinate-attribution-trigger:hover,
-  .superordinate-attribution-trigger:focus-visible {
+  .superordinate-license-trigger:hover,
+  .superordinate-license-trigger:focus-visible {
     color: var(--color-primary, #6aa9ff);
     outline: none;
     text-decoration: underline;
     text-underline-offset: 2px;
   }
 
-  .superordinate-attribution-popup {
-    position: absolute;
-    top: calc(100% + 0.35rem);
-    left: 0;
-    z-index: 1200;
-    width: max-content;
-    max-width: min(18rem, calc(100vw - 2rem));
-    padding: 0.65rem 0.75rem;
-    border: 1px solid var(--color-border);
-    border-radius: 0.55rem;
-    background: var(--color-panel, var(--color-bg));
+  .superordinate-license-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(1rem, 4vw, 3rem);
+    background: rgba(0, 0, 0, 0.58);
+    backdrop-filter: blur(2px);
+  }
+
+  .superordinate-license-modal {
+    width: min(920px, 92vw);
+    height: min(760px, 84vh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     color: var(--color-text);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+    background: var(--color-panel, var(--color-bg));
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+  }
+
+  .superordinate-license-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  .superordinate-license-modal-header h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.2;
+  }
+
+  .superordinate-license-modal-header p {
+    margin: 0.25rem 0 0;
     font-size: 0.78rem;
-    line-height: 1.35;
+    opacity: 0.72;
+  }
+
+  .superordinate-license-modal-close {
+    width: 2rem;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    font-size: 1.35rem;
+    line-height: 1;
+  }
+
+  .superordinate-license-modal-close:hover,
+  .superordinate-license-modal-close:focus-visible {
+    background: var(--color-background-hover);
+    outline: none;
+  }
+
+  .superordinate-license-modal-body {
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+    padding: 1rem 1.2rem 1.2rem;
+  }
+
+  .superordinate-license-loading,
+  .superordinate-license-error {
+    margin-bottom: 0.75rem;
+    font-size: 0.84rem;
+    opacity: 0.78;
+  }
+
+  .superordinate-license-error {
+    color: #ff7b7b;
+  }
+
+  .superordinate-license-text {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.86rem;
+    line-height: 1.5;
   }
 
   /* ── Status indicator dots ────────────────────────────── */
