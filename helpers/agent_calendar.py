@@ -631,8 +631,8 @@ def display_datetime_from_component(component: dict[str, Any], component_lines: 
     }
 
 
-def a0_prompt_start_preview_from_sidecar(path: Path, max_chars: int = 32) -> str:
-    """Return a short preview of sibling sidecar ``a0_prompt.start`` text."""
+def a0_prompt_start_from_sidecar(path: Path) -> str:
+    """Return full sibling sidecar ``a0_prompt.start`` text for UI display."""
     sidecar = path.with_suffix(".json")
     if not sidecar.is_file():
         return ""
@@ -650,9 +650,17 @@ def a0_prompt_start_preview_from_sidecar(path: Path, max_chars: int = 32) -> str
         return ""
     if not isinstance(start, str):
         start = str(start)
-    if not start:
-        return ""
-    return start[:max_chars] + ("..." if len(start) > max_chars else "")
+    return start
+
+
+def a0_prompt_start_preview_from_sidecar(path: Path, max_chars: int | None = None) -> str:
+    """Deprecated compatibility alias for full ``a0_prompt.start`` text.
+
+    The old implementation truncated to 32 characters. The WebUI now applies the
+    same per-word ellipsis truncation used by Summary, so this returns the full
+    sidecar text and ignores ``max_chars``.
+    """
+    return a0_prompt_start_from_sidecar(path)
 
 
 def maintain_a0_description_json_sidecar(path: Path, text: str | None = None) -> Path | None:
@@ -675,7 +683,7 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
     stat = path.stat()
     components = count_ics_components(path)
     has_json_sidecar = path.with_suffix(".json").is_file()
-    a0_prompt_start_preview = a0_prompt_start_preview_from_sidecar(path) if has_json_sidecar else ""
+    a0_prompt_start = a0_prompt_start_from_sidecar(path) if has_json_sidecar else ""
     summary = ""
     component_uid = ""
     is_recurring = False
@@ -726,8 +734,10 @@ def file_info(path: Path, base_dir: Path) -> dict[str, Any]:
         "relative_path": path.relative_to(base_dir).as_posix(),
         "has_json_sidecar": has_json_sidecar,
         "has_json": has_json_sidecar,
-        "a0_prompt_start_preview": a0_prompt_start_preview,
-        "json_prompt_start_preview": a0_prompt_start_preview,
+        "a0_prompt_start": a0_prompt_start,
+        "json_prompt_start": a0_prompt_start,
+        "a0_prompt_start_preview": a0_prompt_start,
+        "json_prompt_start_preview": a0_prompt_start,
         "size": stat.st_size,
         "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat().replace("+00:00", "Z"),
         "component_kind": component_kind,

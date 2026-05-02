@@ -834,7 +834,7 @@
                         </template>
                       </div>
                       <span class="a0-agent-calendar-file-summary" x-text="$store.agentCalendar.fileSummaryDisplay(file)"></span>
-                      <span class="a0-agent-calendar-file-json-preview" x-show="$store.agentCalendar.fileJsonPromptPreview(file)" x-text="$store.agentCalendar.fileJsonPromptPreview(file)"></span>
+                      <span class="a0-agent-calendar-file-json-preview" x-show="$store.agentCalendar.fileJsonPromptText(file)" x-text="$store.agentCalendar.fileJsonPromptDisplay(file)"></span>
                     </div>
                   </div>
                   <div class="a0-agent-calendar-actions a0-agent-calendar-file-actions">
@@ -1294,9 +1294,23 @@
         return Boolean(file?.has_json_sidecar || file?.has_json);
       },
 
-      fileJsonPromptPreview(file) {
+      fileJsonPromptText(file) {
         if (!this.fileHasJsonSidecar(file)) return "";
-        return String(file?.a0_prompt_start_preview || file?.json_prompt_start_preview || "");
+        return String(
+          file?.a0_prompt_start
+          || file?.json_prompt_start
+          || file?.a0_prompt_start_preview
+          || file?.json_prompt_start_preview
+          || ""
+        );
+      },
+
+      fileJsonPromptDisplay(file) {
+        return this.truncateLongTokens(this.fileJsonPromptText(file));
+      },
+
+      fileJsonPromptPreview(file) {
+        return this.fileJsonPromptDisplay(file);
       },
 
       truncateLongTokens(value, maxTokenChars = 32) {
