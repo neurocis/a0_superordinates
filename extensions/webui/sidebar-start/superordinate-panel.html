@@ -624,12 +624,13 @@
     line-height: 1.35;
   }
 
-  /* Keep each agent row to one visual line. The name truncates before
-     the far-right indicator slot, while the action buttons remain an
-     overlay above that same slot on hover/selected rows. */
+  /* Keep each agent row to one visual line. Reserve two compact far-right
+     columns: the outermost for processing/complete status, and the next one
+     left for calendar/inheritance indicators. Action buttons still overlay
+     above both columns on hover/selected rows. */
   .superordinate-tree .chat-list-button {
     min-width: 0;
-    padding-right: 2.6em;
+    padding-right: 4.1em;
     box-sizing: border-box;
   }
 
@@ -654,7 +655,7 @@
   .superordinate-tree .sup-name-indicators {
     position: absolute;
     top: 50%;
-    right: 6px;
+    right: 1.55em;
     transform: translateY(-50%);
     z-index: 4;
     max-width: 2.4em;
@@ -696,13 +697,17 @@
     height: 6px;
   }
 
-  /* Keep processing/complete dots visible on selected rows. The
-     selected/hover fade sits at z-index 2 and action buttons at z-index 5,
+  /* Keep processing/complete dots in their own far-right status column.
+     The selected/hover fade sits at z-index 2 and action buttons at z-index 5,
      so dots/indicators live between them. */
   .superordinate-tree .sup-running-dot,
   .superordinate-tree .sup-unseen-dot {
-    position: relative;
+    position: absolute;
+    top: 50%;
+    right: 0.65em;
+    transform: translateY(-50%);
     z-index: 4;
+    margin-right: 0;
   }
 
   .superordinate-tree li {
