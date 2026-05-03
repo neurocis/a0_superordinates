@@ -147,8 +147,9 @@
                       :title="$store.superordinates.displayNameWithIndicators(node) + ($store.superordinates.nodeIndicatorTitle(node) ? ' — ' + $store.superordinates.nodeIndicatorTitle(node) : '')"
                       @click.stop="$store.superordinates.canRename(node.id) ? $store.superordinates.handleNameClick(node.id, node.name || ('Chat #' + node.no), $event) : $store.chats.selectChat(node.id)"
                       @dblclick.stop="$store.superordinates.canRename(node.id) ? $store.superordinates.handleNameDblClick(node.id, $event) : $store.chats.selectChat(node.id)">
-                      <span class="chat-name sup-name-summary" x-text="$store.superordinates.displayNameBase(node)"></span>
-                      <sup class="sup-inheritance-indicator" x-show="$store.superordinates.nodeInheritanceIndicatorIcon(node)" x-text="$store.superordinates.nodeInheritanceIndicatorIcon(node)"></sup>
+                      <span class="chat-name sup-name-summary">
+                        <span class="sup-name-text" x-text="$store.superordinates.displayNameBase(node)"></span><sup class="sup-inheritance-indicator" x-show="$store.superordinates.nodeInheritanceIndicatorIcon(node)" x-text="$store.superordinates.nodeInheritanceIndicatorIcon(node)"></sup>
+                      </span>
                       <span class="sup-name-indicators" x-show="$store.superordinates.nodeRightIndicatorIcons(node).length" x-text="$store.superordinates.nodeRightIndicatorIcons(node).join(' ')"></span>
                     </span>
                   </template>
@@ -646,9 +647,18 @@
   }
 
   .superordinate-tree .sup-name-summary {
+    display: inline-flex;
+    align-items: baseline;
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .superordinate-tree .sup-name-text {
     display: block;
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -656,7 +666,7 @@
 
   .superordinate-tree .sup-inheritance-indicator {
     flex: 0 0 auto;
-    margin-left: 0.12em;
+    margin-left: 0;
     font-size: 0.68em;
     line-height: 1;
     transform: translateY(-0.34em);
