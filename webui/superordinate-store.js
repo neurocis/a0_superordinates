@@ -301,8 +301,12 @@ const model = {
     return parts.join('; ');
   },
 
+  displayNameBase(node) {
+    return String(node?.name || (node?.no ? `Chat #${node.no}` : '') || '').trim() || 'Chat';
+  },
+
   displayNameWithIndicators(node) {
-    const base = String(node?.name || (node?.no ? `Chat #${node.no}` : '') || '').trim() || 'Chat';
+    const base = this.displayNameBase(node);
     const icons = this.nodeIndicatorIcons(node);
     return icons.length ? `${base} ${icons.join(' ')}` : base;
   },
