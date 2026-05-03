@@ -284,11 +284,21 @@ const model = {
     return '';
   },
 
-  nodeIndicatorIcons(node) {
+  nodeRightIndicatorIcons(node) {
     const icons = [];
     const schedulerIcon = this.schedulerCalendarIcon(node);
     if (schedulerIcon) icons.push(schedulerIcon);
-    if (this.displayInheritanceIndicator && node?._hasInheritance) icons.push('📜');
+    return icons;
+  },
+
+  nodeInheritanceIndicatorIcon(node) {
+    return this.displayInheritanceIndicator && node?._hasInheritance ? '📜' : '';
+  },
+
+  nodeIndicatorIcons(node) {
+    const icons = this.nodeRightIndicatorIcons(node);
+    const inheritanceIcon = this.nodeInheritanceIndicatorIcon(node);
+    if (inheritanceIcon) icons.push(inheritanceIcon);
     return icons;
   },
 

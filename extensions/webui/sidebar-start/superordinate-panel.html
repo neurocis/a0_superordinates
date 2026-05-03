@@ -148,7 +148,8 @@
                       @click.stop="$store.superordinates.canRename(node.id) ? $store.superordinates.handleNameClick(node.id, node.name || ('Chat #' + node.no), $event) : $store.chats.selectChat(node.id)"
                       @dblclick.stop="$store.superordinates.canRename(node.id) ? $store.superordinates.handleNameDblClick(node.id, $event) : $store.chats.selectChat(node.id)">
                       <span class="chat-name sup-name-summary" x-text="$store.superordinates.displayNameBase(node)"></span>
-                      <span class="sup-name-indicators" x-show="$store.superordinates.nodeIndicatorIcons(node).length" x-text="$store.superordinates.nodeIndicatorIcons(node).join(' ')"></span>
+                      <sup class="sup-inheritance-indicator" x-show="$store.superordinates.nodeInheritanceIndicatorIcon(node)" x-text="$store.superordinates.nodeInheritanceIndicatorIcon(node)"></sup>
+                      <span class="sup-name-indicators" x-show="$store.superordinates.nodeRightIndicatorIcons(node).length" x-text="$store.superordinates.nodeRightIndicatorIcons(node).join(' ')"></span>
                     </span>
                   </template>
                   <template x-if="$store.superordinates.renamingId === node.id && $store.superordinates.canRename(node.id)">
@@ -626,8 +627,9 @@
 
   /* Keep each agent row to one visual line. Reserve two compact far-right
      columns: the outermost for processing/complete status, and the next one
-     left for calendar/inheritance indicators. Action buttons still overlay
-     above both columns on hover/selected rows. */
+     left for calendar indicators. Inheritance stays suffixed to the name as
+     a superscript. Action buttons still overlay above both columns on
+     hover/selected rows. */
   .superordinate-tree .chat-list-button {
     min-width: 0;
     padding-right: 4.1em;
@@ -650,6 +652,15 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  .superordinate-tree .sup-inheritance-indicator {
+    flex: 0 0 auto;
+    margin-left: 0.12em;
+    font-size: 0.68em;
+    line-height: 1;
+    transform: translateY(-0.34em);
+    opacity: 0.9;
   }
 
   .superordinate-tree .sup-name-indicators {
