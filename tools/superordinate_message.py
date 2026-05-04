@@ -134,16 +134,21 @@ def _direct_parent_id(ctx) -> str:
 
 def _parent_notification_message(ctxid: str) -> str:
     """Exact lightweight notification allowed when parent messaging is disabled."""
-    return f"{ctxid} has a message for you."
+    return f"{ctxid} has sent you a message"
 
 
-def _is_direct_parent_fallback(relationship: str, agent, target_ctx) -> bool:
-    """True when disabled parent messaging should become notify-parent/local-output.
+def _is_ancestor_notification_fallback(relationship: str, agent, target_ctx) -> bool:
+    """True when disabled parent messaging should become notify-ancestor/local-output.
 
-    When `allow_parent_messaging` is false, a child may still *attempt* to send
-    its real monologue conclusion to its immediate parent. The full message is
-    not sent upward; `execute()` sends only a lightweight notification to the
-    parent and returns the full message locally to the sender's context.
+    When `allow_parent_messaging` is false, a descendant may still *attempt* to
+    report completion to any ancestor/addressee in its hierarchy. The full
+    message is not sent upward; `execute()` sends only a lightweight notifier
+    to the addressed ancestor and returns the full message locally to the
+    sender's context.
+
+    This intentionally supports arbitrary ancestor depth, not only direct
+    parent relationships, while still relying on the already-classified
+    relationship so unrelated contexts cannot receive fallback notifications.
     """
     caller_ctx = getattr(agent, "context", None)
     caller_id = getattr(caller_ctx, "id", "") or ""
@@ -153,7 +158,7 @@ def _is_direct_parent_fallback(relationship: str, agent, target_ctx) -> bool:
         return False
     if not caller_id or not target_id:
         return False
-    return target_id == _direct_parent_id(caller_ctx)
+    return _is_ancestor(target_id, caller_id)
 
 
 def _relationship_allowed(relationship: str, agent, target_ctx=None, message: str = "") -> tuple[bool, str, bool]:
@@ -163,10 +168,11 @@ def _relationship_allowed(relationship: str, agent, target_ctx=None, message: st
 
     Descendant messaging is the original/core behavior and remains always
     enabled. Ancestor and sibling messaging are optional features exposed in
-    the plugin settings UI. When parent messaging is disabled, direct-child to
-    immediate-parent sends are allowed only as a fallback: the parent receives
-    ``{ContextID} has a message for you.`` and the caller's full message is
-    returned locally to the sender context instead of being sent upward.
+    the plugin settings UI. When parent messaging is disabled, descendant-to-
+    ancestor sends are allowed only as a fallback: the addressed ancestor
+    receives ``{ContextID} has sent you a message`` and the caller's full
+    message is returned locally to the sender context instead of being sent
+    upward.
     """
     if relationship == "descendant":
         return True, "", False
@@ -174,11 +180,11 @@ def _relationship_allowed(relationship: str, agent, target_ctx=None, message: st
     config = _get_config(agent)
 
     if relationship == "ancestor" and not _setting_enabled(config, "allow_parent_messaging", False):
-        if _is_direct_parent_fallback(relationship, agent, target_ctx):
+        if _is_ancestor_notification_fallback(relationship, agent, target_ctx):
             return True, "", True
         return False, (
             "Parent / ancestor messaging is disabled in the a0_superordinates settings. "
-            "Only immediate-parent notification fallback is allowed; the full message "
+            "Only ancestor notification fallback is allowed; the full message "
             "will not be sent upward."
         ), False
 
@@ -256,7 +262,7 @@ class SuperordinateMessage(Tool):
         target_label = target_context.name or superordinate_id
 
         # Parent messaging disabled fallback: never send the caller's full
-        # monologue conclusion upward. Notify the immediate parent only, then
+        # monologue conclusion upward. Notify the addressed ancestor only, then
         # return the full message locally so it is output in the sender context.
         if parent_notification_fallback:
             notification = _parent_notification_message(caller_ctxid)
@@ -265,7 +271,7 @@ class SuperordinateMessage(Tool):
             return Response(
                 message=(
                     "Parent / ancestor messaging is disabled, so your full message was not sent upward. "
-                    "Sent this notification to parent '{}': {}\n\n"
+                    "Sent this notification to ancestor '{}': {}\n\n"
                     "Monologue conclusion for this context:\n{}"
                 ).format(target_label, notification, local_message),
                 break_loop=False,
@@ -285,8 +291,8 @@ class SuperordinateMessage(Tool):
             "When you finish this task, send your result back to the calling agent "
             f"using superordinate_message with superordinate_id='{caller_ctxid}' and include your "
             "final result in that message. If parent/ancestor messaging is disabled, "
-            "superordinate_message will send only a lightweight notification to your immediate "
-            "parent and return your full result locally in your own context; do not replace "
+            "superordinate_message will send only a lightweight notification to the addressed "
+            "ancestor and return your full result locally in your own context; do not replace "
             "your final result with the notification text. "
             f"The calling agent/context is: {caller_name} (relationship to you: "
             f"{'parent/ancestor' if relationship == 'descendant' else ('child/descendant' if relationship == 'ancestor' else 'sibling')})."
