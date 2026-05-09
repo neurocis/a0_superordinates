@@ -1,9 +1,9 @@
 /**
- * Superordinate Occupations editor/preview store.
+ * Superordinate Roles editor/preview store.
  *
  * Provides a bottom-action slide-up panel that shows:
- * - read-only upward-flowing subordinate occupations with attribution; and
- * - editable local /a0/usr/chats/<ctxid>/superordinate/occupations.md.
+ * - read-only upward-flowing subordinate roles with attribution; and
+ * - editable local /a0/usr/chats/<ctxid>/superordinate/roles.md.
  */
 
 import { createStore } from "/js/AlpineStore.js";
@@ -29,25 +29,25 @@ const model = {
   saving: false,
   error: "",
   lastCtxid: "",
-  occupationsLiftEls: [],
-  occupationsOutputEl: null,
-  occupationsHostEl: null,
-  occupationsResizeRaf: 0,
-  occupationsResizeListener: null,
+  rolesLiftEls: [],
+  rolesOutputEl: null,
+  rolesHostEl: null,
+  rolesResizeRaf: 0,
+  rolesResizeListener: null,
   placementCleanupTimer: null,
   ...EMPTY_STATE,
 
 
-  occupationsAnchor() {
-    return document.querySelector(".a0-sup-occupations-tab-anchor");
+  rolesAnchor() {
+    return document.querySelector(".a0-sup-roles-tab-anchor");
   },
 
-  occupationsButton() {
-    return document.querySelector(".a0-sup-occupations-tab-anchor > .text-button");
+  rolesButton() {
+    return document.querySelector(".a0-sup-roles-tab-anchor > .text-button");
   },
 
-  occupationsActionHost() {
-    const anchor = this.occupationsAnchor();
+  rolesActionHost() {
+    const anchor = this.rolesAnchor();
     if (!anchor) return null;
     return anchor.closest?.(".chat-bottom-actions-bar") ||
       anchor.closest?.(".text-buttons-row") ||
@@ -55,7 +55,7 @@ const model = {
       anchor;
   },
 
-  occupationsComposerReferenceEl(host) {
+  rolesComposerReferenceEl(host) {
     try {
       const input = document.getElementById("chat-input");
       const row = input?.closest?.(".input-row");
@@ -68,7 +68,7 @@ const model = {
     }
   },
 
-  occupationsComposerLiftTargets(host) {
+  rolesComposerLiftTargets(host) {
     const targets = [];
     const add = (el) => {
       if (!el || targets.includes(el)) return;
@@ -85,7 +85,7 @@ const model = {
     };
 
     try {
-      const reference = this.occupationsComposerReferenceEl(host);
+      const reference = this.rolesComposerReferenceEl(host);
       const progressBox = document.getElementById("progress-bar-box");
       if (
         progressBox &&
@@ -104,32 +104,32 @@ const model = {
 
   liftComposerElements(host, lift) {
     try {
-      const targets = this.occupationsComposerLiftTargets(host);
-      for (const previous of this.occupationsLiftEls || []) {
+      const targets = this.rolesComposerLiftTargets(host);
+      for (const previous of this.rolesLiftEls || []) {
         if (!targets.includes(previous)) {
-          previous.classList.remove("a0-sup-occupations-compose-lifted");
-          previous.style.removeProperty("--a0-sup-occupations-panel-lift");
+          previous.classList.remove("a0-sup-roles-compose-lifted");
+          previous.style.removeProperty("--a0-sup-roles-panel-lift");
         }
       }
-      this.occupationsLiftEls = targets;
+      this.rolesLiftEls = targets;
       for (const el of targets) {
-        el.style.setProperty("--a0-sup-occupations-panel-lift", `${lift}px`);
-        el.classList.add("a0-sup-occupations-compose-lifted");
+        el.style.setProperty("--a0-sup-roles-panel-lift", `${lift}px`);
+        el.classList.add("a0-sup-roles-compose-lifted");
       }
     } catch (_e) {}
   },
 
   clearComposerLift() {
     try {
-      for (const el of this.occupationsLiftEls || []) {
-        el.classList.remove("a0-sup-occupations-compose-lifted");
-        el.style.removeProperty("--a0-sup-occupations-panel-lift");
+      for (const el of this.rolesLiftEls || []) {
+        el.classList.remove("a0-sup-roles-compose-lifted");
+        el.style.removeProperty("--a0-sup-roles-panel-lift");
       }
-      this.occupationsLiftEls = [];
+      this.rolesLiftEls = [];
     } catch (_e) {}
   },
 
-  occupationsOutputHost(host) {
+  rolesOutputHost(host) {
     try {
       const history = document.getElementById("chat-history");
       if (history) return history;
@@ -160,7 +160,7 @@ const model = {
     }
   },
 
-  occupationsLowerChromeTop(host) {
+  rolesLowerChromeTop(host) {
     try {
       const hostRect = host?.getBoundingClientRect?.();
       const inputSection = document.getElementById("input-section");
@@ -182,28 +182,28 @@ const model = {
 
   liftOutputHost(host, lift) {
     try {
-      const output = this.occupationsOutputHost(host);
-      if (this.occupationsOutputEl && this.occupationsOutputEl !== output) this.clearOutputLift();
+      const output = this.rolesOutputHost(host);
+      if (this.rolesOutputEl && this.rolesOutputEl !== output) this.clearOutputLift();
       if (!output) return;
-      this.occupationsOutputEl = output;
-      output.classList.add("a0-sup-occupations-output-lifted");
-      if (!output.dataset.a0SupOccupationsHasOriginals) {
+      this.rolesOutputEl = output;
+      output.classList.add("a0-sup-roles-output-lifted");
+      if (!output.dataset.a0SupRolesHasOriginals) {
         const computed = window.getComputedStyle(output);
-        output.dataset.a0SupOccupationsHasOriginals = "1";
-        output.dataset.a0SupOccupationsOriginalHeight = output.style.height || "";
-        output.dataset.a0SupOccupationsOriginalMaxHeight = output.style.maxHeight || "";
-        output.dataset.a0SupOccupationsOriginalPaddingBottom = output.style.paddingBottom || "";
-        output.dataset.a0SupOccupationsOriginalMarginBottom = output.style.marginBottom || "";
-        output.dataset.a0SupOccupationsBasePaddingBottom = String(Number.parseFloat(computed.paddingBottom) || 0);
-        output.dataset.a0SupOccupationsBaseHeight = String(output.getBoundingClientRect().height || output.clientHeight || 0);
+        output.dataset.a0SupRolesHasOriginals = "1";
+        output.dataset.a0SupRolesOriginalHeight = output.style.height || "";
+        output.dataset.a0SupRolesOriginalMaxHeight = output.style.maxHeight || "";
+        output.dataset.a0SupRolesOriginalPaddingBottom = output.style.paddingBottom || "";
+        output.dataset.a0SupRolesOriginalMarginBottom = output.style.marginBottom || "";
+        output.dataset.a0SupRolesBasePaddingBottom = String(Number.parseFloat(computed.paddingBottom) || 0);
+        output.dataset.a0SupRolesBaseHeight = String(output.getBoundingClientRect().height || output.clientHeight || 0);
       }
       const rect = output.getBoundingClientRect();
-      const lowerTop = this.occupationsLowerChromeTop(host);
+      const lowerTop = this.rolesLowerChromeTop(host);
       const desiredBottom = Math.max(0, lowerTop - 2);
       const targetHeightFromGeometry = Math.max(140, Math.round(desiredBottom - rect.top));
-      const baseHeight = Number.parseFloat(output.dataset.a0SupOccupationsBaseHeight || "0") || rect.height || output.clientHeight || targetHeightFromGeometry;
+      const baseHeight = Number.parseFloat(output.dataset.a0SupRolesBaseHeight || "0") || rect.height || output.clientHeight || targetHeightFromGeometry;
       const targetHeight = Math.min(Math.round(baseHeight), targetHeightFromGeometry);
-      const basePadding = Number.parseFloat(output.dataset.a0SupOccupationsBasePaddingBottom || "0") || 0;
+      const basePadding = Number.parseFloat(output.dataset.a0SupRolesBasePaddingBottom || "0") || 0;
       output.style.height = `${targetHeight}px`;
       output.style.maxHeight = `${targetHeight}px`;
       output.style.paddingBottom = `${Math.round(basePadding + Math.max(0, lift * 0.25))}px`;
@@ -214,21 +214,21 @@ const model = {
 
   clearOutputLift() {
     try {
-      if (!this.occupationsOutputEl) return;
-      const output = this.occupationsOutputEl;
-      output.classList.remove("a0-sup-occupations-output-lifted");
-      output.style.height = output.dataset.a0SupOccupationsOriginalHeight || "";
-      output.style.maxHeight = output.dataset.a0SupOccupationsOriginalMaxHeight || "";
-      output.style.paddingBottom = output.dataset.a0SupOccupationsOriginalPaddingBottom || "";
-      output.style.marginBottom = output.dataset.a0SupOccupationsOriginalMarginBottom || "";
-      delete output.dataset.a0SupOccupationsHasOriginals;
-      delete output.dataset.a0SupOccupationsOriginalHeight;
-      delete output.dataset.a0SupOccupationsOriginalMaxHeight;
-      delete output.dataset.a0SupOccupationsOriginalPaddingBottom;
-      delete output.dataset.a0SupOccupationsOriginalMarginBottom;
-      delete output.dataset.a0SupOccupationsBasePaddingBottom;
-      delete output.dataset.a0SupOccupationsBaseHeight;
-      this.occupationsOutputEl = null;
+      if (!this.rolesOutputEl) return;
+      const output = this.rolesOutputEl;
+      output.classList.remove("a0-sup-roles-output-lifted");
+      output.style.height = output.dataset.a0SupRolesOriginalHeight || "";
+      output.style.maxHeight = output.dataset.a0SupRolesOriginalMaxHeight || "";
+      output.style.paddingBottom = output.dataset.a0SupRolesOriginalPaddingBottom || "";
+      output.style.marginBottom = output.dataset.a0SupRolesOriginalMarginBottom || "";
+      delete output.dataset.a0SupRolesHasOriginals;
+      delete output.dataset.a0SupRolesOriginalHeight;
+      delete output.dataset.a0SupRolesOriginalMaxHeight;
+      delete output.dataset.a0SupRolesOriginalPaddingBottom;
+      delete output.dataset.a0SupRolesOriginalMarginBottom;
+      delete output.dataset.a0SupRolesBasePaddingBottom;
+      delete output.dataset.a0SupRolesBaseHeight;
+      this.rolesOutputEl = null;
     } catch (_e) {}
   },
 
@@ -238,27 +238,27 @@ const model = {
         window.clearTimeout(this.placementCleanupTimer);
         this.placementCleanupTimer = null;
       }
-      const anchor = this.occupationsAnchor();
-      const button = this.occupationsButton();
-      const host = this.occupationsActionHost();
+      const anchor = this.rolesAnchor();
+      const button = this.rolesButton();
+      const host = this.rolesActionHost();
       if (!anchor || !button || !host) return;
-      if (this.occupationsHostEl && this.occupationsHostEl !== host) {
-        this.occupationsHostEl.classList.remove("a0-sup-occupations-host-lifted");
-        this.occupationsHostEl.style.removeProperty("--a0-sup-occupations-panel-lift");
+      if (this.rolesHostEl && this.rolesHostEl !== host) {
+        this.rolesHostEl.classList.remove("a0-sup-roles-host-lifted");
+        this.rolesHostEl.style.removeProperty("--a0-sup-roles-panel-lift");
       }
-      this.occupationsHostEl = host;
+      this.rolesHostEl = host;
 
       const hostRect = host.getBoundingClientRect();
       const buttonRect = button.getBoundingClientRect();
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
-      const marginValue = getComputedStyle(anchor).getPropertyValue("--a0-sup-occupations-panel-margin").trim();
+      const marginValue = getComputedStyle(anchor).getPropertyValue("--a0-sup-roles-panel-margin").trim();
       const margin = Number.parseFloat(marginValue) || 8;
       const anchorRect = anchor.getBoundingClientRect();
-      const reference = this.occupationsComposerReferenceEl(host);
+      const reference = this.rolesComposerReferenceEl(host);
       const referenceRect = reference?.getBoundingClientRect?.();
       const activeReferenceLift = reference
-        ? (Number.parseFloat(reference.style.getPropertyValue("--a0-sup-occupations-panel-lift")) ||
-          Number.parseFloat(getComputedStyle(reference).getPropertyValue("--a0-sup-occupations-panel-lift")) || 0)
+        ? (Number.parseFloat(reference.style.getPropertyValue("--a0-sup-roles-panel-lift")) ||
+          Number.parseFloat(getComputedStyle(reference).getPropertyValue("--a0-sup-roles-panel-lift")) || 0)
         : 0;
       const panelBottom = Math.round(anchorRect.top || buttonRect.top || hostRect.top);
       const referenceUnliftedBottom = referenceRect ? Math.round(referenceRect.bottom + activeReferenceLift) : null;
@@ -273,7 +273,7 @@ const model = {
         referenceRect,
         document.getElementById("chat-input-container")?.getBoundingClientRect?.(),
         document.getElementById("input-section")?.getBoundingClientRect?.(),
-        this.occupationsOutputHost(host)?.getBoundingClientRect?.(),
+        this.rolesOutputHost(host)?.getBoundingClientRect?.(),
         hostRect,
       ].filter((rect) => rect && rect.width > 0);
       const contentRect = boundsCandidates.find((rect) => rect.width >= 260) || hostRect;
@@ -286,13 +286,13 @@ const model = {
       const offsetLeft = Math.round((anchorRect.left || buttonRect.left) - panelLeft);
       const tabLeft = Math.max(0, Math.min(panelWidth - buttonRect.width, Math.round(buttonRect.left - panelLeft)));
 
-      anchor.style.setProperty("--a0-sup-occupations-panel-width", `${Math.round(panelWidth)}px`);
-      anchor.style.setProperty("--a0-sup-occupations-panel-height", `${desiredHeight}px`);
-      anchor.style.setProperty("--a0-sup-occupations-panel-max-height", `${desiredHeight}px`);
-      anchor.style.setProperty("--a0-sup-occupations-tab-offset-left", `${offsetLeft}px`);
-      anchor.style.setProperty("--a0-sup-occupations-tab-width", `${Math.ceil(buttonRect.width)}px`);
-      anchor.style.setProperty("--a0-sup-occupations-tab-left", `${tabLeft}px`);
-      host.classList.add("a0-sup-occupations-host-lifted");
+      anchor.style.setProperty("--a0-sup-roles-panel-width", `${Math.round(panelWidth)}px`);
+      anchor.style.setProperty("--a0-sup-roles-panel-height", `${desiredHeight}px`);
+      anchor.style.setProperty("--a0-sup-roles-panel-max-height", `${desiredHeight}px`);
+      anchor.style.setProperty("--a0-sup-roles-tab-offset-left", `${offsetLeft}px`);
+      anchor.style.setProperty("--a0-sup-roles-tab-width", `${Math.ceil(buttonRect.width)}px`);
+      anchor.style.setProperty("--a0-sup-roles-tab-left", `${tabLeft}px`);
+      host.classList.add("a0-sup-roles-host-lifted");
       this.liftComposerElements(host, lift);
       this.liftOutputHost(host, lift);
     } catch (_e) {}
@@ -300,19 +300,19 @@ const model = {
 
   clearPanelPlacement() {
     try {
-      const anchor = this.occupationsAnchor();
-      if (this.occupationsHostEl) {
-        this.occupationsHostEl.classList.remove("a0-sup-occupations-host-lifted");
-        this.occupationsHostEl.style.removeProperty("--a0-sup-occupations-panel-lift");
-        this.occupationsHostEl = null;
+      const anchor = this.rolesAnchor();
+      if (this.rolesHostEl) {
+        this.rolesHostEl.classList.remove("a0-sup-roles-host-lifted");
+        this.rolesHostEl.style.removeProperty("--a0-sup-roles-panel-lift");
+        this.rolesHostEl = null;
       }
       if (anchor) {
-        anchor.style.removeProperty("--a0-sup-occupations-panel-width");
-        anchor.style.removeProperty("--a0-sup-occupations-panel-height");
-        anchor.style.removeProperty("--a0-sup-occupations-panel-max-height");
-        anchor.style.removeProperty("--a0-sup-occupations-tab-offset-left");
-        anchor.style.removeProperty("--a0-sup-occupations-tab-width");
-        anchor.style.removeProperty("--a0-sup-occupations-tab-left");
+        anchor.style.removeProperty("--a0-sup-roles-panel-width");
+        anchor.style.removeProperty("--a0-sup-roles-panel-height");
+        anchor.style.removeProperty("--a0-sup-roles-panel-max-height");
+        anchor.style.removeProperty("--a0-sup-roles-tab-offset-left");
+        anchor.style.removeProperty("--a0-sup-roles-tab-width");
+        anchor.style.removeProperty("--a0-sup-roles-tab-left");
       }
       this.clearComposerLift();
       this.clearOutputLift();
@@ -322,29 +322,29 @@ const model = {
   schedulePanelPlacement() {
     try {
       if (!this.visible) return;
-      if (this.occupationsResizeRaf) window.cancelAnimationFrame(this.occupationsResizeRaf);
-      this.occupationsResizeRaf = window.requestAnimationFrame(() => {
-        this.occupationsResizeRaf = 0;
+      if (this.rolesResizeRaf) window.cancelAnimationFrame(this.rolesResizeRaf);
+      this.rolesResizeRaf = window.requestAnimationFrame(() => {
+        this.rolesResizeRaf = 0;
         this.syncPanelPlacement();
       });
     } catch (_e) {}
   },
 
-  installOccupationsResizeListener() {
-    if (this.occupationsResizeListener) return;
-    this.occupationsResizeListener = () => this.schedulePanelPlacement();
-    window.addEventListener("resize", this.occupationsResizeListener, { passive: true });
-    window.addEventListener("scroll", this.occupationsResizeListener, { passive: true, capture: true });
+  installRolesResizeListener() {
+    if (this.rolesResizeListener) return;
+    this.rolesResizeListener = () => this.schedulePanelPlacement();
+    window.addEventListener("resize", this.rolesResizeListener, { passive: true });
+    window.addEventListener("scroll", this.rolesResizeListener, { passive: true, capture: true });
   },
 
-  removeOccupationsResizeListener() {
-    if (!this.occupationsResizeListener) return;
-    window.removeEventListener("resize", this.occupationsResizeListener);
-    window.removeEventListener("scroll", this.occupationsResizeListener, { capture: true });
-    this.occupationsResizeListener = null;
-    if (this.occupationsResizeRaf) {
-      window.cancelAnimationFrame(this.occupationsResizeRaf);
-      this.occupationsResizeRaf = 0;
+  removeRolesResizeListener() {
+    if (!this.rolesResizeListener) return;
+    window.removeEventListener("resize", this.rolesResizeListener);
+    window.removeEventListener("scroll", this.rolesResizeListener, { capture: true });
+    this.rolesResizeListener = null;
+    if (this.rolesResizeRaf) {
+      window.cancelAnimationFrame(this.rolesResizeRaf);
+      this.rolesResizeRaf = 0;
     }
   },
 
@@ -359,7 +359,7 @@ const model = {
   async open() {
     window.Alpine?.store("superordinateInheritance")?.close?.();
     this.visible = true;
-    this.installOccupationsResizeListener();
+    this.installRolesResizeListener();
     window.requestAnimationFrame(() => this.syncPanelPlacement());
     await this.refresh({ force: true });
     window.requestAnimationFrame(() => this.syncPanelPlacement());
@@ -367,7 +367,7 @@ const model = {
 
   close() {
     this.visible = false;
-    this.removeOccupationsResizeListener();
+    this.removeRolesResizeListener();
     if (this.placementCleanupTimer) window.clearTimeout(this.placementCleanupTimer);
     this.placementCleanupTimer = window.setTimeout(() => this.clearPanelPlacement(), 220);
   },
@@ -416,11 +416,11 @@ const model = {
     this.loading = true;
     try {
       const res = await callJsonApi(
-        "plugins/a0_superordinates/superordinate_occupations_get",
+        "plugins/a0_superordinates/superordinate_roles_get",
         { ctxid },
       );
       if (!res || !res.ok) {
-        throw new Error(res?.error || "Failed to load occupations.");
+        throw new Error(res?.error || "Failed to load roles.");
       }
 
       this.ctxid = res.ctxid || ctxid;
@@ -432,8 +432,8 @@ const model = {
       this.effectivePrompt = res.effective_prompt || "";
       if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
     } catch (error) {
-      console.error("[SuperordinateOccupations] refresh failed:", error);
-      this.error = error?.message || "Failed to load occupations.";
+      console.error("[SuperordinateRoles] refresh failed:", error);
+      this.error = error?.message || "Failed to load roles.";
     } finally {
       this.loading = false;
     }
@@ -442,7 +442,7 @@ const model = {
   async save() {
     const ctxid = this.ctxid || this.getSelectedCtxid();
     if (!ctxid) {
-      toastFrontendError("No focused agent/chat is selected.", "Occupations");
+      toastFrontendError("No focused agent/chat is selected.", "Roles");
       return;
     }
 
@@ -450,21 +450,21 @@ const model = {
     this.error = "";
     try {
       const res = await callJsonApi(
-        "plugins/a0_superordinates/superordinate_occupations_set",
+        "plugins/a0_superordinates/superordinate_roles_set",
         { ctxid, text: this.draftText || "" },
       );
       if (!res || !res.ok) {
-        throw new Error(res?.error || "Failed to save occupations.md.");
+        throw new Error(res?.error || "Failed to save roles.md.");
       }
       this.path = res.path || this.path;
       this.localText = this.draftText || "";
-      toastFrontendSuccess("occupations.md saved.", "Occupations");
+      toastFrontendSuccess("roles.md saved.", "Roles");
       await this.refresh({ force: true });
       if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
     } catch (error) {
-      console.error("[SuperordinateOccupations] save failed:", error);
-      this.error = error?.message || "Failed to save occupations.md.";
-      toastFrontendError(this.error, "Occupations");
+      console.error("[SuperordinateRoles] save failed:", error);
+      this.error = error?.message || "Failed to save roles.md.";
+      toastFrontendError(this.error, "Roles");
     } finally {
       this.saving = false;
     }
@@ -495,4 +495,4 @@ const model = {
   },
 };
 
-export const store = createStore("superordinateOccupations", model);
+export const store = createStore("superordinateRoles", model);

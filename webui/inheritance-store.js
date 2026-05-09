@@ -357,7 +357,7 @@ const model = {
   },
 
   async open() {
-    window.Alpine?.store("superordinateOccupations")?.close?.();
+    window.Alpine?.store("superordinateRoles")?.close?.();
     this.visible = true;
     this.installInheritanceResizeListener();
     window.requestAnimationFrame(() => this.syncPanelPlacement());

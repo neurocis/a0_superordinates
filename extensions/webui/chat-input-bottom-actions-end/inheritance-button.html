@@ -1,6 +1,6 @@
 <script type="module">
   import { store } from "/plugins/a0_superordinates/webui/inheritance-store.js";
-  import { store as _occupationsStore } from "/plugins/a0_superordinates/webui/occupations-store.js";
+  import { store as _rolesStore } from "/plugins/a0_superordinates/webui/roles-store.js";
 </script>
 
 <span
@@ -119,17 +119,17 @@
 
 
 <span
-  class="a0-sup-occupations-tab-anchor"
+  class="a0-sup-roles-tab-anchor"
   x-data
-  x-effect="$store.superordinateOccupations?.onContextChanged($store.chats?.selected || '')"
-  @keydown.escape.window="$store.superordinateOccupations?.close()"
+  x-effect="$store.superordinateRoles?.onContextChanged($store.chats?.selected || '')"
+  @keydown.escape.window="$store.superordinateRoles?.close()"
 >
   <button
     type="button"
     class="text-button"
-    :class="$store.superordinateOccupations?.visible ? 'a0-sup-occupations-toggle-open' : ''"
-    title="Occupations"
-    @click.prevent.stop="$store.superordinateOccupations.toggle()"
+    :class="$store.superordinateRoles?.visible ? 'a0-sup-roles-toggle-open' : ''"
+    title="Roles"
+    @click.prevent.stop="$store.superordinateRoles.toggle()"
   >
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M12 3v18"></path>
@@ -137,92 +137,92 @@
       <path d="M5 14h4a3 3 0 0 1 3 3"></path>
       <path d="M19 14h-4a3 3 0 0 0-3 3"></path>
     </svg>
-    <p>Occupations</p>
+    <p>Roles</p>
   </button>
 
   <div
     x-cloak
-    x-show="$store.superordinateOccupations && $store.superordinateOccupations.visible"
-    x-transition:enter="a0-sup-occupations-slide-enter-active"
-    x-transition:enter-start="a0-sup-occupations-slide-enter-from"
-    x-transition:enter-end="a0-sup-occupations-slide-enter-to"
-    x-transition:leave="a0-sup-occupations-slide-leave-active"
-    x-transition:leave-start="a0-sup-occupations-slide-leave-from"
-    x-transition:leave-end="a0-sup-occupations-slide-leave-to"
-    class="a0-sup-occupations-panel"
+    x-show="$store.superordinateRoles && $store.superordinateRoles.visible"
+    x-transition:enter="a0-sup-roles-slide-enter-active"
+    x-transition:enter-start="a0-sup-roles-slide-enter-from"
+    x-transition:enter-end="a0-sup-roles-slide-enter-to"
+    x-transition:leave="a0-sup-roles-slide-leave-active"
+    x-transition:leave-start="a0-sup-roles-slide-leave-from"
+    x-transition:leave-end="a0-sup-roles-slide-leave-to"
+    class="a0-sup-roles-panel"
     role="dialog"
-    aria-label="Superordinate Occupations"
+    aria-label="Superordinate Roles"
     @click.stop
   >
-    <div class="a0-sup-occupations-header">
-      <div class="a0-sup-occupations-title-line">
-        <strong>Occupations</strong>
-        <span x-text="$store.superordinateOccupations.path"></span>
+    <div class="a0-sup-roles-header">
+      <div class="a0-sup-roles-title-line">
+        <strong>Roles</strong>
+        <span x-text="$store.superordinateRoles.path"></span>
       </div>
-      <div class="a0-sup-occupations-actions">
-        <button type="button" class="a0-sup-occupations-small-button" @click="$store.superordinateOccupations.refresh({ force: true })" :disabled="$store.superordinateOccupations.loading || $store.superordinateOccupations.saving">Refresh</button>
-        <button type="button" class="a0-sup-occupations-small-button" @click="$store.superordinateOccupations.close()">Close</button>
+      <div class="a0-sup-roles-actions">
+        <button type="button" class="a0-sup-roles-small-button" @click="$store.superordinateRoles.refresh({ force: true })" :disabled="$store.superordinateRoles.loading || $store.superordinateRoles.saving">Refresh</button>
+        <button type="button" class="a0-sup-roles-small-button" @click="$store.superordinateRoles.close()">Close</button>
       </div>
     </div>
 
-    <template x-if="$store.superordinateOccupations.loading">
-      <div class="a0-sup-occupations-muted">Loading occupations…</div>
+    <template x-if="$store.superordinateRoles.loading">
+      <div class="a0-sup-roles-muted">Loading roles…</div>
     </template>
 
-    <template x-if="$store.superordinateOccupations.error">
-      <div class="a0-sup-occupations-error" x-text="$store.superordinateOccupations.error"></div>
+    <template x-if="$store.superordinateRoles.error">
+      <div class="a0-sup-roles-error" x-text="$store.superordinateRoles.error"></div>
     </template>
 
-    <template x-if="!$store.superordinateOccupations.loading">
-      <div class="a0-sup-occupations-grid">
-        <section class="a0-sup-occupations-section">
-          <div class="a0-sup-occupations-section-header">
-            <h3>Upward-flowing occupations</h3>
+    <template x-if="!$store.superordinateRoles.loading">
+      <div class="a0-sup-roles-grid">
+        <section class="a0-sup-roles-section">
+          <div class="a0-sup-roles-section-header">
+            <h3>Upward-flowing roles</h3>
             <span>Read-only, focused agent → descendants</span>
           </div>
 
-          <template x-if="$store.superordinateOccupations.inheritedEntries().length === 0">
-            <div class="a0-sup-occupations-muted">No subordinate occupations.md content found below this focused agent.</div>
+          <template x-if="$store.superordinateRoles.inheritedEntries().length === 0">
+            <div class="a0-sup-roles-muted">No subordinate roles.md content found below this focused agent.</div>
           </template>
 
-          <div class="a0-sup-occupations-entry-list">
-            <template x-for="(entry, index) in $store.superordinateOccupations.inheritedEntries()" :key="entry.context_id">
-              <article class="a0-sup-occupations-entry">
-                <div class="a0-sup-occupations-entry-head">
-                  <strong x-text="$store.superordinateOccupations.entryTitle(entry, index)"></strong>
-                  <code class="a0-sup-occupations-entry-context" x-text="'(' + entry.context_id + ')'"></code>
+          <div class="a0-sup-roles-entry-list">
+            <template x-for="(entry, index) in $store.superordinateRoles.inheritedEntries()" :key="entry.context_id">
+              <article class="a0-sup-roles-entry">
+                <div class="a0-sup-roles-entry-head">
+                  <strong x-text="$store.superordinateRoles.entryTitle(entry, index)"></strong>
+                  <code class="a0-sup-roles-entry-context" x-text="'(' + entry.context_id + ')'"></code>
                 </div>
-                <pre class="a0-sup-occupations-readonly" x-text="entry.text"></pre>
+                <pre class="a0-sup-roles-readonly" x-text="entry.text"></pre>
               </article>
             </template>
           </div>
         </section>
 
-        <section class="a0-sup-occupations-section">
-          <div class="a0-sup-occupations-section-header a0-sup-occupations-local-header">
-            <h3 class="a0-sup-occupations-inline-heading">
-              <strong>Occupations</strong>
-              <span x-text="$store.superordinateOccupations.path"></span>
+        <section class="a0-sup-roles-section">
+          <div class="a0-sup-roles-section-header a0-sup-roles-local-header">
+            <h3 class="a0-sup-roles-inline-heading">
+              <strong>Roles</strong>
+              <span x-text="$store.superordinateRoles.path"></span>
             </h3>
           </div>
 
           <textarea
-            class="a0-sup-occupations-editor"
+            class="a0-sup-roles-editor"
             spellcheck="false"
-            x-model="$store.superordinateOccupations.draftText"
-            placeholder="# Superordinate Occupations&#10;&#10;Describe this agent's occupations, roles, responsibilities, domains, and delegation suitability. These descriptions flow upward to parents."
+            x-model="$store.superordinateRoles.draftText"
+            placeholder="# Superordinate Roles&#10;&#10;Describe this agent's roles, responsibilities, domains, capabilities, and delegation suitability. These descriptions flow upward to parents."
           ></textarea>
 
-          <div class="a0-sup-occupations-save-row">
-            <div class="a0-sup-occupations-muted" x-show="$store.superordinateOccupations.hasUnsavedChanges()">Unsaved changes</div>
-            <div class="a0-sup-occupations-muted" x-show="!$store.superordinateOccupations.hasUnsavedChanges()">Saved</div>
+          <div class="a0-sup-roles-save-row">
+            <div class="a0-sup-roles-muted" x-show="$store.superordinateRoles.hasUnsavedChanges()">Unsaved changes</div>
+            <div class="a0-sup-roles-muted" x-show="!$store.superordinateRoles.hasUnsavedChanges()">Saved</div>
             <button
               type="button"
-              class="a0-sup-occupations-save-button"
-              @click="$store.superordinateOccupations.save()"
-              :disabled="$store.superordinateOccupations.saving || !$store.superordinateOccupations.hasUnsavedChanges()"
+              class="a0-sup-roles-save-button"
+              @click="$store.superordinateRoles.save()"
+              :disabled="$store.superordinateRoles.saving || !$store.superordinateRoles.hasUnsavedChanges()"
             >
-              <span x-text="$store.superordinateOccupations.saving ? 'Saving…' : 'Save'"></span>
+              <span x-text="$store.superordinateRoles.saving ? 'Saving…' : 'Save'"></span>
             </button>
           </div>
         </section>
@@ -597,57 +597,57 @@
   }
 
 
-  .a0-sup-occupations-tab-anchor {
+  .a0-sup-roles-tab-anchor {
     position: relative;
     display: inline-flex;
     align-items: stretch;
-    --a0-sup-occupations-panel-margin: clamp(0.5rem, 1.5vw, 1.25rem);
-    --a0-sup-occupations-panel-width: calc(100vw - 1rem);
-    --a0-sup-occupations-panel-max-height: min(760px, 82vh);
-    --a0-sup-occupations-tab-offset-left: 0px;
+    --a0-sup-roles-panel-margin: clamp(0.5rem, 1.5vw, 1.25rem);
+    --a0-sup-roles-panel-width: calc(100vw - 1rem);
+    --a0-sup-roles-panel-max-height: min(760px, 82vh);
+    --a0-sup-roles-tab-offset-left: 0px;
   }
 
-  .a0-sup-occupations-tab-anchor > .text-button {
+  .a0-sup-roles-tab-anchor > .text-button {
     position: relative;
     z-index: 10002;
   }
 
-  .a0-sup-occupations-toggle-open {
+  .a0-sup-roles-toggle-open {
     background-color: var(--color-background-hover) !important;
     border-radius: 0 0 4px 4px;
     opacity: 1 !important;
   }
 
-  .a0-sup-occupations-host-lifted {
+  .a0-sup-roles-host-lifted {
     position: relative;
     z-index: 10002;
     overflow: visible !important;
   }
 
-  .a0-sup-occupations-compose-lifted {
+  .a0-sup-roles-compose-lifted {
     position: relative;
     z-index: 10002;
-    transform: translateY(calc(-1 * var(--a0-sup-occupations-panel-lift, 18rem)));
+    transform: translateY(calc(-1 * var(--a0-sup-roles-panel-lift, 18rem)));
     transition: transform 180ms ease;
     will-change: transform;
   }
 
-  .a0-sup-occupations-output-lifted {
+  .a0-sup-roles-output-lifted {
     transition: height 180ms ease, max-height 180ms ease, padding-bottom 180ms ease, margin-bottom 180ms ease;
   }
 
-  .a0-sup-occupations-panel {
+  .a0-sup-roles-panel {
     position: absolute;
     top: auto;
-    left: calc(-1 * var(--a0-sup-occupations-tab-offset-left, 0px));
+    left: calc(-1 * var(--a0-sup-roles-tab-offset-left, 0px));
     right: auto;
     bottom: calc(100% - 1px);
     z-index: 10001;
-    width: var(--a0-sup-occupations-panel-width, calc(100vw - 1rem));
+    width: var(--a0-sup-roles-panel-width, calc(100vw - 1rem));
     max-width: calc(100vw - 1rem);
-    height: var(--a0-sup-occupations-panel-height, auto);
-    max-height: var(--a0-sup-occupations-panel-max-height, min(760px, 82vh));
-    min-height: min(360px, var(--a0-sup-occupations-panel-height, 360px));
+    height: var(--a0-sup-roles-panel-height, auto);
+    max-height: var(--a0-sup-roles-panel-max-height, min(760px, 82vh));
+    min-height: min(360px, var(--a0-sup-roles-panel-height, 360px));
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -661,54 +661,54 @@
     will-change: transform, opacity;
   }
 
-  .a0-sup-occupations-panel::before {
+  .a0-sup-roles-panel::before {
     content: "";
     position: absolute;
     bottom: -1px;
-    left: var(--a0-sup-occupations-tab-left, 0px);
-    width: var(--a0-sup-occupations-tab-width, 7rem);
+    left: var(--a0-sup-roles-tab-left, 0px);
+    width: var(--a0-sup-roles-tab-width, 7rem);
     height: 1px;
     background: var(--color-panel, var(--color-bg));
   }
 
-  .a0-sup-occupations-slide-enter-active,
-  .a0-sup-occupations-slide-leave-active {
+  .a0-sup-roles-slide-enter-active,
+  .a0-sup-roles-slide-leave-active {
     transition: opacity 0.18s ease, transform 0.18s ease;
   }
-  .a0-sup-occupations-slide-enter-from,
-  .a0-sup-occupations-slide-leave-to {
+  .a0-sup-roles-slide-enter-from,
+  .a0-sup-roles-slide-leave-to {
     opacity: 0;
     transform: translateY(18px);
   }
-  .a0-sup-occupations-slide-enter-to,
-  .a0-sup-occupations-slide-leave-from {
+  .a0-sup-roles-slide-enter-to,
+  .a0-sup-roles-slide-leave-from {
     opacity: 1;
     transform: translateY(0);
   }
 
-  .a0-sup-occupations-header,
-  .a0-sup-occupations-save-row,
-  .a0-sup-occupations-section-header,
-  .a0-sup-occupations-entry-head,
-  .a0-sup-occupations-actions {
+  .a0-sup-roles-header,
+  .a0-sup-roles-save-row,
+  .a0-sup-roles-section-header,
+  .a0-sup-roles-entry-head,
+  .a0-sup-roles-actions {
     display: flex;
     align-items: center;
     gap: 0.65rem;
   }
 
-  .a0-sup-occupations-header {
+  .a0-sup-roles-header {
     justify-content: space-between;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
   }
 
-  .a0-sup-occupations-title {
+  .a0-sup-roles-title {
     font-weight: 700;
     font-size: 1rem;
   }
 
-  .a0-sup-occupations-title-line {
+  .a0-sup-roles-title-line {
     display: flex;
     align-items: baseline;
     min-width: 0;
@@ -717,12 +717,12 @@
     font-size: 1rem;
   }
 
-  .a0-sup-occupations-title-line strong {
+  .a0-sup-roles-title-line strong {
     flex: 0 0 auto;
     font-weight: 700;
   }
 
-  .a0-sup-occupations-title-line span {
+  .a0-sup-roles-title-line span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -733,13 +733,13 @@
     opacity: 0.7;
   }
 
-  .a0-sup-occupations-subtitle {
+  .a0-sup-roles-subtitle {
     margin-top: 0.2rem;
     font-size: 0.72rem;
     opacity: 0.7;
   }
 
-  .a0-sup-occupations-grid {
+  .a0-sup-roles-grid {
     min-height: 0;
     flex: 1;
     display: grid;
@@ -748,7 +748,7 @@
     padding-top: 1rem;
   }
 
-  .a0-sup-occupations-section {
+  .a0-sup-roles-section {
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -760,17 +760,17 @@
     overflow: hidden;
   }
 
-  .a0-sup-occupations-section-header {
+  .a0-sup-roles-section-header {
     justify-content: space-between;
     flex-shrink: 0;
   }
 
-  .a0-sup-occupations-section-header h3 {
+  .a0-sup-roles-section-header h3 {
     margin: 0;
     font-size: 0.86rem;
   }
 
-  .a0-sup-occupations-section-header span {
+  .a0-sup-roles-section-header span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -779,12 +779,12 @@
     opacity: 0.62;
   }
 
-  .a0-sup-occupations-local-header {
+  .a0-sup-roles-local-header {
     justify-content: flex-start;
     min-width: 0;
   }
 
-  .a0-sup-occupations-inline-heading {
+  .a0-sup-roles-inline-heading {
     display: flex;
     align-items: baseline;
     min-width: 0;
@@ -795,12 +795,12 @@
     gap: 0;
   }
 
-  .a0-sup-occupations-inline-heading strong {
+  .a0-sup-roles-inline-heading strong {
     flex: 0 0 auto;
     font-weight: 700;
   }
 
-  .a0-sup-occupations-inline-heading span {
+  .a0-sup-roles-inline-heading span {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
@@ -812,7 +812,7 @@
     opacity: 0.62;
   }
 
-  .a0-sup-occupations-entry-list {
+  .a0-sup-roles-entry-list {
     min-height: 0;
     overflow: auto;
     display: flex;
@@ -821,18 +821,18 @@
     padding-right: 0.25rem;
   }
 
-  .a0-sup-occupations-entry {
+  .a0-sup-roles-entry {
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 0.7rem;
     background: color-mix(in srgb, var(--color-panel, #111) 88%, black 12%);
   }
 
-  .a0-sup-occupations-entry.is-local {
+  .a0-sup-roles-entry.is-local {
     border-color: color-mix(in srgb, var(--color-primary, #6aa9ff) 55%, var(--color-border));
   }
 
-  .a0-sup-occupations-entry-head {
+  .a0-sup-roles-entry-head {
     justify-content: space-between;
     min-width: 0;
     margin-bottom: 0.55rem;
@@ -842,7 +842,7 @@
     overflow: hidden;
   }
 
-  .a0-sup-occupations-entry-head strong {
+  .a0-sup-roles-entry-head strong {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
@@ -850,7 +850,7 @@
     white-space: nowrap;
   }
 
-  .a0-sup-occupations-entry-context {
+  .a0-sup-roles-entry-context {
     flex: 0 0 auto;
     margin-left: auto;
     font-size: 0.66rem;
@@ -860,8 +860,8 @@
     white-space: nowrap;
   }
 
-  .a0-sup-occupations-readonly,
-  .a0-sup-occupations-editor {
+  .a0-sup-roles-readonly,
+  .a0-sup-roles-editor {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: 0.76rem;
     line-height: 1.45;
@@ -871,7 +871,7 @@
     border-radius: 8px;
   }
 
-  .a0-sup-occupations-readonly {
+  .a0-sup-roles-readonly {
     margin: 0;
     max-height: 280px;
     overflow: auto;
@@ -880,7 +880,7 @@
     word-break: break-word;
   }
 
-  .a0-sup-occupations-editor {
+  .a0-sup-roles-editor {
     min-height: 0;
     flex: 1;
     resize: none;
@@ -888,17 +888,17 @@
     outline: none;
   }
 
-  .a0-sup-occupations-editor:focus {
+  .a0-sup-roles-editor:focus {
     border-color: color-mix(in srgb, var(--color-primary, #6aa9ff) 70%, var(--color-border));
   }
 
-  .a0-sup-occupations-save-row {
+  .a0-sup-roles-save-row {
     justify-content: space-between;
     flex-shrink: 0;
   }
 
-  .a0-sup-occupations-small-button,
-  .a0-sup-occupations-save-button {
+  .a0-sup-roles-small-button,
+  .a0-sup-roles-save-button {
     border: 1px solid var(--color-border);
     border-radius: 7px;
     background: transparent;
@@ -908,30 +908,30 @@
     padding: 0.38rem 0.65rem;
   }
 
-  .a0-sup-occupations-save-button {
+  .a0-sup-roles-save-button {
     background: var(--color-primary, #4361ee);
     border-color: var(--color-primary, #4361ee);
     color: white;
     min-width: 76px;
   }
 
-  .a0-sup-occupations-small-button:hover:not(:disabled),
-  .a0-sup-occupations-save-button:hover:not(:disabled) {
+  .a0-sup-roles-small-button:hover:not(:disabled),
+  .a0-sup-roles-save-button:hover:not(:disabled) {
     filter: brightness(1.1);
   }
 
-  .a0-sup-occupations-small-button:disabled,
-  .a0-sup-occupations-save-button:disabled {
+  .a0-sup-roles-small-button:disabled,
+  .a0-sup-roles-save-button:disabled {
     cursor: not-allowed;
     opacity: 0.45;
   }
 
-  .a0-sup-occupations-muted {
+  .a0-sup-roles-muted {
     font-size: 0.74rem;
     opacity: 0.64;
   }
 
-  .a0-sup-occupations-error {
+  .a0-sup-roles-error {
     margin-top: 0.75rem;
     padding: 0.7rem;
     border: 1px solid color-mix(in srgb, red 45%, var(--color-border));
@@ -941,13 +941,13 @@
   }
 
   @media (max-width: 900px) {
-    .a0-sup-occupations-panel {
+    .a0-sup-roles-panel {
       left: 0.5rem;
       right: 0.5rem;
       bottom: 4rem;
       max-height: 78vh;
     }
-    .a0-sup-occupations-grid {
+    .a0-sup-roles-grid {
       grid-template-columns: 1fr;
     }
   }
