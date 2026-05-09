@@ -1,6 +1,6 @@
 <script type="module">
   import { store } from "/plugins/a0_superordinates/webui/inheritance-store.js";
-  import { store as _skillsStore } from "/plugins/a0_superordinates/webui/skills-store.js";
+  import { store as _occupationsStore } from "/plugins/a0_superordinates/webui/occupations-store.js";
 </script>
 
 <span
@@ -119,17 +119,17 @@
 
 
 <span
-  class="a0-sup-skills-tab-anchor"
+  class="a0-sup-occupations-tab-anchor"
   x-data
-  x-effect="$store.superordinateSkills?.onContextChanged($store.chats?.selected || '')"
-  @keydown.escape.window="$store.superordinateSkills?.close()"
+  x-effect="$store.superordinateOccupations?.onContextChanged($store.chats?.selected || '')"
+  @keydown.escape.window="$store.superordinateOccupations?.close()"
 >
   <button
     type="button"
     class="text-button"
-    :class="$store.superordinateSkills?.visible ? 'a0-sup-skills-toggle-open' : ''"
-    title="Skills"
-    @click.prevent.stop="$store.superordinateSkills.toggle()"
+    :class="$store.superordinateOccupations?.visible ? 'a0-sup-occupations-toggle-open' : ''"
+    title="Occupations"
+    @click.prevent.stop="$store.superordinateOccupations.toggle()"
   >
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M12 3v18"></path>
@@ -137,92 +137,92 @@
       <path d="M5 14h4a3 3 0 0 1 3 3"></path>
       <path d="M19 14h-4a3 3 0 0 0-3 3"></path>
     </svg>
-    <p>Skills</p>
+    <p>Occupations</p>
   </button>
 
   <div
     x-cloak
-    x-show="$store.superordinateSkills && $store.superordinateSkills.visible"
-    x-transition:enter="a0-sup-skills-slide-enter-active"
-    x-transition:enter-start="a0-sup-skills-slide-enter-from"
-    x-transition:enter-end="a0-sup-skills-slide-enter-to"
-    x-transition:leave="a0-sup-skills-slide-leave-active"
-    x-transition:leave-start="a0-sup-skills-slide-leave-from"
-    x-transition:leave-end="a0-sup-skills-slide-leave-to"
-    class="a0-sup-skills-panel"
+    x-show="$store.superordinateOccupations && $store.superordinateOccupations.visible"
+    x-transition:enter="a0-sup-occupations-slide-enter-active"
+    x-transition:enter-start="a0-sup-occupations-slide-enter-from"
+    x-transition:enter-end="a0-sup-occupations-slide-enter-to"
+    x-transition:leave="a0-sup-occupations-slide-leave-active"
+    x-transition:leave-start="a0-sup-occupations-slide-leave-from"
+    x-transition:leave-end="a0-sup-occupations-slide-leave-to"
+    class="a0-sup-occupations-panel"
     role="dialog"
-    aria-label="Superordinate Skills"
+    aria-label="Superordinate Occupations"
     @click.stop
   >
-    <div class="a0-sup-skills-header">
-      <div class="a0-sup-skills-title-line">
-        <strong>Skills</strong>
-        <span x-text="$store.superordinateSkills.path"></span>
+    <div class="a0-sup-occupations-header">
+      <div class="a0-sup-occupations-title-line">
+        <strong>Occupations</strong>
+        <span x-text="$store.superordinateOccupations.path"></span>
       </div>
-      <div class="a0-sup-skills-actions">
-        <button type="button" class="a0-sup-skills-small-button" @click="$store.superordinateSkills.refresh({ force: true })" :disabled="$store.superordinateSkills.loading || $store.superordinateSkills.saving">Refresh</button>
-        <button type="button" class="a0-sup-skills-small-button" @click="$store.superordinateSkills.close()">Close</button>
+      <div class="a0-sup-occupations-actions">
+        <button type="button" class="a0-sup-occupations-small-button" @click="$store.superordinateOccupations.refresh({ force: true })" :disabled="$store.superordinateOccupations.loading || $store.superordinateOccupations.saving">Refresh</button>
+        <button type="button" class="a0-sup-occupations-small-button" @click="$store.superordinateOccupations.close()">Close</button>
       </div>
     </div>
 
-    <template x-if="$store.superordinateSkills.loading">
-      <div class="a0-sup-skills-muted">Loading skills…</div>
+    <template x-if="$store.superordinateOccupations.loading">
+      <div class="a0-sup-occupations-muted">Loading occupations…</div>
     </template>
 
-    <template x-if="$store.superordinateSkills.error">
-      <div class="a0-sup-skills-error" x-text="$store.superordinateSkills.error"></div>
+    <template x-if="$store.superordinateOccupations.error">
+      <div class="a0-sup-occupations-error" x-text="$store.superordinateOccupations.error"></div>
     </template>
 
-    <template x-if="!$store.superordinateSkills.loading">
-      <div class="a0-sup-skills-grid">
-        <section class="a0-sup-skills-section">
-          <div class="a0-sup-skills-section-header">
-            <h3>Upward-flowing skills</h3>
+    <template x-if="!$store.superordinateOccupations.loading">
+      <div class="a0-sup-occupations-grid">
+        <section class="a0-sup-occupations-section">
+          <div class="a0-sup-occupations-section-header">
+            <h3>Upward-flowing occupations</h3>
             <span>Read-only, focused agent → descendants</span>
           </div>
 
-          <template x-if="$store.superordinateSkills.inheritedEntries().length === 0">
-            <div class="a0-sup-skills-muted">No subordinate skills.md content found below this focused agent.</div>
+          <template x-if="$store.superordinateOccupations.inheritedEntries().length === 0">
+            <div class="a0-sup-occupations-muted">No subordinate occupations.md content found below this focused agent.</div>
           </template>
 
-          <div class="a0-sup-skills-entry-list">
-            <template x-for="(entry, index) in $store.superordinateSkills.inheritedEntries()" :key="entry.context_id">
-              <article class="a0-sup-skills-entry">
-                <div class="a0-sup-skills-entry-head">
-                  <strong x-text="$store.superordinateSkills.entryTitle(entry, index)"></strong>
-                  <code class="a0-sup-skills-entry-context" x-text="'(' + entry.context_id + ')'"></code>
+          <div class="a0-sup-occupations-entry-list">
+            <template x-for="(entry, index) in $store.superordinateOccupations.inheritedEntries()" :key="entry.context_id">
+              <article class="a0-sup-occupations-entry">
+                <div class="a0-sup-occupations-entry-head">
+                  <strong x-text="$store.superordinateOccupations.entryTitle(entry, index)"></strong>
+                  <code class="a0-sup-occupations-entry-context" x-text="'(' + entry.context_id + ')'"></code>
                 </div>
-                <pre class="a0-sup-skills-readonly" x-text="entry.text"></pre>
+                <pre class="a0-sup-occupations-readonly" x-text="entry.text"></pre>
               </article>
             </template>
           </div>
         </section>
 
-        <section class="a0-sup-skills-section">
-          <div class="a0-sup-skills-section-header a0-sup-skills-local-header">
-            <h3 class="a0-sup-skills-inline-heading">
-              <strong>Skills</strong>
-              <span x-text="$store.superordinateSkills.path"></span>
+        <section class="a0-sup-occupations-section">
+          <div class="a0-sup-occupations-section-header a0-sup-occupations-local-header">
+            <h3 class="a0-sup-occupations-inline-heading">
+              <strong>Occupations</strong>
+              <span x-text="$store.superordinateOccupations.path"></span>
             </h3>
           </div>
 
           <textarea
-            class="a0-sup-skills-editor"
+            class="a0-sup-occupations-editor"
             spellcheck="false"
-            x-model="$store.superordinateSkills.draftText"
-            placeholder="# Superordinate Skills&#10;&#10;Describe this agent's skills, strengths, tools, domains, and delegation suitability. These descriptions flow upward to parents."
+            x-model="$store.superordinateOccupations.draftText"
+            placeholder="# Superordinate Occupations&#10;&#10;Describe this agent's occupations, roles, responsibilities, domains, and delegation suitability. These descriptions flow upward to parents."
           ></textarea>
 
-          <div class="a0-sup-skills-save-row">
-            <div class="a0-sup-skills-muted" x-show="$store.superordinateSkills.hasUnsavedChanges()">Unsaved changes</div>
-            <div class="a0-sup-skills-muted" x-show="!$store.superordinateSkills.hasUnsavedChanges()">Saved</div>
+          <div class="a0-sup-occupations-save-row">
+            <div class="a0-sup-occupations-muted" x-show="$store.superordinateOccupations.hasUnsavedChanges()">Unsaved changes</div>
+            <div class="a0-sup-occupations-muted" x-show="!$store.superordinateOccupations.hasUnsavedChanges()">Saved</div>
             <button
               type="button"
-              class="a0-sup-skills-save-button"
-              @click="$store.superordinateSkills.save()"
-              :disabled="$store.superordinateSkills.saving || !$store.superordinateSkills.hasUnsavedChanges()"
+              class="a0-sup-occupations-save-button"
+              @click="$store.superordinateOccupations.save()"
+              :disabled="$store.superordinateOccupations.saving || !$store.superordinateOccupations.hasUnsavedChanges()"
             >
-              <span x-text="$store.superordinateSkills.saving ? 'Saving…' : 'Save'"></span>
+              <span x-text="$store.superordinateOccupations.saving ? 'Saving…' : 'Save'"></span>
             </button>
           </div>
         </section>
@@ -597,57 +597,57 @@
   }
 
 
-  .a0-sup-skills-tab-anchor {
+  .a0-sup-occupations-tab-anchor {
     position: relative;
     display: inline-flex;
     align-items: stretch;
-    --a0-sup-skills-panel-margin: clamp(0.5rem, 1.5vw, 1.25rem);
-    --a0-sup-skills-panel-width: calc(100vw - 1rem);
-    --a0-sup-skills-panel-max-height: min(760px, 82vh);
-    --a0-sup-skills-tab-offset-left: 0px;
+    --a0-sup-occupations-panel-margin: clamp(0.5rem, 1.5vw, 1.25rem);
+    --a0-sup-occupations-panel-width: calc(100vw - 1rem);
+    --a0-sup-occupations-panel-max-height: min(760px, 82vh);
+    --a0-sup-occupations-tab-offset-left: 0px;
   }
 
-  .a0-sup-skills-tab-anchor > .text-button {
+  .a0-sup-occupations-tab-anchor > .text-button {
     position: relative;
     z-index: 10002;
   }
 
-  .a0-sup-skills-toggle-open {
+  .a0-sup-occupations-toggle-open {
     background-color: var(--color-background-hover) !important;
     border-radius: 0 0 4px 4px;
     opacity: 1 !important;
   }
 
-  .a0-sup-skills-host-lifted {
+  .a0-sup-occupations-host-lifted {
     position: relative;
     z-index: 10002;
     overflow: visible !important;
   }
 
-  .a0-sup-skills-compose-lifted {
+  .a0-sup-occupations-compose-lifted {
     position: relative;
     z-index: 10002;
-    transform: translateY(calc(-1 * var(--a0-sup-skills-panel-lift, 18rem)));
+    transform: translateY(calc(-1 * var(--a0-sup-occupations-panel-lift, 18rem)));
     transition: transform 180ms ease;
     will-change: transform;
   }
 
-  .a0-sup-skills-output-lifted {
+  .a0-sup-occupations-output-lifted {
     transition: height 180ms ease, max-height 180ms ease, padding-bottom 180ms ease, margin-bottom 180ms ease;
   }
 
-  .a0-sup-skills-panel {
+  .a0-sup-occupations-panel {
     position: absolute;
     top: auto;
-    left: calc(-1 * var(--a0-sup-skills-tab-offset-left, 0px));
+    left: calc(-1 * var(--a0-sup-occupations-tab-offset-left, 0px));
     right: auto;
     bottom: calc(100% - 1px);
     z-index: 10001;
-    width: var(--a0-sup-skills-panel-width, calc(100vw - 1rem));
+    width: var(--a0-sup-occupations-panel-width, calc(100vw - 1rem));
     max-width: calc(100vw - 1rem);
-    height: var(--a0-sup-skills-panel-height, auto);
-    max-height: var(--a0-sup-skills-panel-max-height, min(760px, 82vh));
-    min-height: min(360px, var(--a0-sup-skills-panel-height, 360px));
+    height: var(--a0-sup-occupations-panel-height, auto);
+    max-height: var(--a0-sup-occupations-panel-max-height, min(760px, 82vh));
+    min-height: min(360px, var(--a0-sup-occupations-panel-height, 360px));
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -661,54 +661,54 @@
     will-change: transform, opacity;
   }
 
-  .a0-sup-skills-panel::before {
+  .a0-sup-occupations-panel::before {
     content: "";
     position: absolute;
     bottom: -1px;
-    left: var(--a0-sup-skills-tab-left, 0px);
-    width: var(--a0-sup-skills-tab-width, 7rem);
+    left: var(--a0-sup-occupations-tab-left, 0px);
+    width: var(--a0-sup-occupations-tab-width, 7rem);
     height: 1px;
     background: var(--color-panel, var(--color-bg));
   }
 
-  .a0-sup-skills-slide-enter-active,
-  .a0-sup-skills-slide-leave-active {
+  .a0-sup-occupations-slide-enter-active,
+  .a0-sup-occupations-slide-leave-active {
     transition: opacity 0.18s ease, transform 0.18s ease;
   }
-  .a0-sup-skills-slide-enter-from,
-  .a0-sup-skills-slide-leave-to {
+  .a0-sup-occupations-slide-enter-from,
+  .a0-sup-occupations-slide-leave-to {
     opacity: 0;
     transform: translateY(18px);
   }
-  .a0-sup-skills-slide-enter-to,
-  .a0-sup-skills-slide-leave-from {
+  .a0-sup-occupations-slide-enter-to,
+  .a0-sup-occupations-slide-leave-from {
     opacity: 1;
     transform: translateY(0);
   }
 
-  .a0-sup-skills-header,
-  .a0-sup-skills-save-row,
-  .a0-sup-skills-section-header,
-  .a0-sup-skills-entry-head,
-  .a0-sup-skills-actions {
+  .a0-sup-occupations-header,
+  .a0-sup-occupations-save-row,
+  .a0-sup-occupations-section-header,
+  .a0-sup-occupations-entry-head,
+  .a0-sup-occupations-actions {
     display: flex;
     align-items: center;
     gap: 0.65rem;
   }
 
-  .a0-sup-skills-header {
+  .a0-sup-occupations-header {
     justify-content: space-between;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
   }
 
-  .a0-sup-skills-title {
+  .a0-sup-occupations-title {
     font-weight: 700;
     font-size: 1rem;
   }
 
-  .a0-sup-skills-title-line {
+  .a0-sup-occupations-title-line {
     display: flex;
     align-items: baseline;
     min-width: 0;
@@ -717,12 +717,12 @@
     font-size: 1rem;
   }
 
-  .a0-sup-skills-title-line strong {
+  .a0-sup-occupations-title-line strong {
     flex: 0 0 auto;
     font-weight: 700;
   }
 
-  .a0-sup-skills-title-line span {
+  .a0-sup-occupations-title-line span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -733,13 +733,13 @@
     opacity: 0.7;
   }
 
-  .a0-sup-skills-subtitle {
+  .a0-sup-occupations-subtitle {
     margin-top: 0.2rem;
     font-size: 0.72rem;
     opacity: 0.7;
   }
 
-  .a0-sup-skills-grid {
+  .a0-sup-occupations-grid {
     min-height: 0;
     flex: 1;
     display: grid;
@@ -748,7 +748,7 @@
     padding-top: 1rem;
   }
 
-  .a0-sup-skills-section {
+  .a0-sup-occupations-section {
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -760,17 +760,17 @@
     overflow: hidden;
   }
 
-  .a0-sup-skills-section-header {
+  .a0-sup-occupations-section-header {
     justify-content: space-between;
     flex-shrink: 0;
   }
 
-  .a0-sup-skills-section-header h3 {
+  .a0-sup-occupations-section-header h3 {
     margin: 0;
     font-size: 0.86rem;
   }
 
-  .a0-sup-skills-section-header span {
+  .a0-sup-occupations-section-header span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -779,12 +779,12 @@
     opacity: 0.62;
   }
 
-  .a0-sup-skills-local-header {
+  .a0-sup-occupations-local-header {
     justify-content: flex-start;
     min-width: 0;
   }
 
-  .a0-sup-skills-inline-heading {
+  .a0-sup-occupations-inline-heading {
     display: flex;
     align-items: baseline;
     min-width: 0;
@@ -795,12 +795,12 @@
     gap: 0;
   }
 
-  .a0-sup-skills-inline-heading strong {
+  .a0-sup-occupations-inline-heading strong {
     flex: 0 0 auto;
     font-weight: 700;
   }
 
-  .a0-sup-skills-inline-heading span {
+  .a0-sup-occupations-inline-heading span {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
@@ -812,7 +812,7 @@
     opacity: 0.62;
   }
 
-  .a0-sup-skills-entry-list {
+  .a0-sup-occupations-entry-list {
     min-height: 0;
     overflow: auto;
     display: flex;
@@ -821,18 +821,18 @@
     padding-right: 0.25rem;
   }
 
-  .a0-sup-skills-entry {
+  .a0-sup-occupations-entry {
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 0.7rem;
     background: color-mix(in srgb, var(--color-panel, #111) 88%, black 12%);
   }
 
-  .a0-sup-skills-entry.is-local {
+  .a0-sup-occupations-entry.is-local {
     border-color: color-mix(in srgb, var(--color-primary, #6aa9ff) 55%, var(--color-border));
   }
 
-  .a0-sup-skills-entry-head {
+  .a0-sup-occupations-entry-head {
     justify-content: space-between;
     min-width: 0;
     margin-bottom: 0.55rem;
@@ -842,7 +842,7 @@
     overflow: hidden;
   }
 
-  .a0-sup-skills-entry-head strong {
+  .a0-sup-occupations-entry-head strong {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
@@ -850,7 +850,7 @@
     white-space: nowrap;
   }
 
-  .a0-sup-skills-entry-context {
+  .a0-sup-occupations-entry-context {
     flex: 0 0 auto;
     margin-left: auto;
     font-size: 0.66rem;
@@ -860,8 +860,8 @@
     white-space: nowrap;
   }
 
-  .a0-sup-skills-readonly,
-  .a0-sup-skills-editor {
+  .a0-sup-occupations-readonly,
+  .a0-sup-occupations-editor {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: 0.76rem;
     line-height: 1.45;
@@ -871,7 +871,7 @@
     border-radius: 8px;
   }
 
-  .a0-sup-skills-readonly {
+  .a0-sup-occupations-readonly {
     margin: 0;
     max-height: 280px;
     overflow: auto;
@@ -880,7 +880,7 @@
     word-break: break-word;
   }
 
-  .a0-sup-skills-editor {
+  .a0-sup-occupations-editor {
     min-height: 0;
     flex: 1;
     resize: none;
@@ -888,17 +888,17 @@
     outline: none;
   }
 
-  .a0-sup-skills-editor:focus {
+  .a0-sup-occupations-editor:focus {
     border-color: color-mix(in srgb, var(--color-primary, #6aa9ff) 70%, var(--color-border));
   }
 
-  .a0-sup-skills-save-row {
+  .a0-sup-occupations-save-row {
     justify-content: space-between;
     flex-shrink: 0;
   }
 
-  .a0-sup-skills-small-button,
-  .a0-sup-skills-save-button {
+  .a0-sup-occupations-small-button,
+  .a0-sup-occupations-save-button {
     border: 1px solid var(--color-border);
     border-radius: 7px;
     background: transparent;
@@ -908,30 +908,30 @@
     padding: 0.38rem 0.65rem;
   }
 
-  .a0-sup-skills-save-button {
+  .a0-sup-occupations-save-button {
     background: var(--color-primary, #4361ee);
     border-color: var(--color-primary, #4361ee);
     color: white;
     min-width: 76px;
   }
 
-  .a0-sup-skills-small-button:hover:not(:disabled),
-  .a0-sup-skills-save-button:hover:not(:disabled) {
+  .a0-sup-occupations-small-button:hover:not(:disabled),
+  .a0-sup-occupations-save-button:hover:not(:disabled) {
     filter: brightness(1.1);
   }
 
-  .a0-sup-skills-small-button:disabled,
-  .a0-sup-skills-save-button:disabled {
+  .a0-sup-occupations-small-button:disabled,
+  .a0-sup-occupations-save-button:disabled {
     cursor: not-allowed;
     opacity: 0.45;
   }
 
-  .a0-sup-skills-muted {
+  .a0-sup-occupations-muted {
     font-size: 0.74rem;
     opacity: 0.64;
   }
 
-  .a0-sup-skills-error {
+  .a0-sup-occupations-error {
     margin-top: 0.75rem;
     padding: 0.7rem;
     border: 1px solid color-mix(in srgb, red 45%, var(--color-border));
@@ -941,13 +941,13 @@
   }
 
   @media (max-width: 900px) {
-    .a0-sup-skills-panel {
+    .a0-sup-occupations-panel {
       left: 0.5rem;
       right: 0.5rem;
       bottom: 4rem;
       max-height: 78vh;
     }
-    .a0-sup-skills-grid {
+    .a0-sup-occupations-grid {
       grid-template-columns: 1fr;
     }
   }

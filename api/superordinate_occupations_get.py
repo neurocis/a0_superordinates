@@ -1,10 +1,10 @@
-"""Get one context's local skills.md and resolved upward-flowing skills."""
+"""Get one context's local occupations.md and resolved upward-flowing occupations."""
 from __future__ import annotations
 
 from helpers.api import ApiHandler, Request, Response
 
 
-class SuperordinateSkillsGet(ApiHandler):
+class SuperordinateOccupationsGet(ApiHandler):
     @classmethod
     def get_methods(cls) -> list[str]:
         return ["GET", "POST"]
@@ -15,20 +15,20 @@ class SuperordinateSkillsGet(ApiHandler):
             return {"ok": False, "error": "Missing ctxid"}
 
         try:
-            from usr.plugins.a0_superordinates.helpers.skills import (
-                build_skills_prompt,
-                read_skills_file,
+            from usr.plugins.a0_superordinates.helpers.occupations import (
+                build_occupations_prompt,
+                occupations_path,
+                read_occupations_file,
                 resolve_descendant_chain,
-                resolve_skills_entries,
-                skills_path,
+                resolve_occupations_entries,
             )
 
-            entries = resolve_skills_entries(ctxid)
+            entries = resolve_occupations_entries(ctxid)
             return {
                 "ok": True,
                 "ctxid": ctxid,
-                "path": skills_path(ctxid),
-                "local_text": read_skills_file(ctxid),
+                "path": occupations_path(ctxid),
+                "local_text": read_occupations_file(ctxid),
                 "chain": [node_id for node_id, _depth in resolve_descendant_chain(ctxid)],
                 "entries": [
                     {
@@ -40,7 +40,7 @@ class SuperordinateSkillsGet(ApiHandler):
                     }
                     for e in entries
                 ],
-                "effective_prompt": build_skills_prompt(ctxid),
+                "effective_prompt": build_occupations_prompt(ctxid),
             }
         except Exception as e:
             return {"ok": False, "error": str(e)}

@@ -1,4 +1,4 @@
-"""Inject resolved upward-flowing Superordinate skills into the system prompt."""
+"""Inject resolved upward-flowing Superordinate occupations into the system prompt."""
 from __future__ import annotations
 
 from typing import Any
@@ -7,7 +7,7 @@ from agent import LoopData
 from helpers.extension import Extension
 
 
-class SuperordinateSkillsPrompt(Extension):
+class SuperordinateOccupationsPrompt(Extension):
     async def execute(
         self,
         system_prompt: list[str] = [],
@@ -18,9 +18,9 @@ class SuperordinateSkillsPrompt(Extension):
             return
 
         try:
-            from usr.plugins.a0_superordinates.helpers.skills import build_skills_prompt
+            from usr.plugins.a0_superordinates.helpers.occupations import build_occupations_prompt
 
-            prompt = build_skills_prompt(self.agent.context.id)
+            prompt = build_occupations_prompt(self.agent.context.id)
         except Exception:
             prompt = ""
 

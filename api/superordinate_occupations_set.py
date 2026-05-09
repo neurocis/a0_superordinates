@@ -1,4 +1,4 @@
-"""Set one context's local single-file skills.md."""
+"""Set one context's local single-file occupations.md."""
 from __future__ import annotations
 
 import os
@@ -8,7 +8,7 @@ from helpers.api import ApiHandler, Request, Response
 MAX_WRITE_BYTES = 256 * 1024
 
 
-class SuperordinateSkillsSet(ApiHandler):
+class SuperordinateOccupationsSet(ApiHandler):
     @classmethod
     def get_methods(cls) -> list[str]:
         return ["POST"]
@@ -21,12 +21,12 @@ class SuperordinateSkillsSet(ApiHandler):
         if not isinstance(text, str):
             return {"ok": False, "error": "text must be a string"}
         if len(text.encode("utf-8")) > MAX_WRITE_BYTES:
-            return {"ok": False, "error": "skills.md is too large"}
+            return {"ok": False, "error": "occupations.md is too large"}
 
         try:
-            from usr.plugins.a0_superordinates.helpers.skills import skills_path
+            from usr.plugins.a0_superordinates.helpers.occupations import occupations_path
 
-            path = skills_path(ctxid)
+            path = occupations_path(ctxid)
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
                 f.write(text)
