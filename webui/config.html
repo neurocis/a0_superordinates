@@ -9,68 +9,28 @@
         host.heroRootOptionsLoading = true;
         host.heroRootOptionsError = '';
         try {
-            const [mapResult, configResult] = await Promise.allSettled([
-                callJsonApi("plugins/a0_superordinates/superordinate_map", {}),
-                callJsonApi("plugins/a0_superordinates/superordinate_config", {}),
-            ]);
-            const response = mapResult.status === 'fulfilled' ? (mapResult.value || {}) : {};
-            const pluginConfig = configResult.status === 'fulfilled' ? (configResult.value || {}) : {};
-            const map = response?.map && typeof response.map === 'object' ? response.map : {};
-            const contexts = window.Alpine?.store?.('chats')?.contexts || [];
+            const response = await callJsonApi("plugins/a0_superordinates/superordinate_hero_roots", {});
             const superordinates = window.Alpine?.store?.('superordinates');
-            const configuredClosedName = pluginConfig?.closed_entities_folder_name
-                || pluginConfig?.config?.closed_entities_folder_name
-                || superordinates?.closedEntitiesFolderName
-                || 'Closed Entities';
-            const closedNames = new Set([
-                normalizeName(configuredClosedName),
-                normalizeName('Closed Entities'),
-                normalizeName('Closed Entries'),
-            ]);
             const msgOnlyIds = readMsgOnlyIds(superordinates);
-
-            const byId = new Map();
-            for (const ctx of contexts) {
-                if (ctx?.id) byId.set(ctx.id, ctx);
-            }
-
-            const orderedRootIds = [];
-            const addRootId = (id) => {
-                id = String(id || '').trim();
-                if (!id || orderedRootIds.includes(id)) return;
-                orderedRootIds.push(id);
-            };
-
-            // Preferred order from the backend/store when available.
-            for (const id of (Array.isArray(response?.root_order) ? response.root_order : [])) addRootId(id);
-            for (const id of (Array.isArray(superordinates?.rootOrder) ? superordinates.rootOrder : [])) addRootId(id);
-
-            // Robust fallback: derive ROOT nodes from the hierarchy map.
-            for (const [id, entry] of Object.entries(map)) {
-                const parent = entry?.parent || null;
-                if (!parent || !map[parent]) addRootId(id);
-            }
-
-            // Final fallback: contexts with no known parent in the loaded Superordinates store/map.
-            for (const ctx of contexts) {
-                const id = ctx?.id;
-                if (!id) continue;
-                const parent = map[id]?.parent || superordinates?.hierarchyMap?.[id]?.parent || null;
-                if (!parent) addRootId(id);
-            }
+            const roots = Array.isArray(response?.roots)
+                ? response.roots
+                : (Array.isArray(response?.options) ? response.options : []);
 
             const options = [];
-            for (const id of orderedRootIds) {
-                if (msgOnlyIds.has(id)) continue;
-                const name = displayNameFor(id, byId, map);
-                if (closedNames.has(normalizeName(name))) continue;
-                options.push({ id, label: name ? `${name} (${id})` : id });
+            for (const root of roots) {
+                const id = String(root?.id || root?.ctxid || '').trim();
+                if (!id || msgOnlyIds.has(id)) continue;
+                const name = String(root?.name || '').trim();
+                const label = String(root?.label || (name ? `${name} (${id})` : id)).trim();
+                options.push({ id, label });
             }
             host.heroRootOptions = options;
+            populateHeroSelectOptions(host, options);
         } catch (error) {
             console.error('[Superordinates] Failed loading Hero Mode root options:', error);
             host.heroRootOptionsError = error?.message || 'Failed to load ROOT superordinates.';
             host.heroRootOptions = [];
+            populateHeroSelectOptions(host, []);
         } finally {
             host.heroRootOptionsLoading = false;
         }
@@ -93,6 +53,28 @@
             || entry?.name
             || entry?.title
             || '';
+    }
+
+
+    function populateHeroSelectOptions(host, options) {
+        try {
+            const select = host?.$refs?.heroModeSelect || document.querySelector('[data-a0-hero-mode-select="1"]');
+            if (!select) return;
+            const selected = String(host?.config?.hero_mode_designated_hero || select.value || 'Disabled').trim() || 'Disabled';
+            while (select.options.length > 1) select.remove(1);
+            for (const option of options) {
+                const element = document.createElement('option');
+                element.value = option.id;
+                element.textContent = option.label;
+                select.appendChild(element);
+            }
+            select.value = Array.from(select.options).some((option) => option.value === selected)
+                ? selected
+                : 'Disabled';
+            if (host?.config) host.config.hero_mode_designated_hero = select.value;
+        } catch (error) {
+            console.error('[Superordinates] Failed populating Hero Mode select:', error);
+        }
     }
 
     function readMsgOnlyIds(superordinates) {
@@ -120,7 +102,7 @@
 </script>
 </head>
 <body>
-    <div x-data="{ heroRootOptions: [], heroRootOptionsLoading: false, heroRootOptionsError: '' }" x-init="window.a0SuperordinatesLoadHeroRootOptions?.(this)">
+    <div x-data="{ heroRootOptions: [], heroRootOptionsLoading: false, heroRootOptionsError: '' }" x-init="$nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this))" x-effect="if (config) { window.a0SuperordinatesLoadHeroRootOptions?.(this) }">
         <template x-if="config">
             <div>
                 <div class="section-title">A0 Superordinates</div>
@@ -142,11 +124,8 @@
                         </div>
                     </div>
                     <div class="field-control">
-                        <select x-model="config.hero_mode_designated_hero">
+                        <select x-model="config.hero_mode_designated_hero" x-ref="heroModeSelect" data-a0-hero-mode-select="1">
                             <option value="Disabled">Disabled</option>
-                            <template x-for="option in heroRootOptions" :key="option.id">
-                                <option :value="option.id" x-text="option.label"></option>
-                            </template>
                         </select>
                         <div class="field-description" x-show="heroRootOptionsLoading">Loading ROOT superordinates…</div>
                         <div class="field-description" x-show="heroRootOptionsError" x-text="heroRootOptionsError"></div>
