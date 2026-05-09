@@ -31,3 +31,17 @@ Canonical tool name:
 ```text
 superordinate_roles
 ```
+
+## Roles Routing Directive (Compact)
+
+When assessing an assignment to a superordinate, use an **evidence-first** policy:
+
+1. If a tool is requested (e.g., `superordinate_roles`), **run it first** or explicitly state it is unavailable.
+2. Base assignment on **verified role + availability**.
+3. Prefer the **feature specialist** over generic owner fallback.
+4. If no specialist is verified, return the best fallback and label it **Fallback (not fully verified)**.
+5. Every recommendation must include: **Source tool**, **selected superordinate**, **confidence (Verified/Fallback)**.
+
+**Tie-break rule:** Specialist > Owner fallback > Generalist.
+
+**No unverified definitive routing claims.**
