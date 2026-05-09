@@ -150,13 +150,24 @@ const model = {
   },
 
   _normalizeHeroModeDesignatedHero(value) {
+    // Hero Mode is keyed by immutable ContextID only. Names are intentionally
+    // not resolved here because they can be renamed and would break routing.
     const text = String(value || 'Disabled').trim();
     if (!text || text.toLowerCase() === 'disabled') return 'Disabled';
     return text;
   },
 
+  getHeroContextId() {
+    const heroId = this._normalizeHeroModeDesignatedHero(this.heroModeDesignatedHero);
+    return heroId === 'Disabled' ? '' : heroId;
+  },
+
   isHeroModeEnabled() {
-    return this._normalizeHeroModeDesignatedHero(this.heroModeDesignatedHero) !== 'Disabled';
+    return !!this.getHeroContextId();
+  },
+
+  isActiveHero(ctxid) {
+    return !!ctxid && ctxid === this.getHeroContextId();
   },
 
   sectionTitle() {
@@ -388,9 +399,17 @@ const model = {
       }
     }
     
-    // Sort roots using rootOrder from backend, falling back to original order
+    // Sort roots using rootOrder from backend, falling back to original order.
+    // While Hero Mode is enabled, the designated Hero ContextID is pinned to
+    // the top of ROOT display order without mutating the persisted root order.
+    // If Hero Mode is disabled or the Hero changes, this transient pin reverts.
     const savedRootOrder = this.rootOrder || [];
+    const activeHeroId = this.getHeroContextId();
     roots.sort((a, b) => {
+      if (activeHeroId) {
+        if (a.id === activeHeroId && b.id !== activeHeroId) return -1;
+        if (b.id === activeHeroId && a.id !== activeHeroId) return 1;
+      }
       const aIdx = savedRootOrder.indexOf(a.id);
       const bIdx = savedRootOrder.indexOf(b.id);
       // Items in rootOrder keep their saved order; new items (not in rootOrder) float to top
@@ -602,17 +621,27 @@ const model = {
   },
 
   /**
-   * Check if a node is pinned (manually locked from being moved).
+   * Check if a node is dynamically pinned because it is the active Hero.
+   * This is not persisted in localStorage; it disappears immediately when
+   * Hero Mode is disabled or another ContextID is selected.
+   */
+  isHeroPinned(ctxid) {
+    return this.isActiveHero(ctxid);
+  },
+
+  /**
+   * Check if a node is pinned. Manual pins are stored in localStorage; the
+   * active Hero is also treated as pinned while Hero Mode targets its ContextID.
    */
   isPinned(ctxid) {
-    return !!(ctxid && this.pinnedNodes[ctxid]);
+    return !!(ctxid && (this.pinnedNodes[ctxid] || this.isHeroPinned(ctxid)));
   },
 
   /**
    * Toggle pin state for a node. Pinned nodes cannot be moved/reparented.
    */
   togglePin(ctxid) {
-    if (!ctxid) return;
+    if (!ctxid || this.isHeroPinned(ctxid)) return;
     const next = !this.isPinned(ctxid);
     this.pinnedNodes = { ...this.pinnedNodes, [ctxid]: next };
     this._persistPinned();
