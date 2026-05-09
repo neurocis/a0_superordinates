@@ -117,15 +117,6 @@
         } catch (_error) {}
         return ids;
     }
-            host.heroRootOptions = rootIds.map((id) => ({ id, label: labelFor(id) }));
-        } catch (error) {
-            console.error('[Superordinates] Failed loading Hero Mode root options:', error);
-            host.heroRootOptionsError = error?.message || 'Failed to load ROOT superordinates.';
-            host.heroRootOptions = [];
-        } finally {
-            host.heroRootOptionsLoading = false;
-        }
-    };
 </script>
 </head>
 <body>
