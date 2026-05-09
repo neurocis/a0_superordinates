@@ -1,5 +1,6 @@
 <script type="module">
   import { store } from "/plugins/a0_superordinates/webui/inheritance-store.js";
+  import { store as _skillsStore } from "/plugins/a0_superordinates/webui/skills-store.js";
 </script>
 
 <span
@@ -15,7 +16,7 @@
     title="Inheritance"
     @click.prevent.stop="$store.superordinateInheritance.toggle()"
   >
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg class="a0-sup-inheritance-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M12 3v18"></path>
       <path d="M7 8l5-5 5 5"></path>
       <path d="M5 14h4a3 3 0 0 1 3 3"></path>
@@ -39,9 +40,9 @@
     @click.stop
   >
     <div class="a0-sup-inheritance-header">
-      <div>
-        <div class="a0-sup-inheritance-title">Inheritance</div>
-        <div class="a0-sup-inheritance-subtitle" x-text="$store.superordinateInheritance.chainLabel()"></div>
+      <div class="a0-sup-inheritance-title-line">
+        <strong>Inheritance</strong>
+        <span x-text="$store.superordinateInheritance.path"></span>
       </div>
       <div class="a0-sup-inheritance-actions">
         <button type="button" class="a0-sup-inheritance-small-button" @click="$store.superordinateInheritance.refresh({ force: true })" :disabled="$store.superordinateInheritance.loading || $store.superordinateInheritance.saving">Refresh</button>
@@ -74,10 +75,7 @@
               <article class="a0-sup-inheritance-entry">
                 <div class="a0-sup-inheritance-entry-head">
                   <strong x-text="$store.superordinateInheritance.entryTitle(entry, index)"></strong>
-                </div>
-                <div class="a0-sup-inheritance-attribution">
-                  <span>Context:</span> <code x-text="entry.context_id"></code>
-                  <span>Source:</span> <code x-text="entry.path"></code>
+                  <code class="a0-sup-inheritance-entry-context" x-text="'(' + entry.context_id + ')'"></code>
                 </div>
                 <pre class="a0-sup-inheritance-readonly" x-text="entry.text"></pre>
               </article>
@@ -86,9 +84,11 @@
         </section>
 
         <section class="a0-sup-inheritance-section">
-          <div class="a0-sup-inheritance-section-header">
-            <h3>Focused agent inheritance.md</h3>
-            <span x-text="$store.superordinateInheritance.path"></span>
+          <div class="a0-sup-inheritance-section-header a0-sup-inheritance-local-header">
+            <h3 class="a0-sup-inheritance-inline-heading">
+              <strong>Inheritance</strong>
+              <span x-text="$store.superordinateInheritance.path"></span>
+            </h3>
           </div>
 
           <textarea
@@ -115,6 +115,123 @@
     </template>
   </div>
 </span>
+
+
+
+<span
+  class="a0-sup-skills-tab-anchor"
+  x-data
+  x-effect="$store.superordinateSkills?.onContextChanged($store.chats?.selected || '')"
+  @keydown.escape.window="$store.superordinateSkills?.close()"
+>
+  <button
+    type="button"
+    class="text-button"
+    :class="$store.superordinateSkills?.visible ? 'a0-sup-skills-toggle-open' : ''"
+    title="Skills"
+    @click.prevent.stop="$store.superordinateSkills.toggle()"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 3v18"></path>
+      <path d="M7 8l5-5 5 5"></path>
+      <path d="M5 14h4a3 3 0 0 1 3 3"></path>
+      <path d="M19 14h-4a3 3 0 0 0-3 3"></path>
+    </svg>
+    <p>Skills</p>
+  </button>
+
+  <div
+    x-cloak
+    x-show="$store.superordinateSkills && $store.superordinateSkills.visible"
+    x-transition:enter="a0-sup-skills-slide-enter-active"
+    x-transition:enter-start="a0-sup-skills-slide-enter-from"
+    x-transition:enter-end="a0-sup-skills-slide-enter-to"
+    x-transition:leave="a0-sup-skills-slide-leave-active"
+    x-transition:leave-start="a0-sup-skills-slide-leave-from"
+    x-transition:leave-end="a0-sup-skills-slide-leave-to"
+    class="a0-sup-skills-panel"
+    role="dialog"
+    aria-label="Superordinate Skills"
+    @click.stop
+  >
+    <div class="a0-sup-skills-header">
+      <div class="a0-sup-skills-title-line">
+        <strong>Skills</strong>
+        <span x-text="$store.superordinateSkills.path"></span>
+      </div>
+      <div class="a0-sup-skills-actions">
+        <button type="button" class="a0-sup-skills-small-button" @click="$store.superordinateSkills.refresh({ force: true })" :disabled="$store.superordinateSkills.loading || $store.superordinateSkills.saving">Refresh</button>
+        <button type="button" class="a0-sup-skills-small-button" @click="$store.superordinateSkills.close()">Close</button>
+      </div>
+    </div>
+
+    <template x-if="$store.superordinateSkills.loading">
+      <div class="a0-sup-skills-muted">Loading skills…</div>
+    </template>
+
+    <template x-if="$store.superordinateSkills.error">
+      <div class="a0-sup-skills-error" x-text="$store.superordinateSkills.error"></div>
+    </template>
+
+    <template x-if="!$store.superordinateSkills.loading">
+      <div class="a0-sup-skills-grid">
+        <section class="a0-sup-skills-section">
+          <div class="a0-sup-skills-section-header">
+            <h3>Upward-flowing skills</h3>
+            <span>Read-only, focused agent → descendants</span>
+          </div>
+
+          <template x-if="$store.superordinateSkills.inheritedEntries().length === 0">
+            <div class="a0-sup-skills-muted">No subordinate skills.md content found below this focused agent.</div>
+          </template>
+
+          <div class="a0-sup-skills-entry-list">
+            <template x-for="(entry, index) in $store.superordinateSkills.inheritedEntries()" :key="entry.context_id">
+              <article class="a0-sup-skills-entry">
+                <div class="a0-sup-skills-entry-head">
+                  <strong x-text="$store.superordinateSkills.entryTitle(entry, index)"></strong>
+                  <code class="a0-sup-skills-entry-context" x-text="'(' + entry.context_id + ')'"></code>
+                </div>
+                <pre class="a0-sup-skills-readonly" x-text="entry.text"></pre>
+              </article>
+            </template>
+          </div>
+        </section>
+
+        <section class="a0-sup-skills-section">
+          <div class="a0-sup-skills-section-header a0-sup-skills-local-header">
+            <h3 class="a0-sup-skills-inline-heading">
+              <strong>Skills</strong>
+              <span x-text="$store.superordinateSkills.path"></span>
+            </h3>
+          </div>
+
+          <textarea
+            class="a0-sup-skills-editor"
+            spellcheck="false"
+            x-model="$store.superordinateSkills.draftText"
+            placeholder="# Superordinate Skills&#10;&#10;Describe this agent's skills, strengths, tools, domains, and delegation suitability. These descriptions flow upward to parents."
+          ></textarea>
+
+          <div class="a0-sup-skills-save-row">
+            <div class="a0-sup-skills-muted" x-show="$store.superordinateSkills.hasUnsavedChanges()">Unsaved changes</div>
+            <div class="a0-sup-skills-muted" x-show="!$store.superordinateSkills.hasUnsavedChanges()">Saved</div>
+            <button
+              type="button"
+              class="a0-sup-skills-save-button"
+              @click="$store.superordinateSkills.save()"
+              :disabled="$store.superordinateSkills.saving || !$store.superordinateSkills.hasUnsavedChanges()"
+            >
+              <span x-text="$store.superordinateSkills.saving ? 'Saving…' : 'Save'"></span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </template>
+  </div>
+</span>
+
+
 
 <style>
   .a0-sup-inheritance-tab-anchor {
@@ -228,6 +345,31 @@
     font-size: 1rem;
   }
 
+  .a0-sup-inheritance-title-line {
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 1rem;
+  }
+
+  .a0-sup-inheritance-title-line strong {
+    flex: 0 0 auto;
+    font-weight: 700;
+  }
+
+  .a0-sup-inheritance-title-line span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.7;
+  }
+
   .a0-sup-inheritance-subtitle {
     margin-top: 0.2rem;
     font-size: 0.72rem;
@@ -274,6 +416,39 @@
     opacity: 0.62;
   }
 
+  .a0-sup-inheritance-local-header {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .a0-sup-inheritance-inline-heading {
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    font-weight: 400;
+    gap: 0;
+  }
+
+  .a0-sup-inheritance-inline-heading strong {
+    flex: 0 0 auto;
+    font-weight: 700;
+  }
+
+  .a0-sup-inheritance-inline-heading span {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 400;
+    opacity: 0.62;
+  }
+
   .a0-sup-inheritance-entry-list {
     min-height: 0;
     overflow: auto;
@@ -296,30 +471,29 @@
 
   .a0-sup-inheritance-entry-head {
     justify-content: space-between;
-    margin-bottom: 0.45rem;
-    font-size: 0.8rem;
-  }
-
-  .a0-sup-inheritance-entry-head span {
-    font-size: 0.64rem;
-    opacity: 0.66;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .a0-sup-inheritance-attribution {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.25rem 0.5rem;
+    min-width: 0;
     margin-bottom: 0.55rem;
-    font-size: 0.66rem;
-    opacity: 0.7;
+    font-size: 0.8rem;
+    gap: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
   }
 
-  .a0-sup-inheritance-attribution code {
+  .a0-sup-inheritance-entry-head strong {
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .a0-sup-inheritance-entry-context {
+    flex: 0 0 auto;
+    margin-left: auto;
+    font-size: 0.66rem;
+    font-weight: 400;
+    opacity: 0.72;
+    text-align: right;
     white-space: nowrap;
   }
 
@@ -411,6 +585,369 @@
       max-height: 78vh;
     }
     .a0-sup-inheritance-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+
+  .a0-sup-inheritance-tab-icon {
+    display: inline-block;
+    transform: rotate(180deg);
+    transform-origin: center;
+  }
+
+
+  .a0-sup-skills-tab-anchor {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+    --a0-sup-skills-panel-margin: clamp(0.5rem, 1.5vw, 1.25rem);
+    --a0-sup-skills-panel-width: calc(100vw - 1rem);
+    --a0-sup-skills-panel-max-height: min(760px, 82vh);
+    --a0-sup-skills-tab-offset-left: 0px;
+  }
+
+  .a0-sup-skills-tab-anchor > .text-button {
+    position: relative;
+    z-index: 10002;
+  }
+
+  .a0-sup-skills-toggle-open {
+    background-color: var(--color-background-hover) !important;
+    border-radius: 0 0 4px 4px;
+    opacity: 1 !important;
+  }
+
+  .a0-sup-skills-host-lifted {
+    position: relative;
+    z-index: 10002;
+    overflow: visible !important;
+  }
+
+  .a0-sup-skills-compose-lifted {
+    position: relative;
+    z-index: 10002;
+    transform: translateY(calc(-1 * var(--a0-sup-skills-panel-lift, 18rem)));
+    transition: transform 180ms ease;
+    will-change: transform;
+  }
+
+  .a0-sup-skills-output-lifted {
+    transition: height 180ms ease, max-height 180ms ease, padding-bottom 180ms ease, margin-bottom 180ms ease;
+  }
+
+  .a0-sup-skills-panel {
+    position: absolute;
+    top: auto;
+    left: calc(-1 * var(--a0-sup-skills-tab-offset-left, 0px));
+    right: auto;
+    bottom: calc(100% - 1px);
+    z-index: 10001;
+    width: var(--a0-sup-skills-panel-width, calc(100vw - 1rem));
+    max-width: calc(100vw - 1rem);
+    height: var(--a0-sup-skills-panel-height, auto);
+    max-height: var(--a0-sup-skills-panel-max-height, min(760px, 82vh));
+    min-height: min(360px, var(--a0-sup-skills-panel-height, 360px));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    color: var(--color-text);
+    background: var(--color-panel, var(--color-bg));
+    border: 1px solid var(--color-border);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+    padding: 1rem;
+    transform-origin: bottom center;
+    will-change: transform, opacity;
+  }
+
+  .a0-sup-skills-panel::before {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: var(--a0-sup-skills-tab-left, 0px);
+    width: var(--a0-sup-skills-tab-width, 7rem);
+    height: 1px;
+    background: var(--color-panel, var(--color-bg));
+  }
+
+  .a0-sup-skills-slide-enter-active,
+  .a0-sup-skills-slide-leave-active {
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .a0-sup-skills-slide-enter-from,
+  .a0-sup-skills-slide-leave-to {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  .a0-sup-skills-slide-enter-to,
+  .a0-sup-skills-slide-leave-from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .a0-sup-skills-header,
+  .a0-sup-skills-save-row,
+  .a0-sup-skills-section-header,
+  .a0-sup-skills-entry-head,
+  .a0-sup-skills-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .a0-sup-skills-header {
+    justify-content: space-between;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  .a0-sup-skills-title {
+    font-weight: 700;
+    font-size: 1rem;
+  }
+
+  .a0-sup-skills-title-line {
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 1rem;
+  }
+
+  .a0-sup-skills-title-line strong {
+    flex: 0 0 auto;
+    font-weight: 700;
+  }
+
+  .a0-sup-skills-title-line span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.7;
+  }
+
+  .a0-sup-skills-subtitle {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    opacity: 0.7;
+  }
+
+  .a0-sup-skills-grid {
+    min-height: 0;
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+    gap: 1rem;
+    padding-top: 1rem;
+  }
+
+  .a0-sup-skills-section {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: color-mix(in srgb, var(--color-panel, #111) 92%, white 8%);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 0.8rem;
+    overflow: hidden;
+  }
+
+  .a0-sup-skills-section-header {
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .a0-sup-skills-section-header h3 {
+    margin: 0;
+    font-size: 0.86rem;
+  }
+
+  .a0-sup-skills-section-header span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    opacity: 0.62;
+  }
+
+  .a0-sup-skills-local-header {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .a0-sup-skills-inline-heading {
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    font-weight: 400;
+    gap: 0;
+  }
+
+  .a0-sup-skills-inline-heading strong {
+    flex: 0 0 auto;
+    font-weight: 700;
+  }
+
+  .a0-sup-skills-inline-heading span {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 400;
+    opacity: 0.62;
+  }
+
+  .a0-sup-skills-entry-list {
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-right: 0.25rem;
+  }
+
+  .a0-sup-skills-entry {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.7rem;
+    background: color-mix(in srgb, var(--color-panel, #111) 88%, black 12%);
+  }
+
+  .a0-sup-skills-entry.is-local {
+    border-color: color-mix(in srgb, var(--color-primary, #6aa9ff) 55%, var(--color-border));
+  }
+
+  .a0-sup-skills-entry-head {
+    justify-content: space-between;
+    min-width: 0;
+    margin-bottom: 0.55rem;
+    font-size: 0.8rem;
+    gap: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .a0-sup-skills-entry-head strong {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .a0-sup-skills-entry-context {
+    flex: 0 0 auto;
+    margin-left: auto;
+    font-size: 0.66rem;
+    font-weight: 400;
+    opacity: 0.72;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .a0-sup-skills-readonly,
+  .a0-sup-skills-editor {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-panel, #111) 78%, black 22%);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+  }
+
+  .a0-sup-skills-readonly {
+    margin: 0;
+    max-height: 280px;
+    overflow: auto;
+    padding: 0.7rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .a0-sup-skills-editor {
+    min-height: 0;
+    flex: 1;
+    resize: none;
+    padding: 0.8rem;
+    outline: none;
+  }
+
+  .a0-sup-skills-editor:focus {
+    border-color: color-mix(in srgb, var(--color-primary, #6aa9ff) 70%, var(--color-border));
+  }
+
+  .a0-sup-skills-save-row {
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .a0-sup-skills-small-button,
+  .a0-sup-skills-save-button {
+    border: 1px solid var(--color-border);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    font-size: 0.72rem;
+    padding: 0.38rem 0.65rem;
+  }
+
+  .a0-sup-skills-save-button {
+    background: var(--color-primary, #4361ee);
+    border-color: var(--color-primary, #4361ee);
+    color: white;
+    min-width: 76px;
+  }
+
+  .a0-sup-skills-small-button:hover:not(:disabled),
+  .a0-sup-skills-save-button:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  .a0-sup-skills-small-button:disabled,
+  .a0-sup-skills-save-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .a0-sup-skills-muted {
+    font-size: 0.74rem;
+    opacity: 0.64;
+  }
+
+  .a0-sup-skills-error {
+    margin-top: 0.75rem;
+    padding: 0.7rem;
+    border: 1px solid color-mix(in srgb, red 45%, var(--color-border));
+    border-radius: 8px;
+    color: #ff8a8a;
+    background: rgba(255, 0, 0, 0.08);
+  }
+
+  @media (max-width: 900px) {
+    .a0-sup-skills-panel {
+      left: 0.5rem;
+      right: 0.5rem;
+      bottom: 4rem;
+      max-height: 78vh;
+    }
+    .a0-sup-skills-grid {
       grid-template-columns: 1fr;
     }
   }

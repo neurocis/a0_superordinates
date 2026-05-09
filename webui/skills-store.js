@@ -1,9 +1,9 @@
 /**
- * Superordinate Inheritance editor/preview store.
+ * Superordinate Skills editor/preview store.
  *
  * Provides a bottom-action slide-up panel that shows:
- * - read-only effective inherited Markdown with attribution; and
- * - editable local /a0/usr/chats/<ctxid>/superordinate/inheritance.md.
+ * - read-only upward-flowing subordinate skills with attribution; and
+ * - editable local /a0/usr/chats/<ctxid>/superordinate/skills.md.
  */
 
 import { createStore } from "/js/AlpineStore.js";
@@ -29,25 +29,25 @@ const model = {
   saving: false,
   error: "",
   lastCtxid: "",
-  inheritanceLiftEls: [],
-  inheritanceOutputEl: null,
-  inheritanceHostEl: null,
-  inheritanceResizeRaf: 0,
-  inheritanceResizeListener: null,
+  skillsLiftEls: [],
+  skillsOutputEl: null,
+  skillsHostEl: null,
+  skillsResizeRaf: 0,
+  skillsResizeListener: null,
   placementCleanupTimer: null,
   ...EMPTY_STATE,
 
 
-  inheritanceAnchor() {
-    return document.querySelector(".a0-sup-inheritance-tab-anchor");
+  skillsAnchor() {
+    return document.querySelector(".a0-sup-skills-tab-anchor");
   },
 
-  inheritanceButton() {
-    return document.querySelector(".a0-sup-inheritance-tab-anchor > .text-button");
+  skillsButton() {
+    return document.querySelector(".a0-sup-skills-tab-anchor > .text-button");
   },
 
-  inheritanceActionHost() {
-    const anchor = this.inheritanceAnchor();
+  skillsActionHost() {
+    const anchor = this.skillsAnchor();
     if (!anchor) return null;
     return anchor.closest?.(".chat-bottom-actions-bar") ||
       anchor.closest?.(".text-buttons-row") ||
@@ -55,7 +55,7 @@ const model = {
       anchor;
   },
 
-  inheritanceComposerReferenceEl(host) {
+  skillsComposerReferenceEl(host) {
     try {
       const input = document.getElementById("chat-input");
       const row = input?.closest?.(".input-row");
@@ -68,7 +68,7 @@ const model = {
     }
   },
 
-  inheritanceComposerLiftTargets(host) {
+  skillsComposerLiftTargets(host) {
     const targets = [];
     const add = (el) => {
       if (!el || targets.includes(el)) return;
@@ -85,7 +85,7 @@ const model = {
     };
 
     try {
-      const reference = this.inheritanceComposerReferenceEl(host);
+      const reference = this.skillsComposerReferenceEl(host);
       const progressBox = document.getElementById("progress-bar-box");
       if (
         progressBox &&
@@ -104,32 +104,32 @@ const model = {
 
   liftComposerElements(host, lift) {
     try {
-      const targets = this.inheritanceComposerLiftTargets(host);
-      for (const previous of this.inheritanceLiftEls || []) {
+      const targets = this.skillsComposerLiftTargets(host);
+      for (const previous of this.skillsLiftEls || []) {
         if (!targets.includes(previous)) {
-          previous.classList.remove("a0-sup-inheritance-compose-lifted");
-          previous.style.removeProperty("--a0-sup-inheritance-panel-lift");
+          previous.classList.remove("a0-sup-skills-compose-lifted");
+          previous.style.removeProperty("--a0-sup-skills-panel-lift");
         }
       }
-      this.inheritanceLiftEls = targets;
+      this.skillsLiftEls = targets;
       for (const el of targets) {
-        el.style.setProperty("--a0-sup-inheritance-panel-lift", `${lift}px`);
-        el.classList.add("a0-sup-inheritance-compose-lifted");
+        el.style.setProperty("--a0-sup-skills-panel-lift", `${lift}px`);
+        el.classList.add("a0-sup-skills-compose-lifted");
       }
     } catch (_e) {}
   },
 
   clearComposerLift() {
     try {
-      for (const el of this.inheritanceLiftEls || []) {
-        el.classList.remove("a0-sup-inheritance-compose-lifted");
-        el.style.removeProperty("--a0-sup-inheritance-panel-lift");
+      for (const el of this.skillsLiftEls || []) {
+        el.classList.remove("a0-sup-skills-compose-lifted");
+        el.style.removeProperty("--a0-sup-skills-panel-lift");
       }
-      this.inheritanceLiftEls = [];
+      this.skillsLiftEls = [];
     } catch (_e) {}
   },
 
-  inheritanceOutputHost(host) {
+  skillsOutputHost(host) {
     try {
       const history = document.getElementById("chat-history");
       if (history) return history;
@@ -160,7 +160,7 @@ const model = {
     }
   },
 
-  inheritanceLowerChromeTop(host) {
+  skillsLowerChromeTop(host) {
     try {
       const hostRect = host?.getBoundingClientRect?.();
       const inputSection = document.getElementById("input-section");
@@ -182,28 +182,28 @@ const model = {
 
   liftOutputHost(host, lift) {
     try {
-      const output = this.inheritanceOutputHost(host);
-      if (this.inheritanceOutputEl && this.inheritanceOutputEl !== output) this.clearOutputLift();
+      const output = this.skillsOutputHost(host);
+      if (this.skillsOutputEl && this.skillsOutputEl !== output) this.clearOutputLift();
       if (!output) return;
-      this.inheritanceOutputEl = output;
-      output.classList.add("a0-sup-inheritance-output-lifted");
-      if (!output.dataset.a0SupInheritanceHasOriginals) {
+      this.skillsOutputEl = output;
+      output.classList.add("a0-sup-skills-output-lifted");
+      if (!output.dataset.a0SupSkillsHasOriginals) {
         const computed = window.getComputedStyle(output);
-        output.dataset.a0SupInheritanceHasOriginals = "1";
-        output.dataset.a0SupInheritanceOriginalHeight = output.style.height || "";
-        output.dataset.a0SupInheritanceOriginalMaxHeight = output.style.maxHeight || "";
-        output.dataset.a0SupInheritanceOriginalPaddingBottom = output.style.paddingBottom || "";
-        output.dataset.a0SupInheritanceOriginalMarginBottom = output.style.marginBottom || "";
-        output.dataset.a0SupInheritanceBasePaddingBottom = String(Number.parseFloat(computed.paddingBottom) || 0);
-        output.dataset.a0SupInheritanceBaseHeight = String(output.getBoundingClientRect().height || output.clientHeight || 0);
+        output.dataset.a0SupSkillsHasOriginals = "1";
+        output.dataset.a0SupSkillsOriginalHeight = output.style.height || "";
+        output.dataset.a0SupSkillsOriginalMaxHeight = output.style.maxHeight || "";
+        output.dataset.a0SupSkillsOriginalPaddingBottom = output.style.paddingBottom || "";
+        output.dataset.a0SupSkillsOriginalMarginBottom = output.style.marginBottom || "";
+        output.dataset.a0SupSkillsBasePaddingBottom = String(Number.parseFloat(computed.paddingBottom) || 0);
+        output.dataset.a0SupSkillsBaseHeight = String(output.getBoundingClientRect().height || output.clientHeight || 0);
       }
       const rect = output.getBoundingClientRect();
-      const lowerTop = this.inheritanceLowerChromeTop(host);
+      const lowerTop = this.skillsLowerChromeTop(host);
       const desiredBottom = Math.max(0, lowerTop - 2);
       const targetHeightFromGeometry = Math.max(140, Math.round(desiredBottom - rect.top));
-      const baseHeight = Number.parseFloat(output.dataset.a0SupInheritanceBaseHeight || "0") || rect.height || output.clientHeight || targetHeightFromGeometry;
+      const baseHeight = Number.parseFloat(output.dataset.a0SupSkillsBaseHeight || "0") || rect.height || output.clientHeight || targetHeightFromGeometry;
       const targetHeight = Math.min(Math.round(baseHeight), targetHeightFromGeometry);
-      const basePadding = Number.parseFloat(output.dataset.a0SupInheritanceBasePaddingBottom || "0") || 0;
+      const basePadding = Number.parseFloat(output.dataset.a0SupSkillsBasePaddingBottom || "0") || 0;
       output.style.height = `${targetHeight}px`;
       output.style.maxHeight = `${targetHeight}px`;
       output.style.paddingBottom = `${Math.round(basePadding + Math.max(0, lift * 0.25))}px`;
@@ -214,21 +214,21 @@ const model = {
 
   clearOutputLift() {
     try {
-      if (!this.inheritanceOutputEl) return;
-      const output = this.inheritanceOutputEl;
-      output.classList.remove("a0-sup-inheritance-output-lifted");
-      output.style.height = output.dataset.a0SupInheritanceOriginalHeight || "";
-      output.style.maxHeight = output.dataset.a0SupInheritanceOriginalMaxHeight || "";
-      output.style.paddingBottom = output.dataset.a0SupInheritanceOriginalPaddingBottom || "";
-      output.style.marginBottom = output.dataset.a0SupInheritanceOriginalMarginBottom || "";
-      delete output.dataset.a0SupInheritanceHasOriginals;
-      delete output.dataset.a0SupInheritanceOriginalHeight;
-      delete output.dataset.a0SupInheritanceOriginalMaxHeight;
-      delete output.dataset.a0SupInheritanceOriginalPaddingBottom;
-      delete output.dataset.a0SupInheritanceOriginalMarginBottom;
-      delete output.dataset.a0SupInheritanceBasePaddingBottom;
-      delete output.dataset.a0SupInheritanceBaseHeight;
-      this.inheritanceOutputEl = null;
+      if (!this.skillsOutputEl) return;
+      const output = this.skillsOutputEl;
+      output.classList.remove("a0-sup-skills-output-lifted");
+      output.style.height = output.dataset.a0SupSkillsOriginalHeight || "";
+      output.style.maxHeight = output.dataset.a0SupSkillsOriginalMaxHeight || "";
+      output.style.paddingBottom = output.dataset.a0SupSkillsOriginalPaddingBottom || "";
+      output.style.marginBottom = output.dataset.a0SupSkillsOriginalMarginBottom || "";
+      delete output.dataset.a0SupSkillsHasOriginals;
+      delete output.dataset.a0SupSkillsOriginalHeight;
+      delete output.dataset.a0SupSkillsOriginalMaxHeight;
+      delete output.dataset.a0SupSkillsOriginalPaddingBottom;
+      delete output.dataset.a0SupSkillsOriginalMarginBottom;
+      delete output.dataset.a0SupSkillsBasePaddingBottom;
+      delete output.dataset.a0SupSkillsBaseHeight;
+      this.skillsOutputEl = null;
     } catch (_e) {}
   },
 
@@ -238,27 +238,27 @@ const model = {
         window.clearTimeout(this.placementCleanupTimer);
         this.placementCleanupTimer = null;
       }
-      const anchor = this.inheritanceAnchor();
-      const button = this.inheritanceButton();
-      const host = this.inheritanceActionHost();
+      const anchor = this.skillsAnchor();
+      const button = this.skillsButton();
+      const host = this.skillsActionHost();
       if (!anchor || !button || !host) return;
-      if (this.inheritanceHostEl && this.inheritanceHostEl !== host) {
-        this.inheritanceHostEl.classList.remove("a0-sup-inheritance-host-lifted");
-        this.inheritanceHostEl.style.removeProperty("--a0-sup-inheritance-panel-lift");
+      if (this.skillsHostEl && this.skillsHostEl !== host) {
+        this.skillsHostEl.classList.remove("a0-sup-skills-host-lifted");
+        this.skillsHostEl.style.removeProperty("--a0-sup-skills-panel-lift");
       }
-      this.inheritanceHostEl = host;
+      this.skillsHostEl = host;
 
       const hostRect = host.getBoundingClientRect();
       const buttonRect = button.getBoundingClientRect();
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
-      const marginValue = getComputedStyle(anchor).getPropertyValue("--a0-sup-inheritance-panel-margin").trim();
+      const marginValue = getComputedStyle(anchor).getPropertyValue("--a0-sup-skills-panel-margin").trim();
       const margin = Number.parseFloat(marginValue) || 8;
       const anchorRect = anchor.getBoundingClientRect();
-      const reference = this.inheritanceComposerReferenceEl(host);
+      const reference = this.skillsComposerReferenceEl(host);
       const referenceRect = reference?.getBoundingClientRect?.();
       const activeReferenceLift = reference
-        ? (Number.parseFloat(reference.style.getPropertyValue("--a0-sup-inheritance-panel-lift")) ||
-          Number.parseFloat(getComputedStyle(reference).getPropertyValue("--a0-sup-inheritance-panel-lift")) || 0)
+        ? (Number.parseFloat(reference.style.getPropertyValue("--a0-sup-skills-panel-lift")) ||
+          Number.parseFloat(getComputedStyle(reference).getPropertyValue("--a0-sup-skills-panel-lift")) || 0)
         : 0;
       const panelBottom = Math.round(anchorRect.top || buttonRect.top || hostRect.top);
       const referenceUnliftedBottom = referenceRect ? Math.round(referenceRect.bottom + activeReferenceLift) : null;
@@ -273,7 +273,7 @@ const model = {
         referenceRect,
         document.getElementById("chat-input-container")?.getBoundingClientRect?.(),
         document.getElementById("input-section")?.getBoundingClientRect?.(),
-        this.inheritanceOutputHost(host)?.getBoundingClientRect?.(),
+        this.skillsOutputHost(host)?.getBoundingClientRect?.(),
         hostRect,
       ].filter((rect) => rect && rect.width > 0);
       const contentRect = boundsCandidates.find((rect) => rect.width >= 260) || hostRect;
@@ -286,13 +286,13 @@ const model = {
       const offsetLeft = Math.round((anchorRect.left || buttonRect.left) - panelLeft);
       const tabLeft = Math.max(0, Math.min(panelWidth - buttonRect.width, Math.round(buttonRect.left - panelLeft)));
 
-      anchor.style.setProperty("--a0-sup-inheritance-panel-width", `${Math.round(panelWidth)}px`);
-      anchor.style.setProperty("--a0-sup-inheritance-panel-height", `${desiredHeight}px`);
-      anchor.style.setProperty("--a0-sup-inheritance-panel-max-height", `${desiredHeight}px`);
-      anchor.style.setProperty("--a0-sup-inheritance-tab-offset-left", `${offsetLeft}px`);
-      anchor.style.setProperty("--a0-sup-inheritance-tab-width", `${Math.ceil(buttonRect.width)}px`);
-      anchor.style.setProperty("--a0-sup-inheritance-tab-left", `${tabLeft}px`);
-      host.classList.add("a0-sup-inheritance-host-lifted");
+      anchor.style.setProperty("--a0-sup-skills-panel-width", `${Math.round(panelWidth)}px`);
+      anchor.style.setProperty("--a0-sup-skills-panel-height", `${desiredHeight}px`);
+      anchor.style.setProperty("--a0-sup-skills-panel-max-height", `${desiredHeight}px`);
+      anchor.style.setProperty("--a0-sup-skills-tab-offset-left", `${offsetLeft}px`);
+      anchor.style.setProperty("--a0-sup-skills-tab-width", `${Math.ceil(buttonRect.width)}px`);
+      anchor.style.setProperty("--a0-sup-skills-tab-left", `${tabLeft}px`);
+      host.classList.add("a0-sup-skills-host-lifted");
       this.liftComposerElements(host, lift);
       this.liftOutputHost(host, lift);
     } catch (_e) {}
@@ -300,19 +300,19 @@ const model = {
 
   clearPanelPlacement() {
     try {
-      const anchor = this.inheritanceAnchor();
-      if (this.inheritanceHostEl) {
-        this.inheritanceHostEl.classList.remove("a0-sup-inheritance-host-lifted");
-        this.inheritanceHostEl.style.removeProperty("--a0-sup-inheritance-panel-lift");
-        this.inheritanceHostEl = null;
+      const anchor = this.skillsAnchor();
+      if (this.skillsHostEl) {
+        this.skillsHostEl.classList.remove("a0-sup-skills-host-lifted");
+        this.skillsHostEl.style.removeProperty("--a0-sup-skills-panel-lift");
+        this.skillsHostEl = null;
       }
       if (anchor) {
-        anchor.style.removeProperty("--a0-sup-inheritance-panel-width");
-        anchor.style.removeProperty("--a0-sup-inheritance-panel-height");
-        anchor.style.removeProperty("--a0-sup-inheritance-panel-max-height");
-        anchor.style.removeProperty("--a0-sup-inheritance-tab-offset-left");
-        anchor.style.removeProperty("--a0-sup-inheritance-tab-width");
-        anchor.style.removeProperty("--a0-sup-inheritance-tab-left");
+        anchor.style.removeProperty("--a0-sup-skills-panel-width");
+        anchor.style.removeProperty("--a0-sup-skills-panel-height");
+        anchor.style.removeProperty("--a0-sup-skills-panel-max-height");
+        anchor.style.removeProperty("--a0-sup-skills-tab-offset-left");
+        anchor.style.removeProperty("--a0-sup-skills-tab-width");
+        anchor.style.removeProperty("--a0-sup-skills-tab-left");
       }
       this.clearComposerLift();
       this.clearOutputLift();
@@ -322,29 +322,29 @@ const model = {
   schedulePanelPlacement() {
     try {
       if (!this.visible) return;
-      if (this.inheritanceResizeRaf) window.cancelAnimationFrame(this.inheritanceResizeRaf);
-      this.inheritanceResizeRaf = window.requestAnimationFrame(() => {
-        this.inheritanceResizeRaf = 0;
+      if (this.skillsResizeRaf) window.cancelAnimationFrame(this.skillsResizeRaf);
+      this.skillsResizeRaf = window.requestAnimationFrame(() => {
+        this.skillsResizeRaf = 0;
         this.syncPanelPlacement();
       });
     } catch (_e) {}
   },
 
-  installInheritanceResizeListener() {
-    if (this.inheritanceResizeListener) return;
-    this.inheritanceResizeListener = () => this.schedulePanelPlacement();
-    window.addEventListener("resize", this.inheritanceResizeListener, { passive: true });
-    window.addEventListener("scroll", this.inheritanceResizeListener, { passive: true, capture: true });
+  installSkillsResizeListener() {
+    if (this.skillsResizeListener) return;
+    this.skillsResizeListener = () => this.schedulePanelPlacement();
+    window.addEventListener("resize", this.skillsResizeListener, { passive: true });
+    window.addEventListener("scroll", this.skillsResizeListener, { passive: true, capture: true });
   },
 
-  removeInheritanceResizeListener() {
-    if (!this.inheritanceResizeListener) return;
-    window.removeEventListener("resize", this.inheritanceResizeListener);
-    window.removeEventListener("scroll", this.inheritanceResizeListener, { capture: true });
-    this.inheritanceResizeListener = null;
-    if (this.inheritanceResizeRaf) {
-      window.cancelAnimationFrame(this.inheritanceResizeRaf);
-      this.inheritanceResizeRaf = 0;
+  removeSkillsResizeListener() {
+    if (!this.skillsResizeListener) return;
+    window.removeEventListener("resize", this.skillsResizeListener);
+    window.removeEventListener("scroll", this.skillsResizeListener, { capture: true });
+    this.skillsResizeListener = null;
+    if (this.skillsResizeRaf) {
+      window.cancelAnimationFrame(this.skillsResizeRaf);
+      this.skillsResizeRaf = 0;
     }
   },
 
@@ -357,9 +357,9 @@ const model = {
   },
 
   async open() {
-    window.Alpine?.store("superordinateSkills")?.close?.();
+    window.Alpine?.store("superordinateInheritance")?.close?.();
     this.visible = true;
-    this.installInheritanceResizeListener();
+    this.installSkillsResizeListener();
     window.requestAnimationFrame(() => this.syncPanelPlacement());
     await this.refresh({ force: true });
     window.requestAnimationFrame(() => this.syncPanelPlacement());
@@ -367,7 +367,7 @@ const model = {
 
   close() {
     this.visible = false;
-    this.removeInheritanceResizeListener();
+    this.removeSkillsResizeListener();
     if (this.placementCleanupTimer) window.clearTimeout(this.placementCleanupTimer);
     this.placementCleanupTimer = window.setTimeout(() => this.clearPanelPlacement(), 220);
   },
@@ -416,11 +416,11 @@ const model = {
     this.loading = true;
     try {
       const res = await callJsonApi(
-        "plugins/a0_superordinates/superordinate_inheritance_get",
+        "plugins/a0_superordinates/superordinate_skills_get",
         { ctxid },
       );
       if (!res || !res.ok) {
-        throw new Error(res?.error || "Failed to load inheritance.");
+        throw new Error(res?.error || "Failed to load skills.");
       }
 
       this.ctxid = res.ctxid || ctxid;
@@ -432,8 +432,8 @@ const model = {
       this.effectivePrompt = res.effective_prompt || "";
       if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
     } catch (error) {
-      console.error("[SuperordinateInheritance] refresh failed:", error);
-      this.error = error?.message || "Failed to load inheritance.";
+      console.error("[SuperordinateSkills] refresh failed:", error);
+      this.error = error?.message || "Failed to load skills.";
     } finally {
       this.loading = false;
     }
@@ -442,7 +442,7 @@ const model = {
   async save() {
     const ctxid = this.ctxid || this.getSelectedCtxid();
     if (!ctxid) {
-      toastFrontendError("No focused agent/chat is selected.", "Inheritance");
+      toastFrontendError("No focused agent/chat is selected.", "Skills");
       return;
     }
 
@@ -450,21 +450,21 @@ const model = {
     this.error = "";
     try {
       const res = await callJsonApi(
-        "plugins/a0_superordinates/superordinate_inheritance_set",
+        "plugins/a0_superordinates/superordinate_skills_set",
         { ctxid, text: this.draftText || "" },
       );
       if (!res || !res.ok) {
-        throw new Error(res?.error || "Failed to save inheritance.md.");
+        throw new Error(res?.error || "Failed to save skills.md.");
       }
       this.path = res.path || this.path;
       this.localText = this.draftText || "";
-      toastFrontendSuccess("inheritance.md saved.", "Inheritance");
+      toastFrontendSuccess("skills.md saved.", "Skills");
       await this.refresh({ force: true });
       if (this.visible) window.requestAnimationFrame(() => this.syncPanelPlacement());
     } catch (error) {
-      console.error("[SuperordinateInheritance] save failed:", error);
-      this.error = error?.message || "Failed to save inheritance.md.";
-      toastFrontendError(this.error, "Inheritance");
+      console.error("[SuperordinateSkills] save failed:", error);
+      this.error = error?.message || "Failed to save skills.md.";
+      toastFrontendError(this.error, "Skills");
     } finally {
       this.saving = false;
     }
@@ -495,4 +495,4 @@ const model = {
   },
 };
 
-export const store = createStore("superordinateInheritance", model);
+export const store = createStore("superordinateSkills", model);
