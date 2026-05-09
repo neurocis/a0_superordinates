@@ -8,10 +8,6 @@ Roles flow upward through the superordinate hierarchy: a focused agent sees its
 own roles plus the roles of every descendant/subordinate, with attribution to
 the agent that owns each description. This lets parents understand what their
 superordinates can do for delegation purposes.
-
-For compatibility with the short-lived previous feature names, existing
-``occupations.md`` and ``skills.md`` files are read as fallbacks when
-``roles.md`` is absent.
 """
 from __future__ import annotations
 
@@ -26,8 +22,6 @@ from usr.plugins.a0_superordinates.helpers.inheritance import (
 )
 
 ROLES_FILENAME = "roles.md"
-LEGACY_OCCUPATIONS_FILENAME = "occupations.md"
-LEGACY_SKILLS_FILENAME = "skills.md"
 MAX_ROLES_BYTES_PER_NODE = 64 * 1024
 MAX_ROLES_NODES = 512
 
@@ -51,36 +45,11 @@ def roles_path(ctxid: str) -> str:
     return os.path.join(roles_dir(ctxid), ROLES_FILENAME)
 
 
-def legacy_occupations_path(ctxid: str) -> str:
-    return os.path.join(roles_dir(ctxid), LEGACY_OCCUPATIONS_FILENAME)
-
-
-def legacy_skills_path(ctxid: str) -> str:
-    return os.path.join(roles_dir(ctxid), LEGACY_SKILLS_FILENAME)
-
-
-def readable_roles_path(ctxid: str) -> str:
-    """Return roles.md, or a legacy file when it is the only file present."""
-    path = roles_path(ctxid)
-    if os.path.isfile(path):
-        return path
-    occupations_path = legacy_occupations_path(ctxid)
-    if os.path.isfile(occupations_path):
-        return occupations_path
-    skills_path = legacy_skills_path(ctxid)
-    if os.path.isfile(skills_path):
-        return skills_path
-    return path
-
-
 def ensure_roles_file(ctxid: str) -> str:
     """Create the superordinate roles file if missing and return its path."""
     path = roles_path(ctxid)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if not os.path.exists(path):
-        legacy_path = readable_roles_path(ctxid)
-        if legacy_path != path and os.path.isfile(legacy_path):
-            return legacy_path
         with open(path, "w", encoding="utf-8") as f:
             f.write(
                 "# Superordinate Roles\n\n"
@@ -91,8 +60,8 @@ def ensure_roles_file(ctxid: str) -> str:
 
 
 def read_roles_file(ctxid: str) -> str:
-    """Read one context's roles.md, with legacy fallback and safeguards."""
-    path = readable_roles_path(ctxid)
+    """Read one context's roles.md, with size and encoding safeguards."""
+    path = roles_path(ctxid)
     try:
         if not os.path.isfile(path):
             return ""
@@ -187,7 +156,7 @@ def resolve_roles_entries(ctxid: str) -> list[RolesEntry]:
             RolesEntry(
                 context_id=node_id,
                 name=get_context_name(node_id),
-                path=readable_roles_path(node_id),
+                path=roles_path(node_id),
                 text=text,
                 depth=depth,
             )
