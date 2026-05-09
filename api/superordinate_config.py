@@ -7,6 +7,7 @@ DEFAULT_CLOSED_ENTITIES_FOLDER_NAME = "Closed Entities"
 DEFAULT_DISPLAY_INHERITANCE_INDICATOR = True
 DEFAULT_DISPLAY_CALENDAR_INDICATOR = True
 DEFAULT_DISPLAY_CALENDAR_PROMPTS_INDICATOR = True
+DEFAULT_HERO_MODE_DESIGNATED_HERO = "Disabled"
 
 
 def _parse_bool(value: object, default: bool = False) -> bool:
@@ -23,6 +24,13 @@ def _parse_bool(value: object, default: bool = False) -> bool:
         if lowered in {"0", "false", "no", "n", "off", ""}:
             return False
     return default
+
+
+def _normalize_hero_mode_designated_hero(value: object) -> str:
+    text = str(value or DEFAULT_HERO_MODE_DESIGNATED_HERO).strip()
+    if not text or text.lower() == "disabled":
+        return DEFAULT_HERO_MODE_DESIGNATED_HERO
+    return text
 
 
 class SuperordinateConfig(ApiHandler):
@@ -61,6 +69,9 @@ class SuperordinateConfig(ApiHandler):
             config.get("display_calendar_prompts_indicator"),
             DEFAULT_DISPLAY_CALENDAR_PROMPTS_INDICATOR,
         )
+        hero_mode_designated_hero = _normalize_hero_mode_designated_hero(
+            config.get("hero_mode_designated_hero"),
+        )
 
         normalized_config = {
             **config,
@@ -68,6 +79,7 @@ class SuperordinateConfig(ApiHandler):
             "display_inheritance_indicator": display_inheritance_indicator,
             "display_calendar_indicator": display_calendar_indicator,
             "display_calendar_prompts_indicator": display_calendar_prompts_indicator,
+            "hero_mode_designated_hero": hero_mode_designated_hero,
         }
 
         return {
@@ -76,5 +88,6 @@ class SuperordinateConfig(ApiHandler):
             "display_inheritance_indicator": display_inheritance_indicator,
             "display_calendar_indicator": display_calendar_indicator,
             "display_calendar_prompts_indicator": display_calendar_prompts_indicator,
+            "hero_mode_designated_hero": hero_mode_designated_hero,
             "config": normalized_config,
         }

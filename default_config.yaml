@@ -31,3 +31,9 @@ display_calendar_indicator: true
 # Show the Scheduler calendar prompt suffix indicator (📅) next to agent names in the Superordinates panel
 # when Scheduler prompt JSON exists. Default is true.
 display_calendar_prompts_indicator: true
+
+# Hero Mode designated root superordinate.
+# Disabled means normal chat-box routing. When set to a ROOT superordinate
+# context id, input typed while focused on any non-Hero context is routed as a
+# message from the designated Hero to that focused superordinate.
+hero_mode_designated_hero: "Disabled"

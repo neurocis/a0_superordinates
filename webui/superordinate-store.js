@@ -11,6 +11,7 @@ const model = {
   displayInheritanceIndicator: true,
   displayCalendarIndicator: true,
   displayCalendarPromptsIndicator: true,
+  heroModeDesignatedHero: 'Disabled',
   _closedEntitiesConfigLoaded: false,
   _closedEntitiesConfigPromise: null,
   _refreshInterval: null,
@@ -129,6 +130,9 @@ const model = {
         response?.display_calendar_prompts_indicator ?? response?.config?.display_calendar_prompts_indicator,
         true
       );
+      this.heroModeDesignatedHero = this._normalizeHeroModeDesignatedHero(
+        response?.hero_mode_designated_hero ?? response?.config?.hero_mode_designated_hero
+      );
       this._closedEntitiesConfigLoaded = true;
     } catch (e) {
       console.error("[Superordinates] Error fetching config:", e);
@@ -136,12 +140,27 @@ const model = {
       this.displayInheritanceIndicator = true;
       this.displayCalendarIndicator = true;
       this.displayCalendarPromptsIndicator = true;
+      this.heroModeDesignatedHero = 'Disabled';
       this._closedEntitiesConfigLoaded = true;
     }
   },
 
   getClosedEntitiesFolderName() {
     return this._normalizeClosedEntitiesFolderName(this.closedEntitiesFolderName);
+  },
+
+  _normalizeHeroModeDesignatedHero(value) {
+    const text = String(value || 'Disabled').trim();
+    if (!text || text.toLowerCase() === 'disabled') return 'Disabled';
+    return text;
+  },
+
+  isHeroModeEnabled() {
+    return this._normalizeHeroModeDesignatedHero(this.heroModeDesignatedHero) !== 'Disabled';
+  },
+
+  sectionTitle() {
+    return this.isHeroModeEnabled() ? '🦸 Heroes 🦸' : 'Superordinates';
   },
 
 

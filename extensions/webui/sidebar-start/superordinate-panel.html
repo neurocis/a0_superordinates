@@ -59,7 +59,7 @@
               :aria-expanded="showSuperordinatesLicense.toString()"
               aria-controls="superordinates-license-modal"
               title="Built w/care by neurocis.ai in Canada."
-            >Superordinates ⓘ</button>
+            ><span x-text="$store.superordinates?.sectionTitle?.() || 'Superordinates'"></span> ⓘ</button>
             <button
               type="button"
               class="superordinate-config-trigger"
