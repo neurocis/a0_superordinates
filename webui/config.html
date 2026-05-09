@@ -60,7 +60,13 @@
         try {
             const select = host?.$refs?.heroModeSelect || document.querySelector('[data-a0-hero-mode-select="1"]');
             if (!select) return;
-            const selected = String(host?.config?.hero_mode_designated_hero || select.value || 'Disabled').trim() || 'Disabled';
+
+            // Preserve the persisted configured ContextID. Do not coerce it to
+            // Disabled just because the options arrived late, the frontend store
+            // is stale, or filtering temporarily omitted the selected Hero.
+            const configured = String(host?.config?.hero_mode_designated_hero || '').trim();
+            const selected = configured || String(select.value || 'Disabled').trim() || 'Disabled';
+
             while (select.options.length > 1) select.remove(1);
             for (const option of options) {
                 const element = document.createElement('option');
@@ -68,10 +74,31 @@
                 element.textContent = option.label;
                 select.appendChild(element);
             }
-            select.value = Array.from(select.options).some((option) => option.value === selected)
+
+            const hasSelectedOption = Array.from(select.options).some((option) => option.value === selected);
+            if (!hasSelectedOption && selected && selected !== 'Disabled') {
+                // Keep the saved ContextID visible/selectable even if it is not
+                // in the current candidate list. This prevents the settings UI
+                // from displaying Disabled while Hero Mode is actually active,
+                // and prevents accidental overwrite on save.
+                const preserved = document.createElement('option');
+                preserved.value = selected;
+                preserved.textContent = `Current Hero (${selected})`;
+                preserved.dataset.a0PreservedHero = '1';
+                select.appendChild(preserved);
+            }
+
+            select.value = selected && Array.from(select.options).some((option) => option.value === selected)
                 ? selected
                 : 'Disabled';
-            if (host?.config) host.config.hero_mode_designated_hero = select.value;
+
+            // Only write the selected value back when it preserves the backend
+            // config or the user explicitly has Disabled selected. Never replace
+            // an existing configured ContextID with Disabled due to option load
+            // timing/filtering.
+            if (host?.config && (select.value !== 'Disabled' || !configured)) {
+                host.config.hero_mode_designated_hero = select.value;
+            }
         } catch (error) {
             console.error('[Superordinates] Failed populating Hero Mode select:', error);
         }
@@ -102,7 +129,7 @@
 </script>
 </head>
 <body>
-    <div x-data="{ heroRootOptions: [], heroRootOptionsLoading: false, heroRootOptionsError: '' }" x-init="$nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this))" x-effect="if (config) { window.a0SuperordinatesLoadHeroRootOptions?.(this) }">
+    <div x-data="{ heroRootOptions: [], heroRootOptionsLoading: false, heroRootOptionsError: '', heroRootOptionsLoadedForConfig: false }" x-init="$nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this))" x-effect="if (config && !heroRootOptionsLoadedForConfig) { heroRootOptionsLoadedForConfig = true; window.a0SuperordinatesLoadHeroRootOptions?.(this) }">
         <template x-if="config">
             <div>
                 <div class="section-title">A0 Superordinates</div>
