@@ -26,11 +26,13 @@
             }
             host.heroRootOptions = options;
             populateHeroSelectOptions(host, options);
+            requestAnimationFrame(() => populateHeroSelectOptions(host, options));
         } catch (error) {
             console.error('[Superordinates] Failed loading Hero Mode root options:', error);
             host.heroRootOptionsError = error?.message || 'Failed to load ROOT superordinates.';
             host.heroRootOptions = [];
             populateHeroSelectOptions(host, []);
+            requestAnimationFrame(() => populateHeroSelectOptions(host, []));
         } finally {
             host.heroRootOptionsLoading = false;
         }
@@ -56,6 +58,8 @@
     }
 
 
+    window.a0SuperordinatesPopulateHeroSelectOptions = populateHeroSelectOptions;
+
     function populateHeroSelectOptions(host, options) {
         try {
             const select = host?.$refs?.heroModeSelect || document.querySelector('[data-a0-hero-mode-select="1"]');
@@ -64,7 +68,11 @@
             // Preserve the persisted configured ContextID. Do not coerce it to
             // Disabled just because the options arrived late, the frontend store
             // is stale, or filtering temporarily omitted the selected Hero.
-            const configured = String(host?.config?.hero_mode_designated_hero || '').trim();
+            const configured = String(
+                host?.config?.hero_mode_designated_hero
+                || select.getAttribute('data-a0-hero-current')
+                || ''
+            ).trim();
             const selected = configured || String(select.value || 'Disabled').trim() || 'Disabled';
 
             while (select.options.length > 1) select.remove(1);
@@ -129,7 +137,7 @@
 </script>
 </head>
 <body>
-    <div x-data="{ heroRootOptions: [], heroRootOptionsLoading: false, heroRootOptionsError: '', heroRootOptionsLoadedForConfig: false }" x-init="$nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this))" x-effect="if (config && !heroRootOptionsLoadedForConfig) { heroRootOptionsLoadedForConfig = true; window.a0SuperordinatesLoadHeroRootOptions?.(this) }">
+    <div x-data="{ heroRootOptions: [], heroRootOptionsLoading: false, heroRootOptionsError: '', heroRootOptionsLoadingStarted: false }" x-init="$nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this))" x-effect="if (config && !heroRootOptionsLoadingStarted) { heroRootOptionsLoadingStarted = true; $nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this)) }">
         <template x-if="config">
             <div>
                 <div class="section-title">A0 Superordinates</div>
@@ -151,8 +159,20 @@
                         </div>
                     </div>
                     <div class="field-control">
-                        <select x-model="config.hero_mode_designated_hero" x-ref="heroModeSelect" data-a0-hero-mode-select="1">
+                        <select
+                            x-model="config.hero_mode_designated_hero"
+                            x-ref="heroModeSelect"
+                            data-a0-hero-mode-select="1"
+                            :data-a0-hero-current="config.hero_mode_designated_hero || 'Disabled'"
+                            x-init="$nextTick(() => window.a0SuperordinatesPopulateHeroSelectOptions?.(this, heroRootOptions || []))"
+                            x-effect="if (config) { $nextTick(() => window.a0SuperordinatesPopulateHeroSelectOptions?.(this, heroRootOptions || [])) }"
+                        >
                             <option value="Disabled">Disabled</option>
+                            <option
+                                x-show="config.hero_mode_designated_hero && config.hero_mode_designated_hero !== 'Disabled'"
+                                :value="config.hero_mode_designated_hero"
+                                x-text="'Current Hero (' + config.hero_mode_designated_hero + ')'"
+                            ></option>
                         </select>
                         <div class="field-description" x-show="heroRootOptionsLoading">Loading ROOT superordinates…</div>
                         <div class="field-description" x-show="heroRootOptionsError" x-text="heroRootOptionsError"></div>
