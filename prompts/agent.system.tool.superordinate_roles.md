@@ -19,7 +19,6 @@ Routing guidance:
 - Use the returned `path` to understand where the selected agent sits in the hierarchy.
 
 canonical tool name: `superordinate_roles`
-compatibility aliases: `superordinte_roles`, `superordinite_roles`
 
 example:
 ~~~json

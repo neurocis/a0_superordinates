@@ -31,10 +31,3 @@ Canonical tool name:
 ```text
 superordinate_roles
 ```
-
-Compatibility aliases:
-
-```text
-superordinte_roles
-superordinite_roles
-```
