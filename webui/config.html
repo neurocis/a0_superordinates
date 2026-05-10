@@ -134,6 +134,29 @@
         } catch (_error) {}
         return ids;
     }
+
+    // Force a full UI rebuild when Hero Mode designated Hero actually changes,
+    // and only after the plugin settings save has succeeded. This keeps the
+    // sidebar title, transient Hero pinning, routing UI, and frontend store
+    // state consistent with the new Hero selection without reloading on
+    // unrelated settings edits.
+    (function setupHeroModeReloadOnChange() {
+        try {
+            if (window.__a0SuperHeroReloadHookInstalled) return;
+            window.__a0SuperHeroReloadHookInstalled = true;
+            document.addEventListener('plugin-settings-saved', (event) => {
+                try {
+                    const detail = event?.detail || {};
+                    if (detail.pluginName !== 'a0_superordinates') return;
+                    const prev = String(detail?.previousSettings?.hero_mode_designated_hero ?? 'Disabled') || 'Disabled';
+                    const next = String(detail?.settings?.hero_mode_designated_hero ?? 'Disabled') || 'Disabled';
+                    if (prev !== next) {
+                        setTimeout(() => { try { window.location.reload(); } catch (_e) {} }, 250);
+                    }
+                } catch (_inner) {}
+            });
+        } catch (_outer) {}
+    })();
 </script>
 </head>
 <body>
