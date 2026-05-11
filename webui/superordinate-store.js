@@ -171,7 +171,7 @@ const model = {
   },
 
   sectionTitle() {
-    return this.isHeroModeEnabled() ? '🦸 Heroes 🦸' : 'Superordinates';
+    return this.isHeroModeEnabled() ? '🦸 Heroes 🦸' : '💪 Superordinates';
   },
 
 
@@ -811,33 +811,34 @@ const model = {
       self._detectTransitions(contextsList);
     };
 
-    // Patch selectChat to clear unseen on selection
+    // Patch selectChat to clear a completed marker only when focus moves AWAY
+    // from that context. This lets a focused agent keep showing:
+    // - processing while it is running, and
+    // - complete after it stops,
+    // until the user selects a different context. Starting a new monologue still
+    // clears the complete marker in _detectTransitions() when running becomes true.
     const origSelect = chatsStore.selectChat.bind(chatsStore);
     chatsStore.selectChat = async function(id) {
+      const previousSelected = chatsStore.selected || null;
       await origSelect(id);
-      self._clearUnseen(id);
+      if (previousSelected && previousSelected !== id) {
+        self._clearUnseen(previousSelected);
+      }
     };
-
-    // Clear for currently selected chat
-    if (chatsStore.selected) {
-      this._clearUnseen(chatsStore.selected);
-    }
   },
 
   _detectTransitions(contextsList) {
     const contexts = Array.isArray(contextsList) ? contextsList : [];
     const prev = this._prevRunning;
     const newPrev = {};
-    const chatsStore = Alpine.store('chats');
-    const selected = chatsStore?.selected;
-
     contexts.forEach(ctx => {
       const wasRunning = !!prev[ctx.id];
       const isRunning = !!ctx.running;
       newPrev[ctx.id] = isRunning;
 
-      // Transition: was running, now stopped
-      if (wasRunning && !isRunning && ctx.id !== selected) {
+      // Transition: was running, now stopped. Mark complete even if the
+      // context is currently focused; clear it only when focus moves away.
+      if (wasRunning && !isRunning) {
         this._finishedUnseen = { ...this._finishedUnseen, [ctx.id]: true };
       }
 
