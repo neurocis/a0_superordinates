@@ -185,6 +185,86 @@ def _prompt_envelope(
     return f'{{From: "{from_name}" ({from_id}){reply_fragment}}}\n\n{message or ""}'
 
 
+def _inform_envelope(
+    from_name: str,
+    from_id: str,
+    to_name: str,
+    to_id: str,
+    message: str,
+) -> str:
+    """Return the informational envelope for hierarchy intermediates."""
+    return f'{{From: "{from_name}" ({from_id}), To: "{to_name}" ({to_id})}}\n\n{message or ""}'
+
+
+def _ancestor_chain(ctxid: str, max_depth: int = 64) -> list[str]:
+    """Return ctxid followed by its parents up to the root/known boundary."""
+    chain: list[str] = []
+    cur = ctxid
+    seen: set[str] = set()
+    for _ in range(max_depth):
+        if not cur or cur in seen:
+            break
+        seen.add(cur)
+        chain.append(cur)
+        ctx = AgentContext.get(cur)
+        if not ctx:
+            break
+        cur = ctx.data.get("sup_parent") or ""
+    return chain
+
+
+def _hierarchy_path_between(source_id: str, target_id: str) -> list[str]:
+    """Return hierarchy path nodes strictly between source and target.
+
+    Uses authoritative parent links to find the source→target path for ancestor,
+    descendant, and sibling/cousin relationships. If there is no common loaded
+    ancestor, there are no hierarchy intermediates to inform.
+    """
+    if not source_id or not target_id or source_id == target_id:
+        return []
+
+    source_chain = _ancestor_chain(source_id)
+    target_chain = _ancestor_chain(target_id)
+    if not source_chain or not target_chain:
+        return []
+
+    source_index = {ctxid: idx for idx, ctxid in enumerate(source_chain)}
+    lca = ""
+    target_lca_index = -1
+    for idx, ctxid in enumerate(target_chain):
+        if ctxid in source_index:
+            lca = ctxid
+            target_lca_index = idx
+            break
+    if not lca:
+        return []
+
+    up_from_source = source_chain[:source_index[lca] + 1]
+    down_to_target = list(reversed(target_chain[:target_lca_index]))
+    full_path = up_from_source + down_to_target
+    return full_path[1:-1]
+
+
+def _inform_hierarchy_intermediates(
+    source_id: str,
+    source_name: str,
+    target_id: str,
+    target_name: str,
+    message: str,
+) -> list[str]:
+    """Fire-and-forget informational messages to hierarchy intermediates."""
+    informed: list[str] = []
+    envelope = _inform_envelope(source_name, source_id, target_name, target_id, message)
+    for ctxid in _hierarchy_path_between(source_id, target_id):
+        ctx = AgentContext.get(ctxid)
+        if not ctx:
+            continue
+        msg_id = _display_inbound_message(ctx, envelope)
+        ctx.communicate(UserMessage(message=envelope, id=msg_id))
+        informed.append(ctxid)
+    return informed
+
+
 def _is_ancestor_notification_fallback(relationship: str, agent, target_ctx) -> bool:
     """True when disabled parent messaging should become notify-ancestor/local-output.
 
@@ -337,6 +417,14 @@ class SuperordinateMessage(Tool):
                 },
             )
 
+        informed_intermediates = _inform_hierarchy_intermediates(
+            caller_ctxid,
+            caller_name,
+            superordinate_id,
+            target_label,
+            message or "",
+        )
+
         forwarded_message = _prompt_envelope(
             caller_name,
             caller_ctxid,
@@ -380,5 +468,6 @@ class SuperordinateMessage(Tool):
                 "superordinate_id": superordinate_id,
                 "relationship": relationship,
                 "parent_notification_fallback": parent_notification_fallback,
+                "informed_intermediates": informed_intermediates,
             },
         )

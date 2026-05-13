@@ -26,6 +26,12 @@ for informational messages (`reply: "Info"`), the `Reply` field is omitted:
 
 ... message ...
 ~~~
+when source and target are separated by hierarchy intermediates, each intermediate receives an informational copy with the final target restored and no `Reply` field:
+~~~text
+{From: "SenderName" (senderCtxId), To: "TargetName" (targetCtxId)}
+
+... message ...
+~~~
 example (messaging a child/descendant):
 ~~~json
 {
