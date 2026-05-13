@@ -91,7 +91,7 @@ const model = {
       `CTX: ${this.formatTokenCount(this.context_tokens)}`,
       `PRM: ${this.formatTokenCount(this.prompt_tokens)}`,
       `RES: ${this.formatTokenCount(this.response_tokens)}`,
-      `<span class="a0-sup-context-counters-total">${this.totalDisplayText()}</span>`,
+      `<span class="a0-sup-context-counters-total ${this.totalLevelClass()}">${this.totalDisplayText()}</span>`,
     ].join(" | ");
   },
 
@@ -144,14 +144,29 @@ const model = {
     return String(count);
   },
 
+  totalPercentage() {
+    const windowTokens = Number(this.context_window_tokens || 0);
+    if (!Number.isFinite(windowTokens) || windowTokens <= 0) return null;
+    const percentage = (Number(this.total_tokens || 0) / windowTokens) * 100;
+    return Number.isFinite(percentage) ? percentage : null;
+  },
+
+  totalLevelClass() {
+    const percentage = this.totalPercentage();
+    if (percentage === null) return "";
+    if (percentage >= 76) return "a0-sup-context-counters-total-red";
+    if (percentage >= 45) return "a0-sup-context-counters-total-yellow";
+    return "";
+  },
+
   totalDisplayText() {
     const total = this.formatTokenCount(this.total_tokens);
     const windowTokens = Number(this.context_window_tokens || 0);
     if (!Number.isFinite(windowTokens) || windowTokens <= 0) {
       return `TOT: ${total}`;
     }
-    const percentage = (Number(this.total_tokens || 0) / windowTokens) * 100;
-    const percentageText = Number.isFinite(percentage) ? percentage.toFixed(1) : "0.0";
+    const percentage = this.totalPercentage();
+    const percentageText = percentage === null ? "0.0" : percentage.toFixed(1);
     return `TOT: ${total} / ${this.formatTokenCount(windowTokens)} (${percentageText}%)`;
   },
 
