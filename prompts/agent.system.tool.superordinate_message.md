@@ -1,5 +1,5 @@
 ### superordinate_message
-send a message to a related persistent superordinate context and wait for its response.
+send a message to a related persistent superordinate context. Prompt deliveries return immediately; the recipient response is routed back automatically from `monologue_end`.
 allowed targets, relative to the calling context:
 - **descendant**: any superordinate spawned beneath you (children, grandchildren, ...); always enabled because this is the original/core behavior
 - **ancestor**: your parent context, grandparent, etc.; controlled by the `Allow Parent / Ancestor Messaging` setting
@@ -8,11 +8,11 @@ args: `superordinate_id` or `name`, `message`, optional `reply`, optional `Type`
 - `superordinate_id`: the context ID of the target (from superordinate_list)
 - `name`: the unique name of the target (preferred - easier to reference)
 - `message`: the message to send
-- `reply`: optional reply label for the routed envelope; defaults to `Prompt`. The recipient sees `Reply: <value>` only when `reply` is not `Info`.
+- `reply`: optional reply label for the routed envelope; defaults to `Prompt`. The recipient sees `Reply: <value>` only when `reply` is not `Info`. On `monologue_end`, this same value controls reverse delivery: `reply: Info` logs the response back without prompting; non-Info replies prompt the original sender.
 - `Type`: optional delivery type; defaults to `Prompt`. When `Type` is `Info`, `reply` is forced to `Info` and the final target receives visible/history context only; it is not prompted.
 use `name` when you know the target's name, or `superordinate_id` for the raw context ID.
 the response payload includes a `relationship` field (`descendant`, `ancestor`, or `sibling`) so the caller knows which way the message went.
-the tool waits up to the configured `reply_wait_seconds` value for a reply before returning a check-later timeout response; the default is 5 seconds.
+the tool does not wait synchronously for prompted target processing. When the target finishes, the `monologue_end` hook detects the inbound `{From: ...}` envelope and routes the final response back in reverse. The inbound `reply` value controls that reverse delivery: `Info` is context-only; any other value prompts the original sender.
 if sibling messaging is disabled in the `a0_superordinates` settings, sibling attempts are rejected with a clear settings-disabled response.
 if parent/ancestor messaging is disabled, descendant messages to any ancestor/addressee in their hierarchy use notification fallback: the addressed ancestor receives only `{ContextID} has sent you a message`, while the full message/conclusion is returned locally in the sender context instead of being sent upward. Unrelated contexts are rejected.
 recipient envelope format for prompted delivery (`Type: "Prompt"`, the default):

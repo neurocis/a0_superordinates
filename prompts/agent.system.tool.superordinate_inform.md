@@ -1,5 +1,5 @@
 ### superordinate_inform
-send an informational message to a related persistent superordinate context and wait for its response.
+send an informational message to a related persistent superordinate context without prompting it.
 
 this is a convenience wrapper around `superordinate_message` with both `reply` and `Type` forced to `Info`. Because `Type: Info` is context-only delivery, the recipient receives a visible chat/history entry but is not prompted to process it. The recipient envelope omits the `Reply` field.
 

@@ -1,4 +1,4 @@
-"""Send a message to a related persistent superordinate context and wait for its response.
+"""Send a message to a related persistent superordinate context.
 
 Allowed targets, relative to the calling context:
 - descendant: any superordinate spawned beneath this context (children, grandchildren, ...)
@@ -521,30 +521,16 @@ class SuperordinateMessage(Tool):
         # communicate() handles both cases:
         # - If target is idle: starts a new task and returns it
         # - If target is running: sets intervention message on the running agent
-        task = target_context.communicate(UserMessage(message=forwarded_message, id=inbound_message_id))
+        target_context.communicate(UserMessage(message=forwarded_message, id=inbound_message_id))
 
-        # Wait for the result with a configurable timeout so we don't block the monologue.
-        reply_wait_seconds = _reply_wait_seconds(_get_config(self.agent))
-        try:
-            result = await task.result(timeout=reply_wait_seconds)
-        except Exception as e:
-            err = str(e).lower()
-            if "timeout" in err or "timed out" in err:
-                return Response(
-                    message=(
-                        "Target '{}' ({}) is still processing (timed out after {}s). "
-                        "Continue with your current task and check back later using "
-                        "superordinate_getresponse(name='{}')."
-                    ).format(target_label, relationship, reply_wait_seconds, name or superordinate_id),
-                    break_loop=False,
-                )
-            return Response(
-                message="Error waiting for target '{}' ({}): {}".format(target_label, relationship, str(e)),
-                break_loop=False,
-            )
-
+        # Do not wait here. The target's monologue_end hook will route its final
+        # response back to the original From agent according to the inbound
+        # envelope's Reply value.
         return Response(
-            message="Response from {} '{}': {}".format(relationship, target_label, result),
+            message=(
+                "Message delivered to {} '{}'. Reply routing will occur when "
+                "the target finishes its monologue."
+            ).format(relationship, target_label),
             break_loop=False,
             additional={
                 "superordinate_id": superordinate_id,
@@ -554,5 +540,6 @@ class SuperordinateMessage(Tool):
                 "delivery_type": delivery_type,
                 "reply": message_type,
                 "prompted_target": True,
+                "waited_for_response": False,
             },
         )
