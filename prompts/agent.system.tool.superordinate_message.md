@@ -26,7 +26,7 @@ for informational messages (`reply: "Info"`), the `Reply` field is omitted:
 
 ... message ...
 ~~~
-when source and target are separated by hierarchy intermediates, each intermediate receives an informational copy with the final target restored and no `Reply` field:
+when source and target are separated by hierarchy intermediates, each intermediate gets an informational copy logged into its visible chat/history context only; it is not dispatched as a prompt. The final target is restored and no `Reply` field is included:
 ~~~text
 {From: "SenderName" (senderCtxId), To: "TargetName" (targetCtxId)}
 

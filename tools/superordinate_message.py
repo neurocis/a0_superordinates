@@ -252,7 +252,13 @@ def _inform_hierarchy_intermediates(
     target_name: str,
     message: str,
 ) -> list[str]:
-    """Fire-and-forget informational messages to hierarchy intermediates."""
+    """Log informational messages to hierarchy intermediates without prompting.
+
+    Intermediates need awareness/context for the routed message, but they are not
+    the addressed ``To`` agent and must not start processing it as a prompt.
+    Therefore this logs the message visibly and appends it to the agent history,
+    but intentionally does not call ``AgentContext.communicate()``.
+    """
     informed: list[str] = []
     envelope = _inform_envelope(source_name, source_id, target_name, target_id, message)
     for ctxid in _hierarchy_path_between(source_id, target_id):
@@ -260,7 +266,13 @@ def _inform_hierarchy_intermediates(
         if not ctx:
             continue
         msg_id = _display_inbound_message(ctx, envelope)
-        ctx.communicate(UserMessage(message=envelope, id=msg_id))
+        try:
+            ctx.get_agent().hist_add_user_message(UserMessage(message=envelope, id=msg_id))
+        except Exception:
+            # Visible logging is the critical behavior; history/context append is
+            # best-effort so an intermediate notification cannot break delivery
+            # to the final target.
+            pass
         informed.append(ctxid)
     return informed
 
