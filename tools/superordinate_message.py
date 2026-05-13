@@ -159,10 +159,27 @@ def _display_inbound_message(target_context, message: str, *, source: str = " (f
     return msg_id
 
 
-def _prompt_envelope(from_name: str, from_id: str, to_name: str, to_id: str, message: str) -> str:
-    """Return the standard routed-prompt envelope used by Hero Mode and tools."""
+def _normalize_message_type(value: object) -> str:
+    """Return a safe non-empty envelope Type label, defaulting to Prompt."""
+    text = str(value or "Prompt").strip()
+    if not text:
+        return "Prompt"
+    # Keep the envelope header single-line and compact.
+    return " ".join(text.split())
+
+
+def _prompt_envelope(
+    from_name: str,
+    from_id: str,
+    to_name: str,
+    to_id: str,
+    message: str,
+    message_type: str = "Prompt",
+) -> str:
+    """Return the standard routed-message envelope used by Hero Mode and tools."""
+    type_label = _normalize_message_type(message_type)
     return (
-        f'{{Type: Prompt,\n From: "{from_name}" ({from_id}),\n   To: "{to_name}" ({to_id}) }}'
+        f'{{Type: {type_label},\n From: "{from_name}" ({from_id}),\n   To: "{to_name}" ({to_id}) }}'
         f"\n\n{message or ''}"
     )
 
@@ -230,6 +247,7 @@ class SuperordinateMessage(Tool):
         superordinate_id = kwargs.get("superordinate_id", "")
         name = kwargs.get("name", "")
         message = kwargs.get("message", "")
+        message_type = _normalize_message_type(kwargs.get("Type", kwargs.get("type", "Prompt")))
 
         # Resolve name to ctxid if name provided
         if name and not superordinate_id:
@@ -321,6 +339,7 @@ class SuperordinateMessage(Tool):
             target_label,
             superordinate_id,
             message or "",
+            message_type,
         )
 
         # Show the same conforming inbound prompt envelope in the recipient chat
