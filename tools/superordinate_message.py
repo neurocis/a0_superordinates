@@ -283,13 +283,16 @@ class SuperordinateMessage(Tool):
 
         relationship = _classify_relationship(target_context, self.agent.context)
         if not relationship:
-            return Response(
-                message=(
-                    "Context '{}' is not related to this context. Allowed targets are descendants, "
-                    "ancestors (parent, grandparent, ...), or siblings sharing the same parent."
-                ).format(superordinate_id),
-                break_loop=False,
-            )
+            if kwargs.get("_allow_unrelated_hero_route"):
+                relationship = "hero"
+            else:
+                return Response(
+                    message=(
+                        "Context '{}' is not related to this context. Allowed targets are descendants, "
+                        "ancestors (parent, grandparent, ...), or siblings sharing the same parent."
+                    ).format(superordinate_id),
+                    break_loop=False,
+                )
 
         relationship_allowed, relationship_denial, parent_notification_fallback = _relationship_allowed(
             relationship,

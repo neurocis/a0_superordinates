@@ -31,10 +31,28 @@ export default async function routeHeroModeChatInput(sendCtx) {
     return;
   }
 
-  const heroName = displayNameFor(heroId);
-  const targetName = displayNameFor(focusedContextId);
+  // This input belongs to the designated Hero, not the focused non-Hero
+  // chat. Cancel the original send before the backend call so failures cannot
+  // accidentally submit the prompt directly to the focused context.
+  sendCtx.cancel = true;
 
-  sendCtx.message = `{Type: Prompt,\n From: "${heroName}" (${heroId}),\n   To: "${targetName}" (${focusedContextId}) }\n\n${original}`;
+  try {
+    const result = await callJsonApi("plugins/a0_superordinates/superordinate_hero_message", {
+      hero_id: heroId,
+      target_id: focusedContextId,
+      message: original,
+    });
+    if (!result?.ok) {
+      console.warn("[Superordinates] Hero Mode route failed:", result?.error || result);
+      return;
+    }
+
+    // The backend routed this through superordinate_message, which centralizes
+    // envelope creation, recipient chat display, and dispatch semantics.
+    clearChatInput();
+  } catch (error) {
+    console.error("[Superordinates] Hero Mode route error:", error);
+  }
 }
 
 async function getHeroModeState() {
@@ -71,12 +89,17 @@ function normalizeHeroId(value) {
   return text;
 }
 
-function displayNameFor(ctxid) {
+function clearChatInput() {
   try {
-    const contexts = window.Alpine?.store?.("chats")?.contexts || [];
-    const ctx = contexts.find((candidate) => candidate?.id === ctxid);
-    return ctx?.name || ctx?.title || ctx?.heading || ctx?.ctx?.name || "Superordinate";
+    const store = window.Alpine?.store?.("chatInput") || window.Alpine?.store?.("input");
+    if (store?.reset) {
+      store.reset();
+      return;
+    }
+    if (store && "message" in store) {
+      store.message = "";
+    }
   } catch (_error) {
-    return "Superordinate";
+    // Non-fatal: routing already succeeded; at worst the input remains visible.
   }
 }
