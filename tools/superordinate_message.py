@@ -113,19 +113,6 @@ def _setting_enabled(config: dict, key: str, default: bool = True) -> bool:
     return bool(value)
 
 
-def _reply_wait_seconds(config: dict, default: int = 5) -> int:
-    """Return configured superordinate_message reply wait seconds.
-
-    Falls back to 5 seconds and clamps to a sane positive range so broken or
-    missing config cannot create an infinite wait or immediate zero-timeout.
-    """
-    value = config.get("reply_wait_seconds", default)
-    try:
-        seconds = int(value)
-    except (TypeError, ValueError):
-        seconds = default
-    return max(1, min(seconds, 600))
-
 
 def _direct_parent_id(ctx) -> str:
     """Return the immediate parent ctxid for a context, or an empty string."""
@@ -551,6 +538,5 @@ class SuperordinateMessage(Tool):
                 "delivery_type": delivery_type,
                 "reply": message_type,
                 "prompted_target": True,
-                "waited_for_response": False,
             },
         )
