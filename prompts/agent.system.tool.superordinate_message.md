@@ -26,11 +26,22 @@ for informational messages (`reply: "Info"`), the `Reply` field is omitted:
 
 ... message ...
 ~~~
-the source agent and any hierarchy intermediates between source and target get an informational copy logged into their visible chat/history context only; it is not dispatched as a prompt. The final target is restored and no `Reply` field is included:
+the source agent and any hierarchy intermediates between source and target get an informational copy logged into their visible chat/history context only; it is not dispatched as a prompt. For the source agent, `From` is omitted as redundant. `Reply` is included only when `reply` is not `Info`:
 ~~~text
-{From: "SenderName" (senderCtxId), To: "TargetName" (targetCtxId)}
+{To: "TargetName" (targetCtxId), Reply: Prompt}
 
 ... message ...
+~~~
+for hierarchy intermediates, both endpoints are included. `Reply` is included only when `reply` is not `Info`:
+~~~text
+{From: "SenderName" (senderCtxId), To: "TargetName" (targetCtxId), Reply: Prompt}
+
+... message ...
+~~~
+for `reply: "Info"`, observer copies omit `Reply`:
+~~~text
+{To: "TargetName" (targetCtxId)}
+{From: "SenderName" (senderCtxId), To: "TargetName" (targetCtxId)}
 ~~~
 example (messaging a child/descendant):
 ~~~json

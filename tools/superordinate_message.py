@@ -168,20 +168,20 @@ def _normalize_message_type(value: object) -> str:
     return " ".join(text.split())
 
 
+def _reply_fragment(message_type: str) -> str:
+    """Return compact Reply fragment, omitting Info."""
+    reply_label = _normalize_message_type(message_type)
+    return "" if reply_label.lower() == "info" else f", Reply: {reply_label}"
+
+
 def _prompt_envelope(
     from_name: str,
     from_id: str,
     message: str,
     message_type: str = "Prompt",
 ) -> str:
-    """Return the recipient-facing routed-message envelope.
-
-    The recipient already knows they are the target, so omit ``To``. Keep the
-    common Info case maximally compact by omitting ``Reply`` unless it carries
-    a non-Info value such as Prompt.
-    """
-    reply_label = _normalize_message_type(message_type)
-    reply_fragment = "" if reply_label.lower() == "info" else f", Reply: {reply_label}"
+    """Return the final recipient-facing routed-message envelope."""
+    reply_fragment = _reply_fragment(message_type)
     return f'{{From: "{from_name}" ({from_id}){reply_fragment}}}\n\n{message or ""}'
 
 
@@ -191,10 +191,25 @@ def _inform_envelope(
     to_name: str,
     to_id: str,
     message: str,
+    message_type: str = "Info",
 ) -> str:
-    """Return the informational envelope for hierarchy intermediates."""
-    return f'{{From: "{from_name}" ({from_id}), To: "{to_name}" ({to_id})}}\n\n{message or ""}'
+    """Return the non-prompt informational envelope for hierarchy intermediates."""
+    reply_fragment = _reply_fragment(message_type)
+    return (
+        f'{{From: "{from_name}" ({from_id}), To: "{to_name}" ({to_id}){reply_fragment}}}'
+        f"\n\n{message or ''}"
+    )
 
+
+def _source_inform_envelope(
+    to_name: str,
+    to_id: str,
+    message: str,
+    message_type: str = "Info",
+) -> str:
+    """Return the non-prompt informational envelope for the source/From agent."""
+    reply_fragment = _reply_fragment(message_type)
+    return f'{{To: "{to_name}" ({to_id}){reply_fragment}}}\n\n{message or ""}'
 
 def _ancestor_chain(ctxid: str, max_depth: int = 64) -> list[str]:
     """Return ctxid followed by its parents up to the root/known boundary."""
@@ -251,6 +266,7 @@ def _inform_hierarchy_intermediates(
     target_id: str,
     target_name: str,
     message: str,
+    message_type: str = "Info",
 ) -> list[str]:
     """Log informational messages to source/intermediates without prompting.
 
@@ -261,7 +277,15 @@ def _inform_hierarchy_intermediates(
     but intentionally does not call ``AgentContext.communicate()``.
     """
     informed: list[str] = []
-    envelope = _inform_envelope(source_name, source_id, target_name, target_id, message)
+    intermediate_envelope = _inform_envelope(
+        source_name,
+        source_id,
+        target_name,
+        target_id,
+        message,
+        message_type,
+    )
+    source_envelope = _source_inform_envelope(target_name, target_id, message, message_type)
     observer_ids = [source_id, *_hierarchy_path_between(source_id, target_id)]
     seen: set[str] = set()
     for ctxid in observer_ids:
@@ -271,6 +295,7 @@ def _inform_hierarchy_intermediates(
         ctx = AgentContext.get(ctxid)
         if not ctx:
             continue
+        envelope = source_envelope if ctxid == source_id else intermediate_envelope
         msg_id = _display_inbound_message(ctx, envelope)
         try:
             ctx.get_agent().hist_add_user_message(UserMessage(message=envelope, id=msg_id))
@@ -441,6 +466,7 @@ class SuperordinateMessage(Tool):
             superordinate_id,
             target_label,
             message or "",
+            message_type,
         )
 
         forwarded_message = _prompt_envelope(
