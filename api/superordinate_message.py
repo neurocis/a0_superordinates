@@ -22,7 +22,10 @@ class SuperordinateMessage(ApiHandler):
         source_id = _norm(input.get("source_id") or input.get("from_id"))
         target_id = _norm(input.get("target_id") or input.get("to_id"))
         message = _norm(input.get("message"))
+        delivery_type = _norm(input.get("Type") or "Prompt") or "Prompt"
         message_type = _norm(input.get("reply") or "Prompt") or "Prompt"
+        if delivery_type.lower() == "info":
+            message_type = "Info"
 
         if not source_id:
             return {"ok": False, "error": "Missing source_id"}
@@ -44,6 +47,7 @@ class SuperordinateMessage(ApiHandler):
             "superordinate_id": target_id,
             "message": message,
             "reply": message_type,
+            "Type": delivery_type,
         }
         tool = SuperordinateMessageTool(
             agent=source_context.get_agent(),
@@ -63,6 +67,8 @@ class SuperordinateMessage(ApiHandler):
             "source_id": source_id,
             "target_id": target_id,
             "message": result.message,
+            "Type": delivery_type,
+            "reply": message_type,
             "break_loop": result.break_loop,
             "additional": result.additional or {},
         }

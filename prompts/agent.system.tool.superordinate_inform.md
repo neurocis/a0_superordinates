@@ -1,7 +1,7 @@
 ### superordinate_inform
 send an informational message to a related persistent superordinate context and wait for its response.
 
-this is a convenience wrapper around `superordinate_message` with `reply` forced to `Info`. Because `Info` is the compact default for informational sends, the recipient envelope omits the `Reply` field.
+this is a convenience wrapper around `superordinate_message` with both `reply` and `Type` forced to `Info`. Because `Type: Info` is context-only delivery, the recipient receives a visible chat/history entry but is not prompted to process it. The recipient envelope omits the `Reply` field.
 
 allowed targets, relative to the calling context:
 - **descendant**: any superordinate spawned beneath you (children, grandchildren, ...); always enabled because this is the original/core behavior
@@ -15,7 +15,7 @@ args: `superordinate_id` or `name`, `message`
 
 use `name` when you know the target's name, or `superordinate_id` for the raw context ID.
 
-the recipient receives the compact informational routed envelope:
+the recipient receives the compact informational routed envelope as visible/history context only, without prompt execution:
 
 ~~~text
 {From: "SenderName" (senderCtxId)}

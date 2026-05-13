@@ -4,23 +4,24 @@ allowed targets, relative to the calling context:
 - **descendant**: any superordinate spawned beneath you (children, grandchildren, ...); always enabled because this is the original/core behavior
 - **ancestor**: your parent context, grandparent, etc.; controlled by the `Allow Parent / Ancestor Messaging` setting
 - **sibling**: another context that shares your immediate `sup_parent`; controlled by the `Allow Sibling Messaging` setting
-args: `superordinate_id` or `name`, `message`, optional `reply`
+args: `superordinate_id` or `name`, `message`, optional `reply`, optional `Type`
 - `superordinate_id`: the context ID of the target (from superordinate_list)
 - `name`: the unique name of the target (preferred - easier to reference)
 - `message`: the message to send
 - `reply`: optional reply label for the routed envelope; defaults to `Prompt`. The recipient sees `Reply: <value>` only when `reply` is not `Info`.
+- `Type`: optional delivery type; defaults to `Prompt`. When `Type` is `Info`, `reply` is forced to `Info` and the final target receives visible/history context only; it is not prompted.
 use `name` when you know the target's name, or `superordinate_id` for the raw context ID.
 the response payload includes a `relationship` field (`descendant`, `ancestor`, or `sibling`) so the caller knows which way the message went.
 the tool waits up to the configured `reply_wait_seconds` value for a reply before returning a check-later timeout response; the default is 5 seconds.
 if sibling messaging is disabled in the `a0_superordinates` settings, sibling attempts are rejected with a clear settings-disabled response.
 if parent/ancestor messaging is disabled, descendant messages to any ancestor/addressee in their hierarchy use notification fallback: the addressed ancestor receives only `{ContextID} has sent you a message`, while the full message/conclusion is returned locally in the sender context instead of being sent upward. Unrelated contexts are rejected.
-recipient envelope format:
+recipient envelope format for prompted delivery (`Type: "Prompt"`, the default):
 ~~~text
 {From: "SenderName" (senderCtxId), Reply: Prompt}
 
 ... message ...
 ~~~
-for informational messages (`reply: "Info"`), the `Reply` field is omitted:
+when `Type` is `Info`, `reply` is forced to `Info`, the `Reply` field is omitted, and the final target is logged/added to context without prompt processing:
 ~~~text
 {From: "SenderName" (senderCtxId)}
 
@@ -52,7 +53,8 @@ example (messaging a child/descendant):
   "tool_args": {
     "name": "Devvy",
     "message": "How is the API coming along?",
-    "reply": "Prompt"
+    "reply": "Prompt",
+    "Type": "Prompt"
   }
 }
 ~~~

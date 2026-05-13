@@ -159,6 +159,20 @@ def _display_inbound_message(target_context, message: str, *, source: str = " (f
     return msg_id
 
 
+def _add_context_message_without_prompt(target_context, message: str, message_id: str) -> bool:
+    """Append a visible/logged message to agent history without prompting.
+
+    This is used for source/intermediate observer copies and for final ``To``
+    delivery when the envelope ``Type`` is ``Info``. The message becomes context
+    for future turns, but no ``AgentContext.communicate()`` call is made.
+    """
+    try:
+        target_context.get_agent().hist_add_user_message(UserMessage(message=message, id=message_id))
+        return True
+    except Exception:
+        return False
+
+
 def _normalize_message_type(value: object) -> str:
     """Return a safe non-empty envelope Type label, defaulting to Prompt."""
     text = str(value or "Prompt").strip()
@@ -297,12 +311,10 @@ def _inform_hierarchy_intermediates(
             continue
         envelope = source_envelope if ctxid == source_id else intermediate_envelope
         msg_id = _display_inbound_message(ctx, envelope)
-        try:
-            ctx.get_agent().hist_add_user_message(UserMessage(message=envelope, id=msg_id))
-        except Exception:
+        if not _add_context_message_without_prompt(ctx, envelope, msg_id):
             # Visible logging is the critical behavior; history/context append is
-            # best-effort so an intermediate notification cannot break delivery
-            # to the final target.
+            # best-effort so an observer notification cannot break delivery to
+            # the final target.
             pass
         informed.append(ctxid)
     return informed
@@ -371,7 +383,10 @@ class SuperordinateMessage(Tool):
         superordinate_id = kwargs.get("superordinate_id", "")
         name = kwargs.get("name", "")
         message = kwargs.get("message", "")
+        delivery_type = _normalize_message_type(kwargs.get("Type", "Prompt"))
         message_type = _normalize_message_type(kwargs.get("reply", "Prompt"))
+        if delivery_type.lower() == "info":
+            message_type = "Info"
 
         # Resolve name to ctxid if name provided
         if name and not superordinate_id:
@@ -480,6 +495,29 @@ class SuperordinateMessage(Tool):
         # before dispatching it, matching the standard UI/API message path.
         inbound_message_id = _display_inbound_message(target_context, forwarded_message)
 
+        # Type=Info is context-only delivery even for the final To agent: show it
+        # and add it to history/context, but do not trigger processing.
+        if delivery_type.lower() == "info":
+            history_added = _add_context_message_without_prompt(
+                target_context,
+                forwarded_message,
+                inbound_message_id,
+            )
+            return Response(
+                message="Info delivered to {} '{}' without prompting.".format(relationship, target_label),
+                break_loop=False,
+                additional={
+                    "superordinate_id": superordinate_id,
+                    "relationship": relationship,
+                    "parent_notification_fallback": parent_notification_fallback,
+                    "informed_intermediates": informed_intermediates,
+                    "delivery_type": delivery_type,
+                    "reply": message_type,
+                    "prompted_target": False,
+                    "target_history_added": history_added,
+                },
+            )
+
         # communicate() handles both cases:
         # - If target is idle: starts a new task and returns it
         # - If target is running: sets intervention message on the running agent
@@ -513,5 +551,8 @@ class SuperordinateMessage(Tool):
                 "relationship": relationship,
                 "parent_notification_fallback": parent_notification_fallback,
                 "informed_intermediates": informed_intermediates,
+                "delivery_type": delivery_type,
+                "reply": message_type,
+                "prompted_target": True,
             },
         )
