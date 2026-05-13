@@ -4,11 +4,11 @@ allowed targets, relative to the calling context:
 - **descendant**: any superordinate spawned beneath you (children, grandchildren, ...); always enabled because this is the original/core behavior
 - **ancestor**: your parent context, grandparent, etc.; controlled by the `Allow Parent / Ancestor Messaging` setting
 - **sibling**: another context that shares your immediate `sup_parent`; controlled by the `Allow Sibling Messaging` setting
-args: `superordinate_id` or `name`, `message`, optional `Reply`
+args: `superordinate_id` or `name`, `message`, optional `reply`
 - `superordinate_id`: the context ID of the target (from superordinate_list)
 - `name`: the unique name of the target (preferred - easier to reference)
 - `message`: the message to send
-- `Reply`: optional reply/type label for the routed envelope `Type` field; defaults to `Prompt`
+- `reply`: optional reply/type label for the routed envelope `Type` field; defaults to `Prompt`
 use `name` when you know the target's name, or `superordinate_id` for the raw context ID.
 the response payload includes a `relationship` field (`descendant`, `ancestor`, or `sibling`) so the caller knows which way the message went.
 the tool waits up to the configured `reply_wait_seconds` value for a reply before returning a check-later timeout response; the default is 5 seconds.
@@ -23,7 +23,7 @@ example (messaging a child/descendant):
   "tool_args": {
     "name": "Devvy",
     "message": "How is the API coming along?",
-    "Reply": "Prompt"
+    "reply": "Prompt"
   }
 }
 ~~~

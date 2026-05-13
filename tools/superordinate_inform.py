@@ -10,5 +10,5 @@ from usr.plugins.a0_superordinates.tools.superordinate_message import Superordin
 class SuperordinateInform(SuperordinateMessage):
     async def execute(self, **kwargs):
         kwargs = dict(kwargs)
-        kwargs["Reply"] = "Info"
+        kwargs["reply"] = "Info"
         return await super().execute(**kwargs)

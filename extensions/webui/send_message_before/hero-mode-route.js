@@ -41,7 +41,7 @@ export default async function routeHeroModeChatInput(sendCtx) {
       source_id: heroId,
       target_id: focusedContextId,
       message: original,
-      Reply: "Prompt",
+      reply: "Prompt",
     });
     if (!result?.ok) {
       console.warn("[Superordinates] Hero Mode route failed:", result?.error || result);
