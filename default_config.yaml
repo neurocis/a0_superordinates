@@ -13,6 +13,11 @@ allow_parent_messaging: false
 # Default is false for security.
 allow_sibling_messaging: false
 
+# Keep source and hierarchy intermediary agents informed about routed messages.
+# When enabled, superordinate_message logs non-prompt context copies to the From
+# agent and any hierarchy intermediaries between From and To. Default is true.
+keep_everybody_in_the_loop: true
+
 # Seconds superordinate_message waits for the target reply before returning.
 # If the target is still processing after this, use superordinate_getresponse later.
 reply_wait_seconds: 5

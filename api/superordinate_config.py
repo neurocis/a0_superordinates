@@ -10,6 +10,7 @@ DEFAULT_DISPLAY_CALENDAR_PROMPTS_INDICATOR = True
 DEFAULT_DISPLAY_PROMPT_SPEECH_TOGGLE = True
 DEFAULT_DISPLAY_CONTEXT_COUNTERS = True
 DEFAULT_HERO_MODE_DESIGNATED_HERO = "Disabled"
+DEFAULT_KEEP_EVERYBODY_IN_THE_LOOP = True
 
 
 def _parse_bool(value: object, default: bool = False) -> bool:
@@ -82,6 +83,10 @@ class SuperordinateConfig(ApiHandler):
         hero_mode_designated_hero = _normalize_hero_mode_designated_hero(
             config.get("hero_mode_designated_hero"),
         )
+        keep_everybody_in_the_loop = _parse_bool(
+            config.get("keep_everybody_in_the_loop"),
+            DEFAULT_KEEP_EVERYBODY_IN_THE_LOOP,
+        )
 
         normalized_config = {
             **config,
@@ -92,6 +97,7 @@ class SuperordinateConfig(ApiHandler):
             "display_prompt_speech_toggle": display_prompt_speech_toggle,
             "display_context_counters": display_context_counters,
             "hero_mode_designated_hero": hero_mode_designated_hero,
+            "keep_everybody_in_the_loop": keep_everybody_in_the_loop,
         }
 
         return {
@@ -103,5 +109,6 @@ class SuperordinateConfig(ApiHandler):
             "display_prompt_speech_toggle": display_prompt_speech_toggle,
             "display_context_counters": display_context_counters,
             "hero_mode_designated_hero": hero_mode_designated_hero,
+            "keep_everybody_in_the_loop": keep_everybody_in_the_loop,
             "config": normalized_config,
         }

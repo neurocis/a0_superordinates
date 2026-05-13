@@ -27,7 +27,7 @@ when `Type` is `Info`, `reply` is forced to `Info`, the `Reply` field is omitted
 
 ... message ...
 ~~~
-the source agent and any hierarchy intermediates between source and target get an informational copy logged into their visible chat/history context only; it is not dispatched as a prompt. For the source agent, `From` is omitted as redundant. `Reply` is included only when `reply` is not `Info`:
+when the `Keep everybody in the loop` setting is enabled, the source agent and any hierarchy intermediates between source and target get an informational copy logged into their visible chat/history context only; it is not dispatched as a prompt. For the source agent, `From` is omitted as redundant. `Reply` is included only when `reply` is not `Info`:
 ~~~text
 {To: "TargetName" (targetCtxId), Reply: Prompt}
 

@@ -475,14 +475,22 @@ class SuperordinateMessage(Tool):
                 },
             )
 
-        informed_intermediates = _inform_hierarchy_intermediates(
-            caller_ctxid,
-            caller_name,
-            superordinate_id,
-            target_label,
-            message or "",
-            message_type,
+        config = _get_config(self.agent)
+        keep_everybody_in_the_loop = _setting_enabled(
+            config,
+            "keep_everybody_in_the_loop",
+            True,
         )
+        informed_intermediates = []
+        if keep_everybody_in_the_loop:
+            informed_intermediates = _inform_hierarchy_intermediates(
+                caller_ctxid,
+                caller_name,
+                superordinate_id,
+                target_label,
+                message or "",
+                message_type,
+            )
 
         forwarded_message = _prompt_envelope(
             caller_name,
@@ -511,6 +519,7 @@ class SuperordinateMessage(Tool):
                     "relationship": relationship,
                     "parent_notification_fallback": parent_notification_fallback,
                     "informed_intermediates": informed_intermediates,
+                    "keep_everybody_in_the_loop": keep_everybody_in_the_loop,
                     "delivery_type": delivery_type,
                     "reply": message_type,
                     "prompted_target": False,
@@ -537,6 +546,7 @@ class SuperordinateMessage(Tool):
                 "relationship": relationship,
                 "parent_notification_fallback": parent_notification_fallback,
                 "informed_intermediates": informed_intermediates,
+                "keep_everybody_in_the_loop": keep_everybody_in_the_loop,
                 "delivery_type": delivery_type,
                 "reply": message_type,
                 "prompted_target": True,
