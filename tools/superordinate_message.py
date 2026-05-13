@@ -159,6 +159,14 @@ def _display_inbound_message(target_context, message: str, *, source: str = " (f
     return msg_id
 
 
+def _prompt_envelope(from_name: str, from_id: str, to_name: str, to_id: str, message: str) -> str:
+    """Return the standard routed-prompt envelope used by Hero Mode and tools."""
+    return (
+        f'{{Type: Prompt,\n From: "{from_name}" ({from_id}),\n   To: "{to_name}" ({to_id}) }}'
+        f"\n\n{message or ''}"
+    )
+
+
 def _is_ancestor_notification_fallback(relationship: str, agent, target_ctx) -> bool:
     """True when disabled parent messaging should become notify-ancestor/local-output.
 
@@ -307,25 +315,17 @@ class SuperordinateMessage(Tool):
                 },
             )
 
-        # Append a callback instruction so the target sends its results back to
-        # the calling agent/context when done.
-        callback_instruction = (
-            "\n\n[Instruction from framework]\n"
-            "When you finish this task, send your result back to the calling agent "
-            f"using superordinate_message with superordinate_id='{caller_ctxid}' and include your "
-            "final result in that message. If parent/ancestor messaging is disabled, "
-            "superordinate_message will send only a lightweight notification to the addressed "
-            "ancestor and return your full result locally in your own context; do not replace "
-            "your final result with the notification text. "
-            f"The calling agent/context is: {caller_name} (relationship to you: "
-            f"{'parent/ancestor' if relationship == 'descendant' else ('child/descendant' if relationship == 'ancestor' else 'sibling')})."
+        forwarded_message = _prompt_envelope(
+            caller_name,
+            caller_ctxid,
+            target_label,
+            superordinate_id,
+            message or "",
         )
-        forwarded_message = (message or "") + callback_instruction
 
-        # Show the inbound message in the recipient chat before dispatching it,
-        # matching the standard UI/API message path. Display the user's original
-        # message, not the framework callback instruction appended for routing.
-        inbound_message_id = _display_inbound_message(target_context, message or "")
+        # Show the same conforming inbound prompt envelope in the recipient chat
+        # before dispatching it, matching the standard UI/API message path.
+        inbound_message_id = _display_inbound_message(target_context, forwarded_message)
 
         # communicate() handles both cases:
         # - If target is idle: starts a new task and returns it
