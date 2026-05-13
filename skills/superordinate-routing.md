@@ -2,6 +2,10 @@
 
 Use `superordinate_roles` when deciding which descendant agent or branch is best suited to handle a question.
 
+## Terminology directive
+
+When a user references `superordinate`, `super`, `supers`, `super's`, or `hero`, treat these terms as synonymous with the name of a superordinate/context/agent unless the surrounding context clearly indicates another meaning.
+
 The tool returns JSON containing:
 
 - `caller`: the calling/current context, its role, parent, and children
