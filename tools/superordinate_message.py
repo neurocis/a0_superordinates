@@ -281,14 +281,14 @@ def _inform_hierarchy_intermediates(
     target_name: str,
     message: str,
     message_type: str = "Info",
+    include_intermediaries: bool = True,
 ) -> list[str]:
-    """Log informational messages to source/intermediates without prompting.
+    """Log observer messages to source/intermediates without prompting.
 
-    The source and intermediates need awareness/context for the routed message,
-    but they are not the addressed ``To`` agent and must not start processing it
-    as a prompt.
-    Therefore this logs the message visibly and appends it to the agent history,
-    but intentionally does not call ``AgentContext.communicate()``.
+    The source always needs awareness/context for the routed message. Hierarchy
+    intermediaries are included only when ``keep_everybody_in_the_loop`` is
+    enabled. None of these observers are the addressed ``To`` agent, so they must
+    not start processing this as a prompt.
     """
     informed: list[str] = []
     intermediate_envelope = _inform_envelope(
@@ -300,7 +300,9 @@ def _inform_hierarchy_intermediates(
         message_type,
     )
     source_envelope = _source_inform_envelope(target_name, target_id, message, message_type)
-    observer_ids = [source_id, *_hierarchy_path_between(source_id, target_id)]
+    observer_ids = [source_id]
+    if include_intermediaries:
+        observer_ids.extend(_hierarchy_path_between(source_id, target_id))
     seen: set[str] = set()
     for ctxid in observer_ids:
         if not ctxid or ctxid in seen or ctxid == target_id:
@@ -481,16 +483,15 @@ class SuperordinateMessage(Tool):
             "keep_everybody_in_the_loop",
             True,
         )
-        informed_intermediates = []
-        if keep_everybody_in_the_loop:
-            informed_intermediates = _inform_hierarchy_intermediates(
-                caller_ctxid,
-                caller_name,
-                superordinate_id,
-                target_label,
-                message or "",
-                message_type,
-            )
+        informed_intermediates = _inform_hierarchy_intermediates(
+            caller_ctxid,
+            caller_name,
+            superordinate_id,
+            target_label,
+            message or "",
+            message_type,
+            include_intermediaries=keep_everybody_in_the_loop,
+        )
 
         forwarded_message = _prompt_envelope(
             caller_name,
