@@ -1,40 +1,41 @@
-"""Route Hero Mode UI input through the centralized superordinate_message tool."""
+"""Route messages through the centralized superordinate_message tool."""
 
 from __future__ import annotations
 
 from helpers.api import ApiHandler, Request, Response
 from agent import AgentContext
-from usr.plugins.a0_superordinates.tools.superordinate_message import SuperordinateMessage
+from usr.plugins.a0_superordinates.tools.superordinate_message import SuperordinateMessage as SuperordinateMessageTool
 
 
 def _norm(value: object) -> str:
     return str(value or "").strip()
 
 
-class SuperordinateHeroMessage(ApiHandler):
-    """Send a focused-chat prompt as the designated Hero using tool semantics."""
+class SuperordinateMessage(ApiHandler):
+    """Send a context-to-context message using centralized tool semantics."""
 
     @classmethod
     def get_methods(cls) -> list[str]:
         return ["POST"]
 
     async def process(self, input: dict, request: Request) -> dict | Response:
-        hero_id = _norm(input.get("hero_id"))
-        target_id = _norm(input.get("target_id"))
+        source_id = _norm(input.get("source_id") or input.get("from_id"))
+        target_id = _norm(input.get("target_id") or input.get("to_id"))
         message = _norm(input.get("message"))
+        message_type = _norm(input.get("Type") or input.get("type") or "Prompt") or "Prompt"
 
-        if not hero_id:
-            return {"ok": False, "error": "Missing hero_id"}
+        if not source_id:
+            return {"ok": False, "error": "Missing source_id"}
         if not target_id:
             return {"ok": False, "error": "Missing target_id"}
         if not message:
             return {"ok": False, "error": "Missing message"}
-        if hero_id == target_id:
-            return {"ok": False, "error": "Hero Mode routing is only for non-Hero focused chats"}
+        if source_id == target_id:
+            return {"ok": False, "error": "Cannot route a superordinate_message to the same source context"}
 
-        hero_context = AgentContext.get(hero_id)
-        if not hero_context:
-            return {"ok": False, "error": f"Hero context '{hero_id}' not found"}
+        source_context = AgentContext.get(source_id)
+        if not source_context:
+            return {"ok": False, "error": f"Source context '{source_id}' not found"}
         target_context = AgentContext.get(target_id)
         if not target_context:
             return {"ok": False, "error": f"Target context '{target_id}' not found"}
@@ -42,10 +43,10 @@ class SuperordinateHeroMessage(ApiHandler):
         tool_args = {
             "superordinate_id": target_id,
             "message": message,
-            "Type": "Prompt",
+            "Type": message_type,
         }
-        tool = SuperordinateMessage(
-            agent=hero_context.get_agent(),
+        tool = SuperordinateMessageTool(
+            agent=source_context.get_agent(),
             name="superordinate_message",
             method=None,
             args=tool_args,
@@ -54,12 +55,12 @@ class SuperordinateHeroMessage(ApiHandler):
         )
         result = await tool.execute(
             **tool_args,
-            _allow_unrelated_hero_route=True,
+            _allow_unrelated_route=True,
         )
 
         return {
             "ok": True,
-            "hero_id": hero_id,
+            "source_id": source_id,
             "target_id": target_id,
             "message": result.message,
             "break_loop": result.break_loop,

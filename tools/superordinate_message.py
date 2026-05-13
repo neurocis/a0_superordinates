@@ -283,8 +283,8 @@ class SuperordinateMessage(Tool):
 
         relationship = _classify_relationship(target_context, self.agent.context)
         if not relationship:
-            if kwargs.get("_allow_unrelated_hero_route"):
-                relationship = "hero"
+            if kwargs.get("_allow_unrelated_route"):
+                relationship = "routed"
             else:
                 return Response(
                     message=(

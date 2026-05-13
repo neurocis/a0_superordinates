@@ -37,10 +37,11 @@ export default async function routeHeroModeChatInput(sendCtx) {
   sendCtx.cancel = true;
 
   try {
-    const result = await callJsonApi("plugins/a0_superordinates/superordinate_hero_message", {
-      hero_id: heroId,
+    const result = await callJsonApi("plugins/a0_superordinates/superordinate_message", {
+      source_id: heroId,
       target_id: focusedContextId,
       message: original,
+      Type: "Prompt",
     });
     if (!result?.ok) {
       console.warn("[Superordinates] Hero Mode route failed:", result?.error || result);
