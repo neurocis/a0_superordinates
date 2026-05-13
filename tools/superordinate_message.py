@@ -171,17 +171,18 @@ def _normalize_message_type(value: object) -> str:
 def _prompt_envelope(
     from_name: str,
     from_id: str,
-    to_name: str,
-    to_id: str,
     message: str,
     message_type: str = "Prompt",
 ) -> str:
-    """Return the standard routed-message envelope used by Hero Mode and tools."""
-    type_label = _normalize_message_type(message_type)
-    return (
-        f'{{Type: {type_label},\n From: "{from_name}" ({from_id}),\n   To: "{to_name}" ({to_id}) }}'
-        f"\n\n{message or ''}"
-    )
+    """Return the recipient-facing routed-message envelope.
+
+    The recipient already knows they are the target, so omit ``To``. Keep the
+    common Info case maximally compact by omitting ``Reply`` unless it carries
+    a non-Info value such as Prompt.
+    """
+    reply_label = _normalize_message_type(message_type)
+    reply_fragment = "" if reply_label.lower() == "info" else f", Reply: {reply_label}"
+    return f'{{From: "{from_name}" ({from_id}){reply_fragment}}}\n\n{message or ""}'
 
 
 def _is_ancestor_notification_fallback(relationship: str, agent, target_ctx) -> bool:
@@ -339,8 +340,6 @@ class SuperordinateMessage(Tool):
         forwarded_message = _prompt_envelope(
             caller_name,
             caller_ctxid,
-            target_label,
-            superordinate_id,
             message or "",
             message_type,
         )
