@@ -34,7 +34,7 @@ export default async function routeHeroModeChatInput(sendCtx) {
   const heroName = displayNameFor(heroId);
   const targetName = displayNameFor(focusedContextId);
 
-  sendCtx.message = `{ From: "${heroName}" (${heroId}),\n  To: "${targetName}" (${focusedContextId}) }\n\n${original}`;
+  sendCtx.message = `{ From: "${heroName}" (${heroId}),\n    To: "${targetName}" (${focusedContextId}) }\n\n${original}`;
 }
 
 async function getHeroModeState() {
