@@ -1,0 +1,37 @@
+<html>
+<head>
+  <script type="module">
+    import { store } from "/plugins/a0_superordinates/webui/context-counters-store.js";
+  </script>
+</head>
+<body>
+  <div x-data>
+    <template x-if="$store.superordinateContextCounters">
+      <div
+        class="a0-sup-context-counters-injector"
+        x-create="$store.superordinateContextCounters.onOpen()"
+        x-destroy="$store.superordinateContextCounters.cleanup(); $store.superordinateContextCounters.unmountCounterDisplay()"
+        x-effect="if ($store.superordinates?.showContextCounters?.() === false) { $store.superordinateContextCounters.unmountCounterDisplay() } else { $store.superordinateContextCounters.mountCounterDisplay(); $store.superordinateContextCounters.fetchCounterData() }"
+      ></div>
+    </template>
+  </div>
+
+  <style>
+    .a0-sup-context-counters-label {
+      font-size: 8pt;
+      opacity: 0.6;
+      font-family: monospace;
+      text-align: right;
+      white-space: nowrap;
+      user-select: none;
+      color: var(--color-text);
+      margin-right: 8px;
+    }
+
+    .a0-sup-context-counters-label .a0-sup-context-counters-total {
+      font-weight: 800 !important;
+      opacity: 1;
+    }
+  </style>
+</body>
+</html>

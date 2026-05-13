@@ -12,6 +12,7 @@ const model = {
   displayCalendarIndicator: true,
   displayCalendarPromptsIndicator: true,
   displayPromptSpeechToggle: true,
+  displayContextCounters: true,
   heroModeDesignatedHero: 'Disabled',
   _closedEntitiesConfigLoaded: false,
   _closedEntitiesConfigPromise: null,
@@ -135,6 +136,10 @@ const model = {
         response?.display_prompt_speech_toggle ?? response?.config?.display_prompt_speech_toggle,
         true
       );
+      this.displayContextCounters = this._parseBool(
+        response?.display_context_counters ?? response?.config?.display_context_counters,
+        true
+      );
       this.heroModeDesignatedHero = this._normalizeHeroModeDesignatedHero(
         response?.hero_mode_designated_hero ?? response?.config?.hero_mode_designated_hero
       );
@@ -146,6 +151,7 @@ const model = {
       this.displayCalendarIndicator = true;
       this.displayCalendarPromptsIndicator = true;
       this.displayPromptSpeechToggle = true;
+      this.displayContextCounters = true;
       this.heroModeDesignatedHero = 'Disabled';
       this._closedEntitiesConfigLoaded = true;
     }
@@ -165,6 +171,10 @@ const model = {
 
   showPromptSpeechToggle() {
     return this.displayPromptSpeechToggle !== false;
+  },
+
+  showContextCounters() {
+    return this.displayContextCounters !== false;
   },
 
   getHeroContextId() {

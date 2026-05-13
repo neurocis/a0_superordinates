@@ -8,6 +8,7 @@ DEFAULT_DISPLAY_INHERITANCE_INDICATOR = True
 DEFAULT_DISPLAY_CALENDAR_INDICATOR = True
 DEFAULT_DISPLAY_CALENDAR_PROMPTS_INDICATOR = True
 DEFAULT_DISPLAY_PROMPT_SPEECH_TOGGLE = True
+DEFAULT_DISPLAY_CONTEXT_COUNTERS = True
 DEFAULT_HERO_MODE_DESIGNATED_HERO = "Disabled"
 
 
@@ -74,6 +75,10 @@ class SuperordinateConfig(ApiHandler):
             config.get("display_prompt_speech_toggle"),
             DEFAULT_DISPLAY_PROMPT_SPEECH_TOGGLE,
         )
+        display_context_counters = _parse_bool(
+            config.get("display_context_counters"),
+            DEFAULT_DISPLAY_CONTEXT_COUNTERS,
+        )
         hero_mode_designated_hero = _normalize_hero_mode_designated_hero(
             config.get("hero_mode_designated_hero"),
         )
@@ -85,6 +90,7 @@ class SuperordinateConfig(ApiHandler):
             "display_calendar_indicator": display_calendar_indicator,
             "display_calendar_prompts_indicator": display_calendar_prompts_indicator,
             "display_prompt_speech_toggle": display_prompt_speech_toggle,
+            "display_context_counters": display_context_counters,
             "hero_mode_designated_hero": hero_mode_designated_hero,
         }
 
@@ -95,6 +101,7 @@ class SuperordinateConfig(ApiHandler):
             "display_calendar_indicator": display_calendar_indicator,
             "display_calendar_prompts_indicator": display_calendar_prompts_indicator,
             "display_prompt_speech_toggle": display_prompt_speech_toggle,
+            "display_context_counters": display_context_counters,
             "hero_mode_designated_hero": hero_mode_designated_hero,
             "config": normalized_config,
         }

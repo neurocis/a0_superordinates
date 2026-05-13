@@ -179,6 +179,16 @@
                         if (superordinates && Object.prototype.hasOwnProperty.call(payload?.settings || {}, 'display_prompt_speech_toggle')) {
                             superordinates.displayPromptSpeechToggle = payload.settings.display_prompt_speech_toggle !== false;
                         }
+                        if (superordinates && Object.prototype.hasOwnProperty.call(payload?.settings || {}, 'display_context_counters')) {
+                            superordinates.displayContextCounters = payload.settings.display_context_counters !== false;
+                            const counters = window.Alpine?.store?.('superordinateContextCounters');
+                            if (superordinates.displayContextCounters) {
+                                counters?.mountCounterDisplay?.();
+                                counters?.fetchCounterData?.();
+                            } else {
+                                counters?.unmountCounterDisplay?.();
+                            }
+                        }
                     } catch (_storeError) {}
 
                     if (previousHero !== nextHero) {
@@ -324,6 +334,23 @@
                     <div class="field-control">
                         <label class="toggle">
                             <input type="checkbox" x-model="config.display_prompt_speech_toggle" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Display context counters</div>
+                        <div class="field-description">
+                            Show context token counters in the chat input progress area, cloned from
+                            <code>a0_context_monitor</code>: <code>SYS</code>, <code>CTX</code>,
+                            <code>PRM</code>, and <code>RES</code>.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.display_context_counters" />
                             <span class="toggler"></span>
                         </label>
                     </div>

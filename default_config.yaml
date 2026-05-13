@@ -36,6 +36,10 @@ display_calendar_prompts_indicator: true
 # the left Preferences → Speech toggle. Default is true.
 display_prompt_speech_toggle: true
 
+# Show context token counters in the chat input progress area, cloned from a0_context_monitor.
+# Default is true.
+display_context_counters: true
+
 # Hero Mode designated root superordinate.
 # Disabled means normal chat-box routing. When set to a ROOT superordinate
 # context id, input typed while focused on any non-Hero context is routed as a
