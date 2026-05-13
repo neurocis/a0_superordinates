@@ -8,6 +8,8 @@ Allowed targets, relative to the calling context:
 
 from helpers.tool import Tool, Response
 from agent import AgentContext, UserMessage
+from helpers import message_queue
+import uuid
 
 
 def _is_descendant(target_ctxid: str, root_ctxid: str, max_depth: int = 64) -> bool:
@@ -135,6 +137,26 @@ def _direct_parent_id(ctx) -> str:
 def _parent_notification_message(ctxid: str) -> str:
     """Exact lightweight notification allowed when parent messaging is disabled."""
     return f"{ctxid} has sent you a message"
+
+
+def _display_inbound_message(target_context, message: str, *, source: str = " (from superordinate_message)") -> str:
+    """Log an inbound superordinate_message in the recipient chat UI.
+
+    ``AgentContext.communicate()`` starts processing but, unlike the normal UI/API
+    message path, it does not create the visible user-log row that appears in the
+    recipient chat immediately. Mirror the framework's message_queue/API pattern:
+    log the user message to the target context first, then pass the same id into
+    ``UserMessage`` so history/log correlation remains stable.
+    """
+    msg_id = str(uuid.uuid4())
+    message_queue.log_user_message(
+        target_context,
+        message or "",
+        [],
+        message_id=msg_id,
+        source=source,
+    )
+    return msg_id
 
 
 def _is_ancestor_notification_fallback(relationship: str, agent, target_ctx) -> bool:
@@ -266,7 +288,8 @@ class SuperordinateMessage(Tool):
         # return the full message locally so it is output in the sender context.
         if parent_notification_fallback:
             notification = _parent_notification_message(caller_ctxid)
-            target_context.communicate(UserMessage(message=notification))
+            notification_id = _display_inbound_message(target_context, notification)
+            target_context.communicate(UserMessage(message=notification, id=notification_id))
             local_message = message or ""
             return Response(
                 message=(
@@ -299,10 +322,15 @@ class SuperordinateMessage(Tool):
         )
         forwarded_message = (message or "") + callback_instruction
 
+        # Show the inbound message in the recipient chat before dispatching it,
+        # matching the standard UI/API message path. Display the user's original
+        # message, not the framework callback instruction appended for routing.
+        inbound_message_id = _display_inbound_message(target_context, message or "")
+
         # communicate() handles both cases:
         # - If target is idle: starts a new task and returns it
         # - If target is running: sets intervention message on the running agent
-        task = target_context.communicate(UserMessage(message=forwarded_message))
+        task = target_context.communicate(UserMessage(message=forwarded_message, id=inbound_message_id))
 
         # Wait for the result with a configurable timeout so we don't block the monologue.
         reply_wait_seconds = _reply_wait_seconds(_get_config(self.agent))
