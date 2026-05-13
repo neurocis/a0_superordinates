@@ -247,7 +247,7 @@ class SuperordinateMessage(Tool):
         superordinate_id = kwargs.get("superordinate_id", "")
         name = kwargs.get("name", "")
         message = kwargs.get("message", "")
-        message_type = _normalize_message_type(kwargs.get("Type", kwargs.get("type", "Prompt")))
+        message_type = _normalize_message_type(kwargs.get("Reply", kwargs.get("reply", "Prompt")))
 
         # Resolve name to ctxid if name provided
         if name and not superordinate_id:

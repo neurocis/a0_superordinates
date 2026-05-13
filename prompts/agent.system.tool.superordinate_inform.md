@@ -1,7 +1,7 @@
 ### superordinate_inform
 send an informational message to a related persistent superordinate context and wait for its response.
 
-this is a convenience wrapper around `superordinate_message` with the routed envelope `Type` forced to `Info`.
+this is a convenience wrapper around `superordinate_message` with `Reply` forced to `Info`, producing routed envelope `Type: Info`.
 
 allowed targets, relative to the calling context:
 - **descendant**: any superordinate spawned beneath you (children, grandchildren, ...); always enabled because this is the original/core behavior
