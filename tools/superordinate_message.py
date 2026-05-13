@@ -252,16 +252,22 @@ def _inform_hierarchy_intermediates(
     target_name: str,
     message: str,
 ) -> list[str]:
-    """Log informational messages to hierarchy intermediates without prompting.
+    """Log informational messages to source/intermediates without prompting.
 
-    Intermediates need awareness/context for the routed message, but they are not
-    the addressed ``To`` agent and must not start processing it as a prompt.
+    The source and intermediates need awareness/context for the routed message,
+    but they are not the addressed ``To`` agent and must not start processing it
+    as a prompt.
     Therefore this logs the message visibly and appends it to the agent history,
     but intentionally does not call ``AgentContext.communicate()``.
     """
     informed: list[str] = []
     envelope = _inform_envelope(source_name, source_id, target_name, target_id, message)
-    for ctxid in _hierarchy_path_between(source_id, target_id):
+    observer_ids = [source_id, *_hierarchy_path_between(source_id, target_id)]
+    seen: set[str] = set()
+    for ctxid in observer_ids:
+        if not ctxid or ctxid in seen or ctxid == target_id:
+            continue
+        seen.add(ctxid)
         ctx = AgentContext.get(ctxid)
         if not ctx:
             continue
