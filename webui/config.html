@@ -171,10 +171,17 @@
 
                     const previousHero = String(window.__a0SuperHeroInitialValue ?? 'Disabled') || 'Disabled';
                     const nextHero = String(payload?.settings?.hero_mode_designated_hero ?? 'Disabled') || 'Disabled';
-                    if (previousHero === nextHero) return response;
-
                     const result = await response.clone().json().catch(() => null);
-                    if (response.ok && result?.ok !== false) {
+                    if (!response.ok || result?.ok === false) return response;
+
+                    try {
+                        const superordinates = window.Alpine?.store?.('superordinates');
+                        if (superordinates && Object.prototype.hasOwnProperty.call(payload?.settings || {}, 'display_prompt_speech_toggle')) {
+                            superordinates.displayPromptSpeechToggle = payload.settings.display_prompt_speech_toggle !== false;
+                        }
+                    } catch (_storeError) {}
+
+                    if (previousHero !== nextHero) {
                         setTimeout(() => { try { window.location.reload(); } catch (_e) {} }, 250);
                     }
                 } catch (_error) {}
@@ -301,6 +308,22 @@
                     <div class="field-control">
                         <label class="toggle">
                             <input type="checkbox" x-model="config.display_calendar_prompts_indicator" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Display prompt speech toggle</div>
+                        <div class="field-description">
+                            Show a speaker icon beside the prompt input, between Send and Microphone.
+                            The button mirrors the left Preferences → Speech toggle.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.display_prompt_speech_toggle" />
                             <span class="toggler"></span>
                         </label>
                     </div>

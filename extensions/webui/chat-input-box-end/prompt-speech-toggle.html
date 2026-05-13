@@ -1,0 +1,51 @@
+<span
+  class="a0-sup-prompt-speech-anchor"
+  x-data
+  x-move-after="#send-button"
+  x-show="$store.superordinates?.showPromptSpeechToggle?.() !== false"
+  x-cloak
+>
+  <button
+    type="button"
+    class="chat-button a0-sup-prompt-speech-button"
+    :class="{ 'a0-sup-prompt-speech-enabled': !!$store.preferences?.speech }"
+    :aria-pressed="($store.preferences?.speech ? 'true' : 'false')"
+    :aria-label="$store.preferences?.speech ? 'Disable speech output' : 'Enable speech output'"
+    :title="$store.preferences?.speech ? 'Speech enabled — click to disable' : 'Speech disabled — click to enable'"
+    @click.stop="$store.preferences.speech = !$store.preferences.speech"
+  >
+    <span class="material-symbols-outlined" x-text="$store.preferences?.speech ? 'volume_up' : 'volume_off'"></span>
+  </button>
+
+  <style>
+    .a0-sup-prompt-speech-anchor {
+      display: contents;
+    }
+
+    #chat-buttons-wrapper .a0-sup-prompt-speech-button {
+      background-color: #5a6072;
+    }
+
+    #chat-buttons-wrapper .a0-sup-prompt-speech-button.a0-sup-prompt-speech-enabled {
+      background-color: #2a9d8f;
+    }
+
+    #chat-buttons-wrapper .a0-sup-prompt-speech-button:hover {
+      background-color: #4d5363;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 6px 14px rgba(0,0,0,0.2);
+    }
+
+    #chat-buttons-wrapper .a0-sup-prompt-speech-button.a0-sup-prompt-speech-enabled:hover {
+      background-color: #23877b;
+    }
+
+    #chat-buttons-wrapper .a0-sup-prompt-speech-button:active {
+      filter: brightness(0.96);
+    }
+
+    #chat-buttons-wrapper .a0-sup-prompt-speech-button .material-symbols-outlined {
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+  </style>
+</span>

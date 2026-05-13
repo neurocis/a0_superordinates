@@ -7,6 +7,7 @@ DEFAULT_CLOSED_ENTITIES_FOLDER_NAME = "Closed Entities"
 DEFAULT_DISPLAY_INHERITANCE_INDICATOR = True
 DEFAULT_DISPLAY_CALENDAR_INDICATOR = True
 DEFAULT_DISPLAY_CALENDAR_PROMPTS_INDICATOR = True
+DEFAULT_DISPLAY_PROMPT_SPEECH_TOGGLE = True
 DEFAULT_HERO_MODE_DESIGNATED_HERO = "Disabled"
 
 
@@ -69,6 +70,10 @@ class SuperordinateConfig(ApiHandler):
             config.get("display_calendar_prompts_indicator"),
             DEFAULT_DISPLAY_CALENDAR_PROMPTS_INDICATOR,
         )
+        display_prompt_speech_toggle = _parse_bool(
+            config.get("display_prompt_speech_toggle"),
+            DEFAULT_DISPLAY_PROMPT_SPEECH_TOGGLE,
+        )
         hero_mode_designated_hero = _normalize_hero_mode_designated_hero(
             config.get("hero_mode_designated_hero"),
         )
@@ -79,6 +84,7 @@ class SuperordinateConfig(ApiHandler):
             "display_inheritance_indicator": display_inheritance_indicator,
             "display_calendar_indicator": display_calendar_indicator,
             "display_calendar_prompts_indicator": display_calendar_prompts_indicator,
+            "display_prompt_speech_toggle": display_prompt_speech_toggle,
             "hero_mode_designated_hero": hero_mode_designated_hero,
         }
 
@@ -88,6 +94,7 @@ class SuperordinateConfig(ApiHandler):
             "display_inheritance_indicator": display_inheritance_indicator,
             "display_calendar_indicator": display_calendar_indicator,
             "display_calendar_prompts_indicator": display_calendar_prompts_indicator,
+            "display_prompt_speech_toggle": display_prompt_speech_toggle,
             "hero_mode_designated_hero": hero_mode_designated_hero,
             "config": normalized_config,
         }

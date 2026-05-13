@@ -32,6 +32,10 @@ display_calendar_indicator: true
 # when Scheduler prompt JSON exists. Default is true.
 display_calendar_prompts_indicator: true
 
+# Show a speaker icon beside the prompt input, between Send and Microphone, that mirrors
+# the left Preferences → Speech toggle. Default is true.
+display_prompt_speech_toggle: true
+
 # Hero Mode designated root superordinate.
 # Disabled means normal chat-box routing. When set to a ROOT superordinate
 # context id, input typed while focused on any non-Hero context is routed as a

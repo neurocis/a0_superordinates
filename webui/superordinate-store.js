@@ -11,6 +11,7 @@ const model = {
   displayInheritanceIndicator: true,
   displayCalendarIndicator: true,
   displayCalendarPromptsIndicator: true,
+  displayPromptSpeechToggle: true,
   heroModeDesignatedHero: 'Disabled',
   _closedEntitiesConfigLoaded: false,
   _closedEntitiesConfigPromise: null,
@@ -130,6 +131,10 @@ const model = {
         response?.display_calendar_prompts_indicator ?? response?.config?.display_calendar_prompts_indicator,
         true
       );
+      this.displayPromptSpeechToggle = this._parseBool(
+        response?.display_prompt_speech_toggle ?? response?.config?.display_prompt_speech_toggle,
+        true
+      );
       this.heroModeDesignatedHero = this._normalizeHeroModeDesignatedHero(
         response?.hero_mode_designated_hero ?? response?.config?.hero_mode_designated_hero
       );
@@ -140,6 +145,7 @@ const model = {
       this.displayInheritanceIndicator = true;
       this.displayCalendarIndicator = true;
       this.displayCalendarPromptsIndicator = true;
+      this.displayPromptSpeechToggle = true;
       this.heroModeDesignatedHero = 'Disabled';
       this._closedEntitiesConfigLoaded = true;
     }
@@ -155,6 +161,10 @@ const model = {
     const text = String(value || 'Disabled').trim();
     if (!text || text.toLowerCase() === 'disabled') return 'Disabled';
     return text;
+  },
+
+  showPromptSpeechToggle() {
+    return this.displayPromptSpeechToggle !== false;
   },
 
   getHeroContextId() {
