@@ -160,6 +160,38 @@ def _add_context_message_without_prompt(target_context, message: str, message_id
         return False
 
 
+def _remember_pending_reply_route(
+    target_context,
+    *,
+    inbound_message_id: str,
+    source_id: str,
+    source_name: str,
+    target_id: str,
+    target_name: str,
+    reply: str,
+) -> None:
+    """Persist reverse-route metadata for the prompted target context.
+
+    The completion hook should not have to parse rendered history to determine
+    where a routed prompt came from. Store the route against the exact inbound
+    message id used for ``communicate()`` so process_chain_end can route the
+    completed response back deterministically.
+    """
+    if not target_context or not inbound_message_id:
+        return
+    routes = target_context.data.setdefault("_superordinate_pending_reply_routes", {})
+    if not isinstance(routes, dict):
+        routes = {}
+        target_context.data["_superordinate_pending_reply_routes"] = routes
+    routes[inbound_message_id] = {
+        "from_id": source_id,
+        "from_name": source_name,
+        "to_id": target_id,
+        "to_name": target_name,
+        "reply": reply or "Info",
+    }
+
+
 def _normalize_message_type(value: object) -> str:
     """Return a safe non-empty envelope Type label, defaulting to Prompt."""
     text = str(value or "Prompt").strip()
@@ -515,14 +547,24 @@ class SuperordinateMessage(Tool):
                 },
             )
 
+        _remember_pending_reply_route(
+            target_context,
+            inbound_message_id=inbound_message_id,
+            source_id=caller_ctxid,
+            source_name=caller_name,
+            target_id=superordinate_id,
+            target_name=target_label,
+            reply=message_type,
+        )
+
         # communicate() handles both cases:
         # - If target is idle: starts a new task and returns it
         # - If target is running: sets intervention message on the running agent
         target_context.communicate(UserMessage(message=forwarded_message, id=inbound_message_id))
 
-        # Do not wait here. The target's monologue_end hook will route its final
-        # response back to the original From agent according to the inbound
-        # envelope's Reply value.
+        # Do not wait here. The target's process_chain_end hook will route its
+        # final response back to the original From agent according to the stored
+        # route metadata / inbound envelope's Reply value.
         return Response(
             message=(
                 "Message delivered to {} '{}'. Reply routing will occur when "

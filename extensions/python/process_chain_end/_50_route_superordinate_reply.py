@@ -1,6 +1,7 @@
 """Route completed superordinate replies back at process_chain_end.
 
-Trigger: the completed agent's user message contains a routed envelope beginning
+Trigger: the completed agent has pending superordinate route metadata for
+the inbound message id, falling back to parsing a routed envelope beginning
 with ``{From: "Name" (ctxid) ...}``. The envelope's Reply value controls whether
 the reverse delivery prompts the original sender: Reply=Info is context-only;
 anything else prompts.
@@ -55,23 +56,61 @@ def _parse_inbound_route(text: str) -> dict[str, str] | None:
     }
 
 
+def _pending_route(context, user_msg_id: str) -> dict[str, str] | None:
+    routes = context.data.get("_superordinate_pending_reply_routes") or {}
+    if isinstance(routes, dict):
+        route = routes.get(user_msg_id)
+        if isinstance(route, dict) and route.get("from_id"):
+            return {
+                "from_name": str(route.get("from_name") or ""),
+                "from_id": str(route.get("from_id") or ""),
+                "reply": str(route.get("reply") or "Info"),
+            }
+    return None
+
+
+def _response_text(agent, context, user_msg_id: str) -> str:
+    response_record = context.data.get("_superordinate_last_response") or {}
+    if response_record.get("user_message_id") == user_msg_id:
+        text = str(response_record.get("text") or "").strip()
+        if text:
+            return text
+
+    loop_data = getattr(agent, "loop_data", None)
+    text = str(getattr(loop_data, "last_response", "") or "").strip()
+    if text:
+        return text
+
+    try:
+        history_output = agent.history.output() or []
+        for item in reversed(history_output):
+            if getattr(item, "ai", False):
+                text = str(item.output_text() or "").strip()
+                if text:
+                    return text
+    except Exception:
+        pass
+    return ""
+
+
 class RouteSuperordinateReplyOnProcessEnd(Extension):
 
     async def execute(self, loop_data: LoopData = LoopData(), **kwargs):
-        if not self.agent:
+        agent = self.agent
+        if not agent:
             return
 
-        context = self.agent.context
-        user_msg = getattr(loop_data, "user_message", None) or getattr(self.agent, "last_user_message", None)
+        context = agent.context
+        user_msg = getattr(agent, "last_user_message", None)
         user_msg_id = getattr(user_msg, "id", "") or ""
         if not user_msg_id:
             return
 
-        # Idempotency: monologue_end may be re-entered; route once per inbound message.
+        # Idempotency: process_chain_end can be re-entered; route once per inbound message.
         if context.data.get("_superordinate_reply_routed_for_message_id") == user_msg_id:
             return
 
-        route = _parse_inbound_route(_message_text(user_msg))
+        route = _pending_route(context, user_msg_id) or _parse_inbound_route(_message_text(user_msg))
         if not route:
             return
 
@@ -79,12 +118,16 @@ class RouteSuperordinateReplyOnProcessEnd(Extension):
         if target_id == context.id:
             return
 
-        response_record = context.data.get("_superordinate_last_response") or {}
-        if response_record.get("user_message_id") != user_msg_id:
-            return
-
-        response_text = str(response_record.get("text") or "").strip()
+        response_text = _response_text(agent, context, user_msg_id)
         if not response_text:
+            try:
+                context.log.log(
+                    type="warning",
+                    heading="Superordinate reply routing skipped",
+                    content=f"No completed response text was found for routed message {user_msg_id}.",
+                )
+            except Exception:
+                pass
             return
 
         target_context = AgentContext.get(target_id)
@@ -109,7 +152,7 @@ class RouteSuperordinateReplyOnProcessEnd(Extension):
             "Type": delivery_type,
         }
         tool = SuperordinateMessage(
-            agent=self.agent,
+            agent=agent,
             name="superordinate_message",
             method=None,
             args=tool_args,
@@ -120,6 +163,9 @@ class RouteSuperordinateReplyOnProcessEnd(Extension):
         context.data["_superordinate_reply_routed_for_message_id"] = user_msg_id
         try:
             await tool.execute(**tool_args, _allow_unrelated_route=True)
+            routes = context.data.get("_superordinate_pending_reply_routes")
+            if isinstance(routes, dict):
+                routes.pop(user_msg_id, None)
         except Exception as exc:
             context.data.pop("_superordinate_reply_routed_for_message_id", None)
             try:
