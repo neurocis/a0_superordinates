@@ -16,6 +16,7 @@ from usr.plugins.a0_superordinates.helpers.roles import (
     MAX_ROLES_NODES,
     read_roles_file,
 )
+from usr.plugins.a0_superordinates.helpers.routing_matcher import decide_route
 
 
 def _context_exists(ctxid: str) -> bool:
@@ -137,6 +138,32 @@ def _tree_node(
     }
 
 
+def _routing_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return candidates usable by the routing matcher.
+
+    The matcher primarily routes among descendants, but the caller is included
+    as a fallback/default-owner candidate so A0 can be selected when it is the
+    current/default owner and no descendant matches confidently.
+    """
+    candidates: list[dict[str, Any]] = []
+    caller = payload.get("caller")
+    if isinstance(caller, dict):
+        candidates.append(caller)
+    descendants = payload.get("descendants")
+    if isinstance(descendants, list):
+        candidates.extend(candidate for candidate in descendants if isinstance(candidate, dict))
+    return candidates
+
+
+def add_routing_decision(payload: dict[str, Any], query: str) -> dict[str, Any]:
+    """Attach a skill-first/name-failover routing decision for *query*."""
+    if not isinstance(query, str) or not query.strip():
+        return payload
+    decision = decide_route(query.strip(), _routing_candidates(payload))
+    payload["routing_decision"] = decision.to_dict()
+    return payload
+
+
 def build_superordinate_roles_payload(ctxid: str) -> dict[str, Any]:
     """Build routing JSON for caller plus descendants."""
     children_by_parent = _children_by_authoritative_parent()
@@ -207,6 +234,9 @@ class SuperordinateRoles(Tool):
             )
 
         payload = build_superordinate_roles_payload(ctxid)
+        query = kwargs.get("query") or kwargs.get("request") or kwargs.get("target")
+        if isinstance(query, str) and query.strip():
+            add_routing_decision(payload, query)
         return Response(
             message=json.dumps(payload, indent=2, sort_keys=True),
             break_loop=False,
