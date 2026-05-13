@@ -221,6 +221,7 @@ const model = {
       if (response && response.root_order) {
         this.rootOrder = response.root_order;
       }
+      this._clearPinsForClosedChatsDescendants();
       this._cancelStaticNameRenameIfNeeded();
     } catch (e) {
       console.error("[Superordinates] Error fetching map:", e);
@@ -664,6 +665,31 @@ const model = {
     if (!ctxid || this.isHeroPinned(ctxid)) return;
     const next = !this.isPinned(ctxid);
     this.pinnedNodes = { ...this.pinnedNodes, [ctxid]: next };
+    this._persistPinned();
+  },
+
+  /**
+   * Clear manual pinned flags for one or more contexts.
+   *
+   * This intentionally only clears persisted/manual pins. Hero pinning is dynamic
+   * and continues to be controlled by Hero Mode rather than localStorage.
+   */
+  _clearManualPins(ctxids) {
+    const ids = Array.isArray(ctxids) ? ctxids : [ctxids];
+    const cleanIds = ids.filter(Boolean);
+    if (!cleanIds.length) return;
+
+    let changed = false;
+    const nextPinned = { ...this.pinnedNodes };
+    cleanIds.forEach(id => {
+      if (nextPinned[id]) {
+        delete nextPinned[id];
+        changed = true;
+      }
+    });
+
+    if (!changed) return;
+    this.pinnedNodes = nextPinned;
     this._persistPinned();
   },
 
@@ -1179,6 +1205,21 @@ const model = {
   },
 
   /**
+   * Reconcile persisted pins against the current hierarchy snapshot.
+   *
+   * This is a safety net for any move path that places a Super into Closed
+   * Entities without going through this store's close/reparent helpers. Since
+   * manual pins live in localStorage, the frontend can clear them as soon as the
+   * refreshed map shows a pinned context under the Closed Entities folder.
+   */
+  _clearPinsForClosedChatsDescendants() {
+    const pinnedIds = Object.keys(this.pinnedNodes || {}).filter(id => this.pinnedNodes[id]);
+    if (!pinnedIds.length) return;
+    const idsToClear = pinnedIds.filter(id => this.isClosedChatsRestricted(id));
+    if (idsToClear.length) this._clearManualPins(idsToClear);
+  },
+
+  /**
    * Check if Onboard should be hidden for this context.
    */
   isOnboardBlocked(ctxid) {
@@ -1339,6 +1380,7 @@ const model = {
     // and are killed rather than moved.
     if (movedToClosedChats) {
       const movedIds = [ctxid, ...this._collectDescendants(ctxid)];
+      this._clearManualPins(movedIds);
       const nextBlocked = { ...this.msgMeBlockedNodes };
       movedIds.forEach(id => { nextBlocked[id] = true; });
       this.msgMeBlockedNodes = nextBlocked;
@@ -1367,11 +1409,18 @@ const model = {
    */
   async reparent(childId, newParentId, position) {
     if (!childId || childId === newParentId) return;
-    // Hard guard: move-locked nodes (pinned or root-level 'Closed Entities') cannot move
-    if (this.isMoveLocked && this.isMoveLocked(childId)) {
+    const movingUnderClosedChats = !!newParentId && this.isClosedChatsRestricted(newParentId);
+
+    // Hard guard: move-locked nodes cannot move, except that a manually pinned
+    // Super may be moved into Closed Entities. In that special close/move path
+    // the manual pin is cleared after the reparent succeeds. Root-locked nodes
+    // such as the root-level Closed Entities folder itself remain immovable.
+    if (this.isRootLocked && this.isRootLocked(childId)) {
       return;
     }
-    const movingUnderClosedChats = !!newParentId && this.isClosedChatsRestricted(newParentId);
+    if (this.isPinned(childId) && !movingUnderClosedChats) {
+      return;
+    }
 
     let reparented = false;
     try {
@@ -1393,6 +1442,7 @@ const model = {
     // the Close flow, but also covers drag/drop or other reparent operations.
     if (reparented && movingUnderClosedChats) {
       const movedIds = [childId, ...this._collectDescendants(childId)];
+      this._clearManualPins(movedIds);
       const nextBlocked = { ...this.msgMeBlockedNodes };
       movedIds.forEach(id => { nextBlocked[id] = true; });
       this.msgMeBlockedNodes = nextBlocked;
