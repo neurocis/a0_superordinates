@@ -210,6 +210,20 @@
     })();
 </script>
 <style>
+    /* A0 Superordinates version badge - small, right-justified, unobtrusive */
+    .a0-sup-section-title-row {
+        display: flex !important;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+    .a0-sup-version-badge {
+        font-size: 0.7em;
+        font-weight: 400;
+        opacity: 0.55;
+        white-space: nowrap;
+    }
+
     /* A0 Superordinates settings use a 75/25 description/control split. */
     body .field {
         grid-template-columns: minmax(0, 3fr) minmax(220px, 1fr);
@@ -230,7 +244,10 @@
     <div x-data="{ heroRootOptions: [], heroRootOptionsLoading: false, heroRootOptionsError: '', heroRootOptionsLoadingStarted: false }" x-init="$nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this))" x-effect="if (config) { window.a0SuperordinatesRememberInitialHeroHandlerName?.(config.hero_handler_name); } if (config && !heroRootOptionsLoadingStarted) { heroRootOptionsLoadingStarted = true; $nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this)) }">
         <template x-if="config">
             <div>
-                <div class="section-title">A0 Superordinates</div>
+                <div class="section-title a0-sup-section-title-row">
+                    <span>A0 Superordinates</span>
+                    <span class="a0-sup-version-badge" x-data="{ version: '' }" x-init="(async () => { try { const r = await fetchApi('plugins/a0_superordinates/superordinate_version'); const j = await r.json(); version = j?.version || ''; } catch (_e) {} })()" x-text="version ? ('v' + version) : ''"></span>
+                </div>
                 <div class="section-description">
                     Configure relationship permissions for <code>superordinate_message</code>.
                     Messaging descendants (children and grandchildren) remains enabled as the core behavior.

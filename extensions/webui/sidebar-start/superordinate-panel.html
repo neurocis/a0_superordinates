@@ -6,11 +6,19 @@
   <div
     x-data="{
       _flatTree: [],
+      superordinatesPluginVersion: '',
       showSuperordinatesLicense: false,
       superordinatesLicenseText: '',
       superordinatesLicenseLoading: false,
       superordinatesLicenseError: '',
       async openSuperordinatesLicense() {
+        try {
+          if (!this.superordinatesPluginVersion) {
+            const r = await fetchApi('plugins/a0_superordinates/superordinate_version');
+            const j = await r.json();
+            this.superordinatesPluginVersion = String(j?.version || '');
+          }
+        } catch (_e) {}
         this.showSuperordinatesLicense = true;
         if (this.superordinatesLicenseText || this.superordinatesLicenseLoading) return;
         this.superordinatesLicenseLoading = true;
@@ -97,6 +105,7 @@
                 <h2 id="superordinates-license-modal-title">A0 Superordinates LICENSE</h2>
                 <p>Built w/care by neurocis.ai in Canada.</p>
               </div>
+              <div class="superordinate-license-version-badge" x-text="superordinatesPluginVersion ? ('v' + superordinatesPluginVersion) : ''"></div>
               <button
                 type="button"
                 class="superordinate-license-modal-close"
@@ -276,6 +285,16 @@
     border: 1px solid var(--color-border);
     border-radius: 16px;
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+  }
+
+  .superordinate-license-version-badge {
+    align-self: flex-start;
+    margin-left: auto;
+    margin-right: 0.75rem;
+    font-size: 0.7em;
+    font-weight: 400;
+    opacity: 0.55;
+    white-space: nowrap;
   }
 
   .superordinate-license-modal-header {
