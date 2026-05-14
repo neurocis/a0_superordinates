@@ -314,6 +314,38 @@ def _source_inform_envelope(
     reply_fragment = _reply_fragment(message_type)
     return f'{{To: "{to_name}" ({to_id}){reply_fragment}}}\n\n{message or ""}'
 
+def _visible_truncate_size(config: dict, default: int = 1000) -> int:
+    """Return non-negative visible message body truncate size, 0 disables."""
+    value = config.get("visible_message_body_truncate_size", default)
+    try:
+        size = int(value)
+    except (TypeError, ValueError):
+        size = default
+    return size if size >= 0 else default
+
+
+def _truncate_body_in_envelope(envelope: str, limit: int) -> str:
+    """Return envelope with its body portion truncated for visible rendering only.
+
+    The header section ending at the first blank-line separator is preserved
+    exactly. Only the message body is shortened, with an ellipsis marker added
+    when truncation occurs. ``limit <= 0`` disables truncation entirely.
+    """
+    if not envelope or limit <= 0:
+        return envelope or ""
+    separator = "\n\n"
+    idx = envelope.find(separator)
+    if idx < 0:
+        return envelope
+    header = envelope[: idx + len(separator)]
+    body = envelope[idx + len(separator) :]
+    if len(body) <= limit:
+        return envelope
+    suffix = "… [truncated for display]"
+    keep = max(0, limit - len(suffix))
+    return header + body[:keep] + suffix
+
+
 def _ancestor_chain(ctxid: str, max_depth: int = 64) -> list[str]:
     """Return ctxid followed by its parents up to the root/known boundary."""
     chain: list[str] = []
@@ -372,6 +404,7 @@ def _inform_hierarchy_intermediates(
     message_type: str = "Info",
     include_intermediaries: bool = True,
     source_observer_message: str | None = None,
+    visible_truncate_size: int = 0,
 ) -> list[str]:
     """Log observer messages to source/intermediates without prompting.
 
@@ -403,7 +436,10 @@ def _inform_hierarchy_intermediates(
         if not ctx:
             continue
         envelope = source_envelope if ctxid == source_id else intermediate_envelope
-        msg_id = _display_inbound_message(ctx, envelope)
+        # Visible row is allowed to be truncated for readability; the memory
+        # channel always receives the full envelope content untouched.
+        visible_envelope = _truncate_body_in_envelope(envelope, visible_truncate_size)
+        msg_id = _display_inbound_message(ctx, visible_envelope)
         if not _add_context_message_without_prompt(ctx, envelope, msg_id):
             # Visible logging is the critical behavior; history/context append is
             # best-effort so an observer notification cannot break delivery to
@@ -578,6 +614,7 @@ class SuperordinateMessage(Tool):
             "keep_everybody_in_the_loop",
             True,
         )
+        visible_truncate_size = _visible_truncate_size(config)
         hidden_delivery = bool(kwargs.get("_hidden"))
         if hidden_delivery:
             # Hidden delivery: send ONLY to the final recipient. Skip source/
@@ -596,6 +633,7 @@ class SuperordinateMessage(Tool):
                 message_type,
                 include_intermediaries=keep_everybody_in_the_loop,
                 source_observer_message=source_observer_message,
+                visible_truncate_size=visible_truncate_size,
             )
 
         forwarded_message = _prompt_envelope(
@@ -611,10 +649,19 @@ class SuperordinateMessage(Tool):
             # row in the recipient via _display_inbound_message.
             inbound_message_id = str(uuid.uuid4())
         else:
-            # Show the same conforming inbound prompt envelope in the recipient
-            # chat before dispatching it, matching the standard UI/API message
-            # path.
-            inbound_message_id = _display_inbound_message(target_context, forwarded_message)
+            # Visible recipient row may be truncated for readability when the
+            # delivery is a non-Info prompt. Info final recipient visible rows
+            # are left unchanged so the memory + visible content stay aligned
+            # for context-only deliveries. The full forwarded_message is still
+            # used for communicate() so the prompt the recipient processes is
+            # never truncated.
+            if delivery_type.lower() == "info":
+                visible_forwarded_message = forwarded_message
+            else:
+                visible_forwarded_message = _truncate_body_in_envelope(
+                    forwarded_message, visible_truncate_size
+                )
+            inbound_message_id = _display_inbound_message(target_context, visible_forwarded_message)
 
         # Type=Info is context-only delivery even for the final To agent: show it
         # and add it to history/context, but do not trigger processing.
@@ -677,5 +724,6 @@ class SuperordinateMessage(Tool):
                 "prompted_target": True,
                 "skip_reverse_route": skip_reverse_route,
                 "hidden_delivery": hidden_delivery,
+                "visible_truncate_size": visible_truncate_size,
             },
         )

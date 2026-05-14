@@ -13,6 +13,7 @@ DEFAULT_HERO_MODE_DESIGNATED_HERO = "Disabled"
 DEFAULT_HERO_HANDLER_NAME = ""
 DEFAULT_HERO_MODE_REPLIES_TO_HERO_INFORMATIONAL = True
 DEFAULT_KEEP_EVERYBODY_IN_THE_LOOP = True
+DEFAULT_VISIBLE_MESSAGE_BODY_TRUNCATE_SIZE = 1000
 
 
 def _parse_bool(value: object, default: bool = False) -> bool:
@@ -29,6 +30,15 @@ def _parse_bool(value: object, default: bool = False) -> bool:
         if lowered in {"0", "false", "no", "n", "off", ""}:
             return False
     return default
+
+
+def _parse_int_nonneg(value: object, default: int) -> int:
+    """Return a non-negative int from value, falling back to default."""
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        return default
+    return result if result >= 0 else default
 
 
 def _normalize_hero_handler_name(value: object) -> str:
@@ -102,6 +112,10 @@ class SuperordinateConfig(ApiHandler):
             config.get("keep_everybody_in_the_loop"),
             DEFAULT_KEEP_EVERYBODY_IN_THE_LOOP,
         )
+        visible_message_body_truncate_size = _parse_int_nonneg(
+            config.get("visible_message_body_truncate_size"),
+            DEFAULT_VISIBLE_MESSAGE_BODY_TRUNCATE_SIZE,
+        )
 
         normalized_config = {
             **config,
@@ -115,6 +129,7 @@ class SuperordinateConfig(ApiHandler):
             "hero_mode_designated_hero": hero_mode_designated_hero,
             "hero_mode_replies_to_hero_informational": hero_mode_replies_to_hero_informational,
             "keep_everybody_in_the_loop": keep_everybody_in_the_loop,
+            "visible_message_body_truncate_size": visible_message_body_truncate_size,
         }
 
         return {
@@ -129,5 +144,6 @@ class SuperordinateConfig(ApiHandler):
             "hero_mode_designated_hero": hero_mode_designated_hero,
             "hero_mode_replies_to_hero_informational": hero_mode_replies_to_hero_informational,
             "keep_everybody_in_the_loop": keep_everybody_in_the_loop,
+            "visible_message_body_truncate_size": visible_message_body_truncate_size,
             "config": normalized_config,
         }

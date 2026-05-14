@@ -59,3 +59,13 @@ hero_mode_designated_hero: "Disabled"
 # completed response returns to the Hero as informational memory/context rather
 # than prompting the Hero. Default is true.
 hero_mode_replies_to_hero_informational: true
+
+# Visible message body truncate size.
+# Limits the length of message bodies shown in the visible chat row for:
+#   - hierarchy intermediary observer deliveries
+#   - source/From observer copies
+#   - non-Info final TO recipient visible rows
+# The underlying message content used for memory/context and prompt delivery is
+# never truncated. Info-path final recipient visible rows are also unaffected.
+# Set to 0 to disable visible truncation. Default is 1000 characters.
+visible_message_body_truncate_size: 1000

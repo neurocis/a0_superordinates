@@ -356,6 +356,23 @@
 
                 <div class="field">
                     <div class="field-label">
+                        <div class="field-title">Visible message body truncate size</div>
+                        <div class="field-description">
+                            Max characters of the visible chat-row body for hierarchy intermediary observer
+                            copies, source/From observer copies, and non-Info final recipient visible rows.
+                            The underlying message used for memory/context and prompt delivery is never
+                            truncated. Info-path final recipient visible rows are unaffected. Set to
+                            <code>0</code> to disable visible truncation. Default is <code>1000</code>.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <input type="number" min="0" max="100000"
+                            x-model.number="config.visible_message_body_truncate_size" />
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
                         <div class="field-title">Set replies to the Hero from a prompted Superordinate to Informational</div>
                         <div class="field-description">
                             When Hero Mode routes a direct prompt from the Hero into the focused non-Hero
