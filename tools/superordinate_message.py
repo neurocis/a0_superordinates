@@ -579,21 +579,24 @@ class SuperordinateMessage(Tool):
             True,
         )
         hidden_delivery = bool(kwargs.get("_hidden"))
-        # Hidden delivery applies ONLY to the final recipient (suppress the
-        # visible inbound chat row on the recipient). Source and hierarchy
-        # intermediate observer copies still post normally so the reply-er
-        # and intermediaries see the routed envelope as usual.
-        source_observer_message = "Monologue details sent." if verified_reply else None
-        informed_intermediates = _inform_hierarchy_intermediates(
-            caller_ctxid,
-            caller_name,
-            superordinate_id,
-            target_label,
-            message or "",
-            message_type,
-            include_intermediaries=keep_everybody_in_the_loop,
-            source_observer_message=source_observer_message,
-        )
+        if hidden_delivery:
+            # Hidden delivery: send ONLY to the final recipient. Skip source/
+            # intermediate observer copies entirely so the reverse-reply stub
+            # does not double-post to chats that already received the full
+            # Info delivery in the preceding step.
+            informed_intermediates: list[str] = []
+        else:
+            source_observer_message = "Monologue details sent." if verified_reply else None
+            informed_intermediates = _inform_hierarchy_intermediates(
+                caller_ctxid,
+                caller_name,
+                superordinate_id,
+                target_label,
+                message or "",
+                message_type,
+                include_intermediaries=keep_everybody_in_the_loop,
+                source_observer_message=source_observer_message,
+            )
 
         forwarded_message = _prompt_envelope(
             caller_name,
