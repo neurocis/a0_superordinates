@@ -139,6 +139,15 @@
     // Capture the Hero selection as it was when this settings UI loaded. The
     // plugin-only save hook below compares against this value so no core
     // framework changes are required.
+    window.a0SuperordinatesRememberInitialHeroHandlerName = rememberInitialHeroHandlerName;
+
+    function rememberInitialHeroHandlerName(value) {
+        try {
+            if (window.__a0SuperHeroHandlerInitialValue !== undefined) return;
+            window.__a0SuperHeroHandlerInitialValue = String(value || '').trim();
+        } catch (_error) {}
+    }
+
     function rememberInitialHeroModeValue(value) {
         try {
             if (window.__a0SuperHeroInitialValue !== undefined) return;
@@ -200,9 +209,18 @@
         } catch (_outer) {}
     })();
 </script>
+<style>
+    /* A0 Superordinates settings use a wider description column. */
+    body .field {
+        grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+    }
+    @media (max-width: 900px) {
+        body .field { grid-template-columns: 1fr; }
+    }
+</style>
 </head>
 <body>
-    <div x-data="{ heroRootOptions: [], heroRootOptionsLoading: false, heroRootOptionsError: '', heroRootOptionsLoadingStarted: false }" x-init="$nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this))" x-effect="if (config && !heroRootOptionsLoadingStarted) { heroRootOptionsLoadingStarted = true; $nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this)) }">
+    <div x-data="{ heroRootOptions: [], heroRootOptionsLoading: false, heroRootOptionsError: '', heroRootOptionsLoadingStarted: false }" x-init="$nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this))" x-effect="if (config) { window.a0SuperordinatesRememberInitialHeroHandlerName?.(config.hero_handler_name); } if (config && !heroRootOptionsLoadingStarted) { heroRootOptionsLoadingStarted = true; $nextTick(() => window.a0SuperordinatesLoadHeroRootOptions?.(this)) }">
         <template x-if="config">
             <div>
                 <div class="section-title">A0 Superordinates</div>
@@ -211,6 +229,21 @@
                     Messaging descendants (children and grandchildren) remains enabled as the core behavior.
                 </div>
 
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Hero Handler's name or handle</div>
+                        <div class="field-description">
+                            Name or handle of the human/operator this AI agent orchestrator belongs to.
+                            When Hero Mode is enabled, this prefixes the sidebar Heroes header, for example
+                            <code>neurocis Heroes</code>.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <input type="text"
+                            x-model="config.hero_handler_name"
+                            placeholder="neurocis" />
+                    </div>
+                </div>
 
                 <div class="field">
                     <div class="field-label">

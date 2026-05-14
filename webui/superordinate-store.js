@@ -14,6 +14,7 @@ const model = {
   displayPromptSpeechToggle: true,
   displayContextCounters: true,
   heroModeDesignatedHero: 'Disabled',
+  heroHandlerName: '',
   _closedEntitiesConfigLoaded: false,
   _closedEntitiesConfigPromise: null,
   _refreshInterval: null,
@@ -143,6 +144,9 @@ const model = {
       this.heroModeDesignatedHero = this._normalizeHeroModeDesignatedHero(
         response?.hero_mode_designated_hero ?? response?.config?.hero_mode_designated_hero
       );
+      this.heroHandlerName = this._normalizeHeroHandlerName(
+        response?.hero_handler_name ?? response?.config?.hero_handler_name
+      );
       this._closedEntitiesConfigLoaded = true;
     } catch (e) {
       console.error("[Superordinates] Error fetching config:", e);
@@ -153,12 +157,17 @@ const model = {
       this.displayPromptSpeechToggle = true;
       this.displayContextCounters = true;
       this.heroModeDesignatedHero = 'Disabled';
+      this.heroHandlerName = '';
       this._closedEntitiesConfigLoaded = true;
     }
   },
 
   getClosedEntitiesFolderName() {
     return this._normalizeClosedEntitiesFolderName(this.closedEntitiesFolderName);
+  },
+
+  _normalizeHeroHandlerName(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').slice(0, 80);
   },
 
   _normalizeHeroModeDesignatedHero(value) {
@@ -191,7 +200,9 @@ const model = {
   },
 
   sectionTitle() {
-    return this.isHeroModeEnabled() ? '🦸 Heroes 🦸' : '💪 Superordinates';
+    if (!this.isHeroModeEnabled()) return '💪 Superordinates';
+    const handler = this._normalizeHeroHandlerName(this.heroHandlerName);
+    return handler ? `${handler} Heroes` : '🦸 Heroes 🦸';
   },
 
 

@@ -42,6 +42,11 @@ display_prompt_speech_toggle: true
 # Default is true.
 display_context_counters: true
 
+# Name/handle of the human/operator this Hero Handler orchestrator belongs to.
+# When set and Hero Mode is enabled, the sidebar header is prefixed with this value
+# (for example: "neurocis Heroes").
+hero_handler_name: ""
+
 # Hero Mode designated root superordinate.
 # Disabled means normal chat-box routing. When set to a ROOT superordinate
 # context id, input typed while focused on any non-Hero context is routed as a
