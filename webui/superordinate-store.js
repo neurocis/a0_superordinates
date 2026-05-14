@@ -199,10 +199,16 @@ const model = {
     return !!ctxid && ctxid === this.getHeroContextId();
   },
 
+  _possessiveHeroHandlerName(value) {
+    const handler = this._normalizeHeroHandlerName(value);
+    if (!handler) return '';
+    return /s$/i.test(handler) ? `${handler}'` : `${handler}'s`;
+  },
+
   sectionTitle() {
     if (!this.isHeroModeEnabled()) return '💪 Superordinates';
-    const handler = this._normalizeHeroHandlerName(this.heroHandlerName);
-    return handler ? `${handler} Heroes` : '🦸 Heroes 🦸';
+    const possessiveHandler = this._possessiveHeroHandlerName(this.heroHandlerName);
+    return possessiveHandler ? `🦸 ${possessiveHandler} Heros` : '🦸 Heroes 🦸';
   },
 
 
