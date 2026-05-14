@@ -113,6 +113,67 @@ def _setting_enabled(config: dict, key: str, default: bool = True) -> bool:
     return bool(value)
 
 
+def _normalize_display_text(value: object, *, limit: int = 80) -> str:
+    """Return compact single-line display text for names/handles."""
+    return " ".join(str(value or "").strip().split())[:limit]
+
+
+def _normalize_hero_id(value: object) -> str:
+    text = str(value or "Disabled").strip()
+    if not text or text.lower() == "disabled":
+        return ""
+    return text
+
+
+def _hero_handler_name(config: dict) -> str:
+    """Configured human/operator handle for Hero Mode display and aliases."""
+    return _normalize_display_text(config.get("hero_handler_name"))
+
+
+def _hero_context_id(config: dict) -> str:
+    """Configured Hero ContextID, never resolved from display name."""
+    return _normalize_hero_id(config.get("hero_mode_designated_hero"))
+
+
+def _normalized_lookup_text(value: object) -> str:
+    """Case/spacing/punctuation tolerant text key for alias comparisons."""
+    import re
+    return "".join(re.findall(r"[a-z0-9]+", str(value or "").lower()))
+
+
+def _resolve_handler_alias(name: str, config: dict) -> str:
+    """Resolve Hero Handler name/handle as a synonym for the configured Hero.
+
+    This is intentionally limited to the configured Hero ContextID: the handler
+    name is display/alias metadata and must not become a routing identity for
+    arbitrary contexts.
+    """
+    if not name:
+        return ""
+    handler = _hero_handler_name(config)
+    hero_id = _hero_context_id(config)
+    if not handler or not hero_id:
+        return ""
+    if _normalized_lookup_text(name) == _normalized_lookup_text(handler):
+        return hero_id
+    return ""
+
+
+def _source_display_name(ctx, config: dict, *, target_id: str = "") -> str:
+    """Display name for routed envelopes.
+
+    When the configured Hero is the source and the final target is someone else,
+    show the handler's name/handle while keeping the Hero's immutable ContextID.
+    This lets prompted non-Hero supers see e.g. `{From: "neurocis" (HeroCtxID)}`.
+    """
+    ctxid = getattr(ctx, "id", "") or ""
+    handler = _hero_handler_name(config)
+    hero_id = _hero_context_id(config)
+    if handler and hero_id and ctxid == hero_id and target_id != hero_id:
+        return handler
+    return getattr(ctx, "name", "") or f"Chat {ctxid[:6]}"
+
+
 
 def _direct_parent_id(ctx) -> str:
     """Return the immediate parent ctxid for a context, or an empty string."""
@@ -429,10 +490,15 @@ class SuperordinateMessage(Tool):
         if delivery_type.lower() == "info":
             message_type = "Info"
 
-        # Resolve name to ctxid if name provided
+        config = _get_config(self.agent)
+
+        # Resolve name to ctxid if name provided. Treat the configured Hero
+        # Handler name/handle as a synonym for the designated Hero ContextID.
         if name and not superordinate_id:
-            from usr.plugins.a0_superordinates.helpers.name_registry import lookup_by_name
-            resolved = lookup_by_name(name)
+            resolved = _resolve_handler_alias(name, config)
+            if not resolved:
+                from usr.plugins.a0_superordinates.helpers.name_registry import lookup_by_name
+                resolved = lookup_by_name(name)
             if not resolved:
                 return Response(
                     message="No SuperOrdinate found with name '{}'. Use superordinate_list to see available names.".format(name),
@@ -491,8 +557,8 @@ class SuperordinateMessage(Tool):
             )
 
         caller_ctxid = self.agent.context.id
-        caller_name = self.agent.context.name or f"Chat {caller_ctxid[:6]}"
         target_label = target_context.name or superordinate_id
+        caller_name = _source_display_name(self.agent.context, config, target_id=superordinate_id)
 
         # Disabled relationship fallback: send the full message as context-only
         # Info instead of prompting the target or sending a lightweight "has sent
@@ -502,7 +568,6 @@ class SuperordinateMessage(Tool):
             delivery_type = "Info"
             message_type = "Info"
 
-        config = _get_config(self.agent)
         keep_everybody_in_the_loop = _setting_enabled(
             config,
             "keep_everybody_in_the_loop",
