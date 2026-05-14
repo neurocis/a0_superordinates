@@ -140,3 +140,104 @@ def test_verified_reply_source_observer_copy_uses_compact_monologue_notice():
     assert informed == ["replyer"]
     assert captured == [("replyer", '{To: "Source" (source)}\n\nMonologue details sent.')]
     assert "Full monologue details" not in captured[0][1]
+
+
+def test_verified_reply_target_display_override_preserves_handler_name_in_to_envelope():
+    import usr.plugins.a0_superordinates.tools.superordinate_message as msg
+
+    envelope = msg._source_inform_envelope(
+        "neurocis",
+        "rlO1iMV7",
+        "Monologue details sent.",
+        "Info",
+    )
+
+    assert envelope == '{To: "neurocis" (rlO1iMV7)}\n\nMonologue details sent.'
+
+
+def test_process_chain_end_passes_original_from_name_as_target_display_override():
+    import sys
+    import types
+
+    # Isolate-import the process_chain_end hook with lightweight stubs so we can
+    # assert the reverse-route tool arguments without loading the full runtime.
+    module_name = "usr.plugins.a0_superordinates.extensions.python.process_chain_end._50_route_superordinate_reply"
+    sys.modules.pop(module_name, None)
+
+    extension_mod = types.ModuleType("helpers.extension")
+    agent_mod = sys.modules.get("agent") or types.ModuleType("agent")
+    super_msg_mod_name = "usr.plugins.a0_superordinates.tools.superordinate_message"
+    super_msg_mod = sys.modules[super_msg_mod_name]
+
+    class Extension:
+        def __init__(self, agent=None, *args, **kwargs):
+            self.agent = agent
+
+    class LoopData:
+        pass
+
+    calls = []
+
+    class FakeSuperordinateMessage:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        async def execute(self, **kwargs):
+            calls.append(kwargs)
+            return None
+
+    original_superordinate_message = super_msg_mod.SuperordinateMessage
+    extension_mod.Extension = Extension
+    agent_mod.AgentContext = getattr(super_msg_mod, "AgentContext")
+    agent_mod.LoopData = LoopData
+    super_msg_mod.SuperordinateMessage = FakeSuperordinateMessage
+    sys.modules["helpers.extension"] = extension_mod
+    sys.modules["agent"] = agent_mod
+
+    try:
+        import importlib
+        hook = importlib.import_module(module_name)
+
+        class FakeTargetContext:
+            id = "rlO1iMV7"
+
+        class FakeAgentContext:
+            @staticmethod
+            def get(ctxid):
+                return FakeTargetContext() if ctxid == "rlO1iMV7" else None
+
+        hook.AgentContext = FakeAgentContext
+
+        context = SimpleNamespace(
+            id="replyer",
+            data={
+                "_superordinate_pending_reply_routes": {
+                    "msg-1": {
+                        "from_name": "neurocis",
+                        "from_id": "rlO1iMV7",
+                        "reply": "Info",
+                    }
+                },
+                "_superordinate_last_response": {
+                    "user_message_id": "msg-1",
+                    "text": "Full reply body",
+                },
+            },
+            log=SimpleNamespace(log=lambda **kwargs: None),
+        )
+        fake_agent = SimpleNamespace(
+            context=context,
+            last_user_message=SimpleNamespace(id="msg-1"),
+            loop_data=SimpleNamespace(last_response=""),
+        )
+        ext = hook.RouteSuperordinateReplyOnProcessEnd(agent=fake_agent)
+
+        import asyncio
+        asyncio.run(ext.execute(loop_data=LoopData()))
+    finally:
+        super_msg_mod.SuperordinateMessage = original_superordinate_message
+
+    assert calls
+    assert calls[0]["_target_display_name_override"] == "neurocis"
+    assert calls[0]["superordinate_id"] == "rlO1iMV7"
+    assert calls[0]["_verified_superordinate_reply"] is True

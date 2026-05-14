@@ -560,6 +560,9 @@ class SuperordinateMessage(Tool):
 
         caller_ctxid = self.agent.context.id
         target_label = target_context.name or superordinate_id
+        target_display_override = _normalize_display_text(kwargs.get("_target_display_name_override"))
+        if verified_reply and target_display_override:
+            target_label = target_display_override
         caller_name = _source_display_name(self.agent.context, config, target_id=superordinate_id)
 
         # Disabled relationship fallback: send the full message as context-only

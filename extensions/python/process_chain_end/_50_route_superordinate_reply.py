@@ -145,12 +145,20 @@ class RouteSuperordinateReplyOnProcessEnd(Extension):
         reply = route["reply"] or "Info"
         delivery_type = "Info" if reply.lower() == "info" else "Prompt"
 
+        # Preserve the original sender display label for reverse replies. When
+        # Hero Handler mode rendered the inbound prompt as e.g.
+        # `{From: "neurocis" (HeroCtxID)}`, the replying agent's local
+        # `{To: ...}` observer copy should keep `neurocis` instead of falling
+        # back to the Hero context's stored chat name.
+        target_display_name = str(route.get("from_name") or "").strip()
         tool_args = {
             "superordinate_id": target_id,
             "message": response_text,
             "reply": reply,
             "Type": delivery_type,
         }
+        if target_display_name:
+            tool_args["_target_display_name_override"] = target_display_name
         tool = SuperordinateMessage(
             agent=agent,
             name="superordinate_message",
