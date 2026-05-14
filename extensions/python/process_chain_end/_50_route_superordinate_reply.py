@@ -162,7 +162,11 @@ class RouteSuperordinateReplyOnProcessEnd(Extension):
 
         context.data["_superordinate_reply_routed_for_message_id"] = user_msg_id
         try:
-            await tool.execute(**tool_args, _allow_unrelated_route=True)
+            await tool.execute(
+                **tool_args,
+                _allow_unrelated_route=True,
+                _verified_superordinate_reply=True,
+            )
             routes = context.data.get("_superordinate_pending_reply_routes")
             if isinstance(routes, dict):
                 routes.pop(user_msg_id, None)

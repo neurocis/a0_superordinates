@@ -374,18 +374,24 @@ def _is_ancestor_notification_fallback(relationship: str, agent, target_ctx) -> 
     return _is_ancestor(target_id, caller_id)
 
 
-def _relationship_allowed(relationship: str, agent, target_ctx=None, message: str = "") -> tuple[bool, str, bool]:
+def _relationship_allowed(
+    relationship: str,
+    agent,
+    target_ctx=None,
+    message: str = "",
+    *,
+    verified_reply: bool = False,
+) -> tuple[bool, str, bool]:
     """Return whether the classified relationship is enabled by settings.
 
     Returns ``(allowed, denial_reason, parent_notification_fallback)``.
 
     Descendant messaging is the original/core behavior and remains always
     enabled. Ancestor and sibling messaging are optional features exposed in
-    the plugin settings UI. When parent messaging is disabled, descendant-to-
-    ancestor sends are allowed only as a fallback: the addressed ancestor
-    receives ``{ContextID} has sent you a message`` and the caller's full
-    message is returned locally to the sender context instead of being sent
-    upward.
+    the plugin settings UI. When parent messaging is disabled, ordinary
+    descendant-to-ancestor sends are allowed only as context-only ``Info``
+    delivery. Verified reverse replies are allowed normally so reply routing can
+    complete without being downgraded by the parent-messaging setting.
     """
     if relationship == "descendant":
         return True, "", False
@@ -393,12 +399,14 @@ def _relationship_allowed(relationship: str, agent, target_ctx=None, message: st
     config = _get_config(agent)
 
     if relationship == "ancestor" and not _setting_enabled(config, "allow_parent_messaging", False):
+        if verified_reply:
+            return True, "", False
         if _is_ancestor_notification_fallback(relationship, agent, target_ctx):
             return True, "", True
         return False, (
             "Parent / ancestor messaging is disabled in the a0_superordinates settings. "
-            "Only ancestor notification fallback is allowed; the full message "
-            "will not be sent upward."
+            "Only ancestor informational fallback is allowed for descendants "
+            "inside the same hierarchy."
         ), False
 
     if relationship == "sibling" and not _setting_enabled(config, "allow_sibling_messaging", False):
@@ -463,11 +471,13 @@ class SuperordinateMessage(Tool):
                     break_loop=False,
                 )
 
+        verified_reply = bool(kwargs.get("_verified_superordinate_reply"))
         relationship_allowed, relationship_denial, parent_notification_fallback = _relationship_allowed(
             relationship,
             self.agent,
             target_context,
             message,
+            verified_reply=verified_reply,
         )
         if not relationship_allowed:
             return Response(
@@ -481,29 +491,13 @@ class SuperordinateMessage(Tool):
         caller_name = self.agent.context.name or f"Chat {caller_ctxid[:6]}"
         target_label = target_context.name or superordinate_id
 
-        # Parent messaging disabled fallback: never send the caller's full
-        # monologue conclusion upward. Notify the addressed ancestor only, then
-        # return the full message locally so it is output in the sender context.
+        # Parent messaging disabled fallback: send the full upstream message as
+        # context-only Info instead of prompting the ancestor or sending a
+        # lightweight "has sent you a message" notification. Verified reverse
+        # replies bypass this fallback and keep their original Reply/Type.
         if parent_notification_fallback:
-            notification = _parent_notification_message(caller_ctxid)
-            notification_id = _display_inbound_message(target_context, notification)
-            target_context.communicate(UserMessage(message=notification, id=notification_id))
-            local_message = message or ""
-            return Response(
-                message=(
-                    "Parent / ancestor messaging is disabled, so your full message was not sent upward. "
-                    "Sent this notification to ancestor '{}': {}\n\n"
-                    "Monologue conclusion for this context:\n{}"
-                ).format(target_label, notification, local_message),
-                break_loop=False,
-                additional={
-                    "superordinate_id": superordinate_id,
-                    "relationship": relationship,
-                    "parent_notification_fallback": True,
-                    "notification_sent": notification,
-                    "full_message_sent_to_parent": False,
-                },
-            )
+            delivery_type = "Info"
+            message_type = "Info"
 
         config = _get_config(self.agent)
         keep_everybody_in_the_loop = _setting_enabled(
