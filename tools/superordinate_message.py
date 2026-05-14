@@ -388,10 +388,11 @@ def _relationship_allowed(
 
     Descendant messaging is the original/core behavior and remains always
     enabled. Ancestor and sibling messaging are optional features exposed in
-    the plugin settings UI. When parent messaging is disabled, ordinary
-    descendant-to-ancestor sends are allowed only as context-only ``Info``
-    delivery. Verified reverse replies are allowed normally so reply routing can
-    complete without being downgraded by the parent-messaging setting.
+    the plugin settings UI. When parent/ancestor or sibling messaging is
+    disabled, ordinary sends across that disabled relationship are allowed only
+    as context-only ``Info`` delivery. Verified reverse replies are allowed
+    normally so reply routing can complete without being downgraded by the
+    relationship setting.
     """
     if relationship == "descendant":
         return True, "", False
@@ -410,7 +411,9 @@ def _relationship_allowed(
         ), False
 
     if relationship == "sibling" and not _setting_enabled(config, "allow_sibling_messaging", False):
-        return False, "Sibling messaging is disabled in the a0_superordinates settings.", False
+        if verified_reply:
+            return True, "", False
+        return True, "", True
 
     return True, "", False
 
@@ -491,10 +494,10 @@ class SuperordinateMessage(Tool):
         caller_name = self.agent.context.name or f"Chat {caller_ctxid[:6]}"
         target_label = target_context.name or superordinate_id
 
-        # Parent messaging disabled fallback: send the full upstream message as
-        # context-only Info instead of prompting the ancestor or sending a
-        # lightweight "has sent you a message" notification. Verified reverse
-        # replies bypass this fallback and keep their original Reply/Type.
+        # Disabled relationship fallback: send the full message as context-only
+        # Info instead of prompting the target or sending a lightweight "has sent
+        # you a message" notification. Verified reverse replies bypass this
+        # fallback and keep their original Reply/Type.
         if parent_notification_fallback:
             delivery_type = "Info"
             message_type = "Info"

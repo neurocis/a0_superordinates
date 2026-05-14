@@ -285,8 +285,9 @@
                         <div class="field-title">Allow Sibling Messaging</div>
                         <div class="field-description">
                             When enabled, superordinates with the same immediate parent may send
-                            <code>superordinate_message</code> to each other. Disable this to restrict
-                            peer-to-peer coordination between sibling agents.
+                            <code>superordinate_message</code> to each other normally. When disabled,
+                            sibling messages are downgraded to full context-only <code>Info</code>
+                            delivery, so the sibling sees the message in memory/context but is not prompted.
                         </div>
                     </div>
                     <div class="field-control">
