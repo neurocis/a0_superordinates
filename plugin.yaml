@@ -1,7 +1,7 @@
 name: a0_superordinates
 title: A0 Superordinates
 description: Create persistent, visible superordinate agents with their own chat contexts and a hierarchical sidebar view.
-version: 4.1.0
+version: 4.3.0
 settings_sections:
   - agent
 per_project_config: false
