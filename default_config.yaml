@@ -47,3 +47,10 @@ display_context_counters: true
 # context id, input typed while focused on any non-Hero context is routed as a
 # message from the designated Hero to that focused superordinate.
 hero_mode_designated_hero: "Disabled"
+
+# When Hero Mode routes direct input from the Hero into a focused non-Hero
+# superordinate, set the reverse Reply value to Info instead of Prompt. This
+# means the prompted superordinate still processes the direct prompt, but its
+# completed response returns to the Hero as informational memory/context rather
+# than prompting the Hero. Default is true.
+hero_mode_replies_to_hero_informational: true

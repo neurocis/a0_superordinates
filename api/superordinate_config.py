@@ -10,6 +10,7 @@ DEFAULT_DISPLAY_CALENDAR_PROMPTS_INDICATOR = True
 DEFAULT_DISPLAY_PROMPT_SPEECH_TOGGLE = True
 DEFAULT_DISPLAY_CONTEXT_COUNTERS = True
 DEFAULT_HERO_MODE_DESIGNATED_HERO = "Disabled"
+DEFAULT_HERO_MODE_REPLIES_TO_HERO_INFORMATIONAL = True
 DEFAULT_KEEP_EVERYBODY_IN_THE_LOOP = True
 
 
@@ -83,6 +84,10 @@ class SuperordinateConfig(ApiHandler):
         hero_mode_designated_hero = _normalize_hero_mode_designated_hero(
             config.get("hero_mode_designated_hero"),
         )
+        hero_mode_replies_to_hero_informational = _parse_bool(
+            config.get("hero_mode_replies_to_hero_informational"),
+            DEFAULT_HERO_MODE_REPLIES_TO_HERO_INFORMATIONAL,
+        )
         keep_everybody_in_the_loop = _parse_bool(
             config.get("keep_everybody_in_the_loop"),
             DEFAULT_KEEP_EVERYBODY_IN_THE_LOOP,
@@ -97,6 +102,7 @@ class SuperordinateConfig(ApiHandler):
             "display_prompt_speech_toggle": display_prompt_speech_toggle,
             "display_context_counters": display_context_counters,
             "hero_mode_designated_hero": hero_mode_designated_hero,
+            "hero_mode_replies_to_hero_informational": hero_mode_replies_to_hero_informational,
             "keep_everybody_in_the_loop": keep_everybody_in_the_loop,
         }
 
@@ -109,6 +115,7 @@ class SuperordinateConfig(ApiHandler):
             "display_prompt_speech_toggle": display_prompt_speech_toggle,
             "display_context_counters": display_context_counters,
             "hero_mode_designated_hero": hero_mode_designated_hero,
+            "hero_mode_replies_to_hero_informational": hero_mode_replies_to_hero_informational,
             "keep_everybody_in_the_loop": keep_everybody_in_the_loop,
             "config": normalized_config,
         }

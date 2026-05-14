@@ -37,11 +37,12 @@ export default async function routeHeroModeChatInput(sendCtx) {
   sendCtx.cancel = true;
 
   try {
+    const reply = state?.repliesToHeroInformational ? "Info" : "Prompt";
     const result = await callJsonApi("plugins/a0_superordinates/superordinate_message", {
       source_id: heroId,
       target_id: focusedContextId,
       message: original,
-      reply: "Prompt",
+      reply,
     });
     if (!result?.ok) {
       console.warn("[Superordinates] Hero Mode route failed:", result?.error || result);
@@ -78,9 +79,15 @@ function buildState(configRes, mapRes) {
   const heroId = configRes?.hero_mode_designated_hero
     || configRes?.config?.hero_mode_designated_hero
     || DISABLED;
+  const repliesToHeroInformational = toBool(
+    configRes?.hero_mode_replies_to_hero_informational
+      ?? configRes?.config?.hero_mode_replies_to_hero_informational,
+    true,
+  );
   return {
     heroId,
     rootOrder: Array.isArray(mapRes?.root_order) ? mapRes.root_order : [],
+    repliesToHeroInformational,
   };
 }
 
@@ -103,4 +110,15 @@ function clearChatInput() {
   } catch (_error) {
     // Non-fatal: routing already succeeded; at worst the input remains visible.
   }
+}
+
+function toBool(value, defaultValue = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "n", "off", ""].includes(normalized)) return false;
+  }
+  return defaultValue;
 }

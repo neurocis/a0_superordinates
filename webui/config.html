@@ -246,6 +246,25 @@
 
                 <div class="field">
                     <div class="field-label">
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Set replies to the Hero from a prompted Superordinate to Informational</div>
+                        <div class="field-description">
+                            When Hero Mode routes a direct prompt from the Hero into the focused non-Hero
+                            superordinate, send it with <code>reply: "Info"</code> instead of
+                            <code>reply: "Prompt"</code>. The focused superordinate is still prompted,
+                            but its completed response returns to the Hero as informational memory/context
+                            instead of prompting the Hero. Default is enabled.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.hero_mode_replies_to_hero_informational" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
                         <div class="field-title">Allow Parent / Ancestor Messaging</div>
                         <div class="field-description">
                             When enabled, a superordinate can send <code>superordinate_message</code>
