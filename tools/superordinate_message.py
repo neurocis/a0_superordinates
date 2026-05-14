@@ -578,17 +578,25 @@ class SuperordinateMessage(Tool):
             "keep_everybody_in_the_loop",
             True,
         )
-        source_observer_message = "Monologue details sent." if verified_reply else None
-        informed_intermediates = _inform_hierarchy_intermediates(
-            caller_ctxid,
-            caller_name,
-            superordinate_id,
-            target_label,
-            message or "",
-            message_type,
-            include_intermediaries=keep_everybody_in_the_loop,
-            source_observer_message=source_observer_message,
-        )
+        hidden_delivery = bool(kwargs.get("_hidden"))
+        if hidden_delivery:
+            # Hidden Prompt: process as an instruction but suppress all visible
+            # observer/recipient chat rows. Used by the reverse-reply stub so
+            # the original sender is still prompted to act on the Info reply
+            # without re-posting a stub user message visibly in any chat.
+            informed_intermediates: list[str] = []
+        else:
+            source_observer_message = "Monologue details sent." if verified_reply else None
+            informed_intermediates = _inform_hierarchy_intermediates(
+                caller_ctxid,
+                caller_name,
+                superordinate_id,
+                target_label,
+                message or "",
+                message_type,
+                include_intermediaries=keep_everybody_in_the_loop,
+                source_observer_message=source_observer_message,
+            )
 
         forwarded_message = _prompt_envelope(
             caller_name,
@@ -597,9 +605,16 @@ class SuperordinateMessage(Tool):
             message_type,
         )
 
-        # Show the same conforming inbound prompt envelope in the recipient chat
-        # before dispatching it, matching the standard UI/API message path.
-        inbound_message_id = _display_inbound_message(target_context, forwarded_message)
+        if hidden_delivery:
+            # Generate a stable inbound id locally so communicate() / pending
+            # route metadata still correlate, without creating a visible chat
+            # row in the recipient via _display_inbound_message.
+            inbound_message_id = str(uuid.uuid4())
+        else:
+            # Show the same conforming inbound prompt envelope in the recipient
+            # chat before dispatching it, matching the standard UI/API message
+            # path.
+            inbound_message_id = _display_inbound_message(target_context, forwarded_message)
 
         # Type=Info is context-only delivery even for the final To agent: show it
         # and add it to history/context, but do not trigger processing.
@@ -661,5 +676,6 @@ class SuperordinateMessage(Tool):
                 "reply": message_type,
                 "prompted_target": True,
                 "skip_reverse_route": skip_reverse_route,
+                "hidden_delivery": hidden_delivery,
             },
         )

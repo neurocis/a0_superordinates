@@ -206,6 +206,7 @@ class RouteSuperordinateReplyOnProcessEnd(Extension):
                     _allow_unrelated_route=True,
                     _verified_superordinate_reply=True,
                     _skip_reverse_route=True,
+                    _hidden=True,
                 )
 
             routes = context.data.get("_superordinate_pending_reply_routes")
