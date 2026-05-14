@@ -147,14 +147,23 @@ def _display_inbound_message(target_context, message: str, *, source: str = " (f
 
 
 def _add_context_message_without_prompt(target_context, message: str, message_id: str) -> bool:
-    """Append a visible/logged message to agent history without prompting.
+    """Append visible non-prompt superordinate context to the memory channel.
 
-    This is used for source/intermediate observer copies and for final ``To``
-    delivery when the envelope ``Type`` is ``Info``. The message becomes context
-    for future turns, but no ``AgentContext.communicate()`` call is made.
+    This is used for anything that must be visible/logged but must not be
+    treated as a direct user prompt: source/intermediate observer copies and
+    final ``To`` deliveries when ``Type``/``Reply`` is ``Info``. The visible chat
+    row is created separately by ``_display_inbound_message``; this helper stores
+    the context in history under the ``memory`` channel without calling
+    ``AgentContext.communicate()``.
     """
     try:
-        target_context.get_agent().hist_add_user_message(UserMessage(message=message, id=message_id))
+        agent = target_context.get_agent()
+        agent.history.new_topic()
+        agent.last_user_message = agent.hist_add_message(
+            False,
+            content={"memory": message or ""},
+            id=message_id,
+        )
         return True
     except Exception:
         return False
