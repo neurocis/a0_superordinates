@@ -371,6 +371,7 @@ def _inform_hierarchy_intermediates(
     message: str,
     message_type: str = "Info",
     include_intermediaries: bool = True,
+    source_observer_message: str | None = None,
 ) -> list[str]:
     """Log observer messages to source/intermediates without prompting.
 
@@ -388,7 +389,8 @@ def _inform_hierarchy_intermediates(
         message,
         message_type,
     )
-    source_envelope = _source_inform_envelope(target_name, target_id, message, message_type)
+    source_message = message if source_observer_message is None else source_observer_message
+    source_envelope = _source_inform_envelope(target_name, target_id, source_message, message_type)
     observer_ids = [source_id]
     if include_intermediaries:
         observer_ids.extend(_hierarchy_path_between(source_id, target_id))
@@ -573,6 +575,7 @@ class SuperordinateMessage(Tool):
             "keep_everybody_in_the_loop",
             True,
         )
+        source_observer_message = "Monologue details sent." if verified_reply else None
         informed_intermediates = _inform_hierarchy_intermediates(
             caller_ctxid,
             caller_name,
@@ -581,6 +584,7 @@ class SuperordinateMessage(Tool):
             message or "",
             message_type,
             include_intermediaries=keep_everybody_in_the_loop,
+            source_observer_message=source_observer_message,
         )
 
         forwarded_message = _prompt_envelope(

@@ -95,3 +95,48 @@ def test_non_hero_source_display_keeps_agent_name():
     other_ctx = SimpleNamespace(id="Sl17xkus", name="Hero Mode")
 
     assert _source_display_name(other_ctx, config, target_id="rlO1iMV7") == "Hero Mode"
+
+
+def test_verified_reply_source_observer_copy_uses_compact_monologue_notice():
+    import usr.plugins.a0_superordinates.tools.superordinate_message as msg
+
+    captured = []
+    contexts = {
+        "replyer": SimpleNamespace(id="replyer"),
+        "source": SimpleNamespace(id="source"),
+    }
+
+    original_get = msg.AgentContext.get
+    original_display = msg._display_inbound_message
+    original_add = msg._add_context_message_without_prompt
+    original_path = msg._hierarchy_path_between
+    try:
+        msg.AgentContext.get = staticmethod(lambda ctxid: contexts.get(ctxid))
+        msg._hierarchy_path_between = lambda source_id, target_id: []
+
+        def fake_display(ctx, envelope, source=" (from superordinate_message)"):
+            captured.append((ctx.id, envelope))
+            return f"msg-{ctx.id}"
+
+        msg._display_inbound_message = fake_display
+        msg._add_context_message_without_prompt = lambda ctx, envelope, message_id: True
+
+        informed = msg._inform_hierarchy_intermediates(
+            "replyer",
+            "Replyer",
+            "source",
+            "Source",
+            "Full monologue details that should not be duplicated locally.",
+            "Info",
+            include_intermediaries=True,
+            source_observer_message="Monologue details sent.",
+        )
+    finally:
+        msg.AgentContext.get = original_get
+        msg._display_inbound_message = original_display
+        msg._add_context_message_without_prompt = original_add
+        msg._hierarchy_path_between = original_path
+
+    assert informed == ["replyer"]
+    assert captured == [("replyer", '{To: "Source" (source)}\n\nMonologue details sent.')]
+    assert "Full monologue details" not in captured[0][1]
