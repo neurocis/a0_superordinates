@@ -625,15 +625,17 @@ class SuperordinateMessage(Tool):
                 },
             )
 
-        _remember_pending_reply_route(
-            target_context,
-            inbound_message_id=inbound_message_id,
-            source_id=caller_ctxid,
-            source_name=caller_name,
-            target_id=superordinate_id,
-            target_name=target_label,
-            reply=message_type,
-        )
+        skip_reverse_route = bool(kwargs.get("_skip_reverse_route"))
+        if not skip_reverse_route:
+            _remember_pending_reply_route(
+                target_context,
+                inbound_message_id=inbound_message_id,
+                source_id=caller_ctxid,
+                source_name=caller_name,
+                target_id=superordinate_id,
+                target_name=target_label,
+                reply=message_type,
+            )
 
         # communicate() handles both cases:
         # - If target is idle: starts a new task and returns it
@@ -658,5 +660,6 @@ class SuperordinateMessage(Tool):
                 "delivery_type": delivery_type,
                 "reply": message_type,
                 "prompted_target": True,
+                "skip_reverse_route": skip_reverse_route,
             },
         )

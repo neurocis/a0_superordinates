@@ -151,30 +151,63 @@ class RouteSuperordinateReplyOnProcessEnd(Extension):
         # `{To: ...}` observer copy should keep `neurocis` instead of falling
         # back to the Hero context's stored chat name.
         target_display_name = str(route.get("from_name") or "").strip()
-        tool_args = {
+
+        # Rule 5: replies ALWAYS post the full response to chat + memory of the
+        # original sender. For non-Info replies, we additionally prompt the
+        # original sender with a small stub body so they pick up that something
+        # new is in their context — but the stub itself must NOT trigger another
+        # reverse-reply, otherwise we get an infinite ping-pong of routed
+        # messages. We deliver this as two separate calls.
+        info_args = {
             "superordinate_id": target_id,
             "message": response_text,
-            "reply": reply,
-            "Type": delivery_type,
+            "reply": "Info",
+            "Type": "Info",
         }
         if target_display_name:
-            tool_args["_target_display_name_override"] = target_display_name
-        tool = SuperordinateMessage(
+            info_args["_target_display_name_override"] = target_display_name
+        info_tool = SuperordinateMessage(
             agent=agent,
             name="superordinate_message",
             method=None,
-            args=tool_args,
+            args=info_args,
             message="",
             loop_data=loop_data,
         )
 
         context.data["_superordinate_reply_routed_for_message_id"] = user_msg_id
         try:
-            await tool.execute(
-                **tool_args,
+            await info_tool.execute(
+                **info_args,
                 _allow_unrelated_route=True,
                 _verified_superordinate_reply=True,
+                _skip_reverse_route=True,
             )
+
+            if delivery_type == "Prompt":
+                stub_args = {
+                    "superordinate_id": target_id,
+                    "message": "Check context memory for details.",
+                    "reply": reply,
+                    "Type": "Prompt",
+                }
+                if target_display_name:
+                    stub_args["_target_display_name_override"] = target_display_name
+                stub_tool = SuperordinateMessage(
+                    agent=agent,
+                    name="superordinate_message",
+                    method=None,
+                    args=stub_args,
+                    message="",
+                    loop_data=loop_data,
+                )
+                await stub_tool.execute(
+                    **stub_args,
+                    _allow_unrelated_route=True,
+                    _verified_superordinate_reply=True,
+                    _skip_reverse_route=True,
+                )
+
             routes = context.data.get("_superordinate_pending_reply_routes")
             if isinstance(routes, dict):
                 routes.pop(user_msg_id, None)
