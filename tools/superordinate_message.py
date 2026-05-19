@@ -118,6 +118,24 @@ def _normalize_display_text(value: object, *, limit: int = 80) -> str:
     return " ".join(str(value or "").strip().split())[:limit]
 
 
+def _resolve_message_body(kwargs: dict, tool_message: object = "") -> str:
+    """Return the intended routed message body from tool/API inputs.
+
+    The normal contract is ``tool_args.message``. This helper is intentionally
+    defensive for Hero/root and other model-generated tool calls that may place
+    the body under a near-synonym or in the Tool constructor message. It only
+    returns non-empty string values and preserves the original body text except
+    for trimming leading/trailing whitespace.
+    """
+    for key in ("message", "body", "text", "content"):
+        value = kwargs.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    if isinstance(tool_message, str) and tool_message.strip():
+        return tool_message.strip()
+    return ""
+
+
 def _normalize_hero_id(value: object) -> str:
     text = str(value or "Disabled").strip()
     if not text or text.lower() == "disabled":
@@ -522,7 +540,7 @@ class SuperordinateMessage(Tool):
     async def execute(self, **kwargs):
         superordinate_id = kwargs.get("superordinate_id", "")
         name = kwargs.get("name", "")
-        message = kwargs.get("message", "")
+        message = _resolve_message_body(kwargs, self.message)
         delivery_type = _normalize_message_type(kwargs.get("Type", "Prompt"))
         message_type = _normalize_message_type(kwargs.get("reply", "Prompt"))
         if delivery_type.lower() == "info":

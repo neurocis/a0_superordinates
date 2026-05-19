@@ -7,10 +7,11 @@ allowed targets, relative to the calling context:
 args: `superordinate_id` or `name`, `message`, optional `reply`, optional `Type`
 - `superordinate_id`: the context ID of the target (from superordinate_list)
 - `name`: the unique name of the target (preferred - easier to reference)
-- `message`: the message to send
+- `message`: the full message body to send. Always put the intended routed content here; do not leave it empty or rely on surrounding prose/tool-call text to carry the body.
 - `reply`: optional reply label for the routed envelope; defaults to `Prompt`. The recipient sees `Reply: <value>` only when `reply` is not `Info`. On completion, this same value controls reverse delivery: `reply: Info` logs the response back without prompting; non-Info replies prompt the original sender.
 - `Type`: optional delivery type; defaults to `Prompt`. When `Type` is `Info`, `reply` is forced to `Info` and the final target receives visible/history context only; it is not prompted.
 use `name` when you know the target's name, or `superordinate_id` for the raw context ID.
+The backend defensively accepts non-empty `body`, `text`, or `content` fields as fallbacks, but the canonical and required tool contract is still `message`.
 the response payload includes a `relationship` field (`descendant`, `ancestor`, or `sibling`) so the caller knows which way the message went.
 the tool does not wait synchronously for prompted target processing. When the target finishes, the `process_chain_end` hook detects the inbound `{From: ...}` envelope and routes the final response back in reverse. The inbound `reply` value controls that reverse delivery: `Info` is context-only; any other value prompts the original sender.
 Hero Mode direct prompts use the centralized API path. When the `Set replies to the Hero from a prompted Superordinate to Informational` setting is enabled, those Hero-routed prompts use `reply: "Info"`, so the focused non-Hero superordinate is still prompted but its completed response returns to the Hero as informational memory/context rather than prompting the Hero.
